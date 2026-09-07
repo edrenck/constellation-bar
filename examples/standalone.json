@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 3,
+  "layout": "islands",
+  "integration": "standalone",
+  "rightWidgets": ["nowPlaying", "battery", "dateTime"],
+  "widgetPreferences": {"nowPlayingHidesWhenIdle": true}
+}

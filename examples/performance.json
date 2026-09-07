@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 3,
+  "layout": "rail",
+  "integration": "automatic",
+  "rightWidgets": [
+    "network",
+    "system",
+    "thermal",
+    "dateTime"
+  ],
+  "systemUpdateInterval": 2
+}

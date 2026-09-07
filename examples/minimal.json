@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 3,
+  "layout": "rail",
+  "integration": "automatic",
+  "workspaceNames": [],
+  "rightWidgets": ["battery", "dateTime"]
+}
