@@ -2,6 +2,12 @@
 
 `Application` starts the app; `StatusMenuController` owns menu actions; `BarController` owns live state and scheduling. All configuration changes and rendering happen on the main queue. Immutable snapshots are passed to workspace and system-sampling queues. Slow system providers do not block workspace interaction. In-flight refresh requests are coalesced.
 
+## Source ownership
+
+`App/` owns startup and composition. `Core/Configuration/` owns persistence; `Core/Widgets/` owns shared registry and sampling contracts. `Shell/` owns windows, layout, workspaces and overlays. `DesignSystem/` owns reusable AppKit styling. `Settings/` separates each settings section from the window coordinator. `Widgets/<Feature>/` keeps each provider, domain model and panel implementation together.
+
+Rich panels extend the shared `MiniAppPanel` lifecycle from their feature folders. Their shared UI helpers are internal because Swift extensions in separate files cannot access private members. Hover, pinning, refresh and dismissal remain in the shared shell. These folders are ownership boundaries within one executable target, not separately loadable binaries.
+
 ## Providers
 
 `WorkspaceProviding` exposes snapshots, workspace selection, and window focus. `AeroSpaceClient` is the first adapter. `StandaloneWorkspaceProvider` exposes active-app identity without inventing native Space IDs or requiring Accessibility permission.
@@ -12,7 +18,7 @@
 
 ## Widgets
 
-`WidgetCatalog` supplies each widget's compact presentation, inspector rows, and overflow priority. `WidgetModule` is the view-independent descriptor; `ModernWidgetView` in `Views/WidgetViews.swift` receives only an icon, label, accent, and optional history.
+`WidgetCatalog` supplies each widget's compact presentation, inspector rows, and overflow priority. `WidgetModule` is the view-independent descriptor; `ModernWidgetView` in `Shell/Widgets/ModernWidgetView.swift` receives only an icon, label, accent, and optional history.
 
 To add a built-in widget:
 

@@ -30,6 +30,7 @@ final class StatusMenuController: NSObject {
         let heading = NSMenuItem(title: "ConstellationBar", action: nil, keyEquivalent: "")
         heading.isEnabled = false
         menu.addItem(heading)
+        menu.addItem(actionItem("About ConstellationBar…", action: #selector(showAbout)))
         menu.addItem(.separator())
 
         let customize = actionItem("Customize Bar…", action: #selector(openCustomizer))
@@ -188,6 +189,20 @@ final class StatusMenuController: NSObject {
         configurationWindow.sync(config: config)
         onChange(config)
         rebuildMenu()
+    }
+
+    @objc private func showAbout() {
+        let bundle = Bundle.main
+        let version = bundle.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Development"
+        let build = bundle.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "local"
+        let commit = bundle.object(forInfoDictionaryKey: "ConstellationSourceCommit") as? String ?? "unknown"
+        NSApp.activate(ignoringOtherApps: true)
+        NSApp.orderFrontStandardAboutPanel(options: [
+            .applicationName: "ConstellationBar",
+            .applicationVersion: version,
+            .version: "\(build) · \(commit)",
+            .credits: NSAttributedString(string: "Native macOS workspace and status bar")
+        ])
     }
 
     @objc private func quit() {

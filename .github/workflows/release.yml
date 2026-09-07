@@ -1,24 +1,78 @@
-name: Draft release
+name: Signed release draft
 on:
-  push:
-    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing version tag (for example v1.0.0)
+        required: true
+        type: string
 permissions:
-  contents: write
+  contents: read
+concurrency:
+  group: release
+  cancel-in-progress: false
 jobs:
   package:
     runs-on: macos-15
+    environment: distribution
+    permissions:
+      contents: write
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.1.1.app/Contents/Developer
+      RELEASE_TAG: ${{ inputs.tag }}
     steps:
       - uses: actions/checkout@v4
-      - name: Check version
-        run: test "${GITHUB_REF_NAME#v}" = "$(cat VERSION)"
-      - run: swift test
-      - run: ./scripts/build-app.sh --universal
-      - name: Archive
+        with:
+          ref: refs/tags/${{ inputs.tag }}
+          fetch-depth: 0
+      - name: Check version and clean checkout
         run: |
-          ditto -c -k --sequesterRsrc --keepParent .build/ConstellationBar.app .build/ConstellationBar-universal.zip
-          cd .build
-          shasum -a 256 ConstellationBar-universal.zip > SHA256SUMS
-      - name: Create draft
+          test "$RELEASE_TAG" = "v$(cat VERSION)"
+          test "$(git rev-parse HEAD)" = "$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")"
+          test -z "$(git status --porcelain)"
+      - run: swift test
+      - run: node --test extensions/browser-media/content.test.cjs
+      - name: Import distribution credentials
+        env:
+          CERTIFICATE_BASE64: ${{ secrets.DEVELOPER_ID_P12_BASE64 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.DEVELOPER_ID_P12_PASSWORD }}
+          NOTARY_KEY_BASE64: ${{ secrets.NOTARY_KEY_BASE64 }}
+          NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          NOTARY_ISSUER_ID: ${{ secrets.NOTARY_ISSUER_ID }}
+        run: |
+          set -euo pipefail
+          : "${CERTIFICATE_BASE64:?Missing Developer ID certificate}"
+          : "${CERTIFICATE_PASSWORD:?Missing certificate password}"
+          : "${NOTARY_KEY_BASE64:?Missing notarization API key}"
+          : "${NOTARY_KEY_ID:?Missing notarization key ID}"
+          : "${NOTARY_ISSUER_ID:?Missing notarization issuer ID}"
+          umask 077
+          KEYCHAIN_PATH="$RUNNER_TEMP/constellation-signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -hex 32)"
+          echo "::add-mask::$KEYCHAIN_PASSWORD"
+          printf '%s' "$CERTIFICATE_BASE64" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          printf '%s' "$NOTARY_KEY_BASE64" | base64 --decode > "$RUNNER_TEMP/notary.p8"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$RUNNER_TEMP/certificate.p12" -P "$CERTIFICATE_PASSWORD" -k "$KEYCHAIN_PATH" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH" > /dev/null
+          security list-keychains -d user -s "$KEYCHAIN_PATH" "$HOME/Library/Keychains/login.keychain-db"
+          xcrun notarytool store-credentials constellation-release --keychain "$KEYCHAIN_PATH" --key "$RUNNER_TEMP/notary.p8" --key-id "$NOTARY_KEY_ID" --issuer "$NOTARY_ISSUER_ID"
+          rm -f "$RUNNER_TEMP/certificate.p12" "$RUNNER_TEMP/notary.p8"
+      - name: Sign, notarize and verify
+        env:
+          CONSTELLATION_SIGNING_IDENTITY: ${{ vars.DEVELOPER_ID_IDENTITY }}
+          CONSTELLATION_NOTARY_PROFILE: constellation-release
+          CONSTELLATION_NOTARY_KEYCHAIN: ${{ runner.temp }}/constellation-signing.keychain-db
+        run: ./scripts/release.sh
+      - name: Create draft with verified artifacts
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" .build/ConstellationBar-universal.zip .build/SHA256SUMS --draft --title "ConstellationBar $GITHUB_REF_NAME" --notes "Universal macOS 14+ build. This build is ad-hoc signed and has not been notarized. See docs/RELEASING.md before publishing."
+        run: |
+          gh release create "$RELEASE_TAG" ".build/distribution/ConstellationBar-$(cat VERSION)-universal.zip" .build/distribution/SHA256SUMS --verify-tag --draft --title "ConstellationBar $RELEASE_TAG" --notes 'Developer ID signed, notarized and stapled universal build. Complete the documented clean-install and hardware checks before publishing.'
+      - name: Remove signing credentials
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/certificate.p12" "$RUNNER_TEMP/notary.p8"
+          security delete-keychain "$RUNNER_TEMP/constellation-signing.keychain-db" || true
