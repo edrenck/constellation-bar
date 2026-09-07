@@ -12,9 +12,9 @@ struct IntegrationDescriptor {
 
 enum IntegrationCatalog {
     static let all: [IntegrationDescriptor] = [
-        .init(id: "codex", title: "Codex", category: "Agents", detail: "Local task activity · read-only status"),
+        .init(id: "codex", title: "Codex (Experimental)", category: "Agents", detail: "Local task activity · read-only status"),
         .init(id: "appleMusic", title: "Apple Music", category: "Media", detail: "Local Music app · playback and seeking"),
-        .init(id: "browser", title: "Browser media", category: "Media", detail: "Chrome, Edge and Brave · optional companion extension"),
+        .init(id: "browser", title: "Browser media (Experimental)", category: "Media", detail: "Chrome, Edge and Brave · optional companion extension"),
         .init(id: "spotify", title: "Spotify", category: "Media", detail: "Coming later", comingLater: true),
         .init(id: "appleCalendar", title: "Apple Calendar", category: "Calendar", detail: "Calendars synced to this Mac · read-only agenda"),
         .init(id: "googleCalendar", title: "Google Calendar (direct)", category: "Calendar", detail: "Coming later · synced calendars work through Apple Calendar", comingLater: true),

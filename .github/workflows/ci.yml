@@ -22,7 +22,7 @@ jobs:
       - run: ./scripts/build-app.sh --universal
       - name: Verify and archive development build
         run: |
-          lipo -verify_arch arm64 x86_64 .build/ConstellationBar.app/Contents/MacOS/ConstellationBar
+          lipo .build/ConstellationBar.app/Contents/MacOS/ConstellationBar -verify_arch arm64 x86_64
           codesign --verify --strict .build/ConstellationBar.app
           ditto -c -k --sequesterRsrc --keepParent .build/ConstellationBar.app .build/ConstellationBar-development.zip
       - uses: actions/upload-artifact@v4

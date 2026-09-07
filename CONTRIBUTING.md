@@ -14,4 +14,4 @@ The current automated tests cover config migration/validation, provider parsing 
 
 `swift test` runs deterministic unit tests; display-dependent panel and animation tests report explicit skips. In a logged-in macOS desktop session, run `CONSTELLATION_UI_TESTS=1 swift test` to include those integration tests. Run browser companion tests with `node --test extensions/browser-media/content.test.cjs`.
 
-See [Architecture](docs/architecture.md) for feature ownership. Changes should be small, reviewable commits on a branch from `main`; open a pull request and wait for Build and test before merging. Keep `VERSION` as the source of the marketing version. Public release artifacts must use the signing pipeline, not the development CI ZIP.
+See [Architecture](docs/ARCHITECTURE.md) for feature ownership. Changes should be small, reviewable commits on a branch from `main`; open a pull request and wait for Build and test before merging. Keep `VERSION` as the source of the marketing version. Public release artifacts must use the signing pipeline, not the development CI ZIP.

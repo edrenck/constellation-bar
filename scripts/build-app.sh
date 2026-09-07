@@ -22,6 +22,13 @@ cp Resources/Info.plist "$STAGED_APP/Contents/Info.plist"
 xcrun swift scripts/render-icon.swift "$STAGING_DIR/ConstellationBar.iconset"
 iconutil -c icns "$STAGING_DIR/ConstellationBar.iconset" -o "$STAGED_APP/Contents/Resources/ConstellationBar.icns"
 APP_VERSION="$(cat VERSION)"
+if [[ ! "$APP_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo 'VERSION must contain a numeric major.minor.patch version.' >&2
+  exit 2
+fi
+SOURCE_COMMIT="$(git rev-parse --short=12 HEAD 2>/dev/null || echo unknown)"
+if ! git diff --quiet HEAD -- 2>/dev/null; then SOURCE_COMMIT+="-modified"; fi
+/usr/libexec/PlistBuddy -c "Add :ConstellationSourceCommit string $SOURCE_COMMIT" "$STAGED_APP/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $APP_VERSION" "$STAGED_APP/Contents/Info.plist"
 # Personal configurations are never included in a distributable bundle.
 SIGNING_IDENTITY="${CONSTELLATION_SIGNING_IDENTITY:--}"

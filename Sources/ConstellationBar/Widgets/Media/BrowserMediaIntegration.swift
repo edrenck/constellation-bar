@@ -31,7 +31,7 @@ enum BrowserBridge {
         var current = snapshot; current.timestamp = Date().timeIntervalSince1970
         try write(current, to: root.appendingPathComponent(snapshot.id + "-state.json"))
         let path = root.appendingPathComponent(snapshot.id + "-command.json")
-        guard let data = try? Data(contentsOf: path), let command = try? JSONDecoder().decode(BrowserCommand.self, from: data) else { return nil }
+        guard let data = BoundedFile.read(path, maximumBytes: 65536), let command = try? JSONDecoder().decode(BrowserCommand.self, from: data) else { return nil }
         if command.id == snapshot.acknowledged || Date().timeIntervalSince1970 - command.timestamp > 10 {
             try? FileManager.default.removeItem(at: path); return nil
         }
@@ -68,7 +68,7 @@ final class BrowserMediaIntegration: MediaIntegrating {
         let files = (try? FileManager.default.contentsOfDirectory(at: BrowserBridge.directory, includingPropertiesForKeys: nil)) ?? []
         var sessions: [MediaSession] = []
         for file in files where file.lastPathComponent.hasSuffix("-state.json") {
-            guard let data = try? Data(contentsOf: file), data.count < 65536, let state = try? JSONDecoder().decode(BrowserSnapshot.self, from: data), state.valid else { continue }
+            guard let data = BoundedFile.read(file, maximumBytes: 65536), let state = try? JSONDecoder().decode(BrowserSnapshot.self, from: data), state.valid else { continue }
             let age = Date().timeIntervalSince1970 - state.timestamp
             if age > 86400 { try? FileManager.default.removeItem(at: file) }
             guard age >= 0 && age < 8 else { continue }
@@ -87,7 +87,7 @@ final class BrowserMediaIntegration: MediaIntegrating {
         // Wait off the UI thread for an acknowledgement rather than claiming delivery is success.
         let deadline = Date(timeIntervalSinceNow: 4)
         while Date() < deadline {
-            if let data = try? Data(contentsOf: BrowserBridge.file(id, suffix: "-state")), let snapshot = try? JSONDecoder().decode(BrowserSnapshot.self, from: data), snapshot.acknowledged == action.id {
+            if let data = BoundedFile.read(BrowserBridge.file(id, suffix: "-state"), maximumBytes: 65536), let snapshot = try? JSONDecoder().decode(BrowserSnapshot.self, from: data), snapshot.acknowledged == action.id {
                 if let error = snapshot.error { throw WidgetActionError(message: error) }; return
             }
             Thread.sleep(forTimeInterval: 0.1)
