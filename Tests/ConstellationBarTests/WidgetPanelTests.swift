@@ -3,6 +3,11 @@ import XCTest
 @testable import ConstellationBar
 
 final class WidgetPanelTests: XCTestCase {
+    override func setUpWithError() throws {
+        try super.setUpWithError()
+        try requireGraphicalTests()
+    }
+
     private func withOverlay(_ run: (BarOverlayCoordinator, NSView) throws -> Void) rethrows {
         _ = NSApplication.shared
         let owner = BarRootView(frame: NSRect(x: 0, y: 0, width: 640, height: 46), config: .default)

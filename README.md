@@ -16,7 +16,7 @@ Each layout supports status on either side, widget reordering, overflow menus, l
 
 - macOS 14 or later. Universal builds include Apple Silicon and Intel binaries.
 - AeroSpace is optional. Automatic mode discovers its CLI; if it is unavailable, the bar shows the active app and system widgets. Standalone mode disables AeroSpace integration entirely.
-- Building requires a compatible Swift 5.9+ toolchain and macOS SDK (Xcode or Command Line Tools).
+- Building requires Xcode 26.1 or later with the macOS 26 SDK. The deployment target remains macOS 14; older systems use fallback materials.
 
 ```sh
 ./scripts/build-app.sh

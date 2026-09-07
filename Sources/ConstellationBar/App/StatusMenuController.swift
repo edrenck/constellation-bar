@@ -198,4 +198,3 @@ final class StatusMenuController: NSObject {
         ConfigurationStore.save(config)
     }
 }
-
