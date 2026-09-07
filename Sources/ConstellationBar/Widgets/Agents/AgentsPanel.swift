@@ -8,7 +8,7 @@ extension MiniAppPanel {
         if agents.providers.isEmpty {
             summary = "Monitoring disabled"
         } else if !agents.isComplete {
-            summary = agents.activeCount > 0 ? "\(agents.activeCount) active · status incomplete" : "Status unavailable or incomplete"
+            summary = agents.hasReadableProvider ? "\(agents.activeCount) active · status incomplete" : "Status unavailable"
         } else {
             summary = agents.activeCount == 0 ? "No tasks running" : "\(agents.activeCount) active \(agents.activeCount == 1 ? "task" : "tasks")"
         }
@@ -40,6 +40,9 @@ extension MiniAppPanel {
                 taskTitle.toolTip = task.displayTitle
                 details.addArrangedSubview(taskTitle)
                 details.addArrangedSubview(text(task.project.isEmpty ? "No project information" : task.project, size: 11, muted: true, width: detailsWidth))
+                if task.activity == .unknown && !task.statusDetail.isEmpty {
+                    details.addArrangedSubview(text(task.statusDetail, size: 10, muted: true, width: detailsWidth))
+                }
                 let activity = text(task.activityLabel, size: 11, width: badgeWidth)
                 activity.alignment = .right
                 activity.textColor = task.activity == .active ? config.theme.green : task.activity == .unknown ? config.theme.orange : config.theme.muted

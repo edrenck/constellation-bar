@@ -14,6 +14,7 @@ struct AgentTaskStatus: Equatable {
     var activity: AgentTaskActivity
     var title: String = ""
     var project: String = ""
+    var statusDetail: String = ""
     var displayTitle: String { title.isEmpty ? "Untitled task · " + String(id.prefix(8)) : title }
     var activityLabel: String {
         switch activity {
@@ -50,6 +51,7 @@ struct AgentProviderSnapshot: Equatable {
 struct AgentStatusState: Equatable {
     var providers: [AgentProviderSnapshot] = []
     var activeCount: Int { providers.filter(\.available).reduce(0) { $0 + $1.activeCount } }
+    var hasReadableProvider: Bool { providers.contains(where: \.available) }
     var isComplete: Bool { !providers.isEmpty && providers.allSatisfy { $0.available && $0.unknownCount == 0 } }
 }
 final class AgentStatusProvider: SystemProviding {
@@ -95,15 +97,21 @@ final class CodexAgentStatusIntegration: AgentStatusIntegrating {
                 // Internal/ephemeral workers have no persisted task record and are outside this adapter's scope.
                 guard let row = rows.first, row.count == 2 else { continue }
                 var activity: AgentTaskActivity = .unknown
+                var statusDetail = "Unrecognized lifecycle format"
                 if row[0] == "paginated" {
-                    if history == nil { history = try? AgentStatusDatabase(url: home.appendingPathComponent("thread_history_1.sqlite")) }
-                    if let turns = try? history?.rows("SELECT status FROM thread_turns WHERE thread_id = ? ORDER BY rollout_ordinal DESC LIMIT 1", argument: threadID) {
-                        activity = Self.activity(turnStatus: turns.first?.first)
-                    }
+                    do {
+                        if history == nil { history = try AgentStatusDatabase(url: home.appendingPathComponent("thread_history_1.sqlite")) }
+                        let turns = try history?.rows("SELECT status FROM thread_turns WHERE thread_id = ? ORDER BY rollout_ordinal DESC LIMIT 1", argument: threadID)
+                        activity = Self.activity(turnStatus: turns?.first?.first)
+                        statusDetail = "No recognized turn status yet"
+                    } catch { statusDetail = error.localizedDescription }
                 } else if row[0] == "legacy" {
                     let path = row[1]
                     retainedPaths.insert(path)
-                    activity = (try? legacyActivity(at: URL(fileURLWithPath: path))) ?? .unknown
+                    do {
+                        activity = try legacyActivity(at: URL(fileURLWithPath: path))
+                        statusDetail = "No lifecycle marker in the recent task record"
+                    } catch { statusDetail = "Local task record could not be read" }
                 }
                 // Optional display metadata must never turn a readable lifecycle into an error.
                 let details = (try? metadata.rows("SELECT substr(COALESCE(NULLIF(name, ''), title), 1, 240), substr(cwd, 1, 4096) FROM threads WHERE id = ?", argument: threadID))
@@ -111,14 +119,14 @@ final class CodexAgentStatusIntegration: AgentStatusIntegrating {
                 let fields = details?.first ?? []
                 let title = fields.count == 2 ? AgentTaskStatus.displayText(fields[0]) : ""
                 let project = fields.count == 2 && !fields[1].isEmpty ? AgentTaskStatus.displayText(URL(fileURLWithPath: fields[1]).lastPathComponent) : ""
-                result.tasks.append(AgentTaskStatus(id: threadID, activity: activity, title: title, project: project))
+                result.tasks.append(AgentTaskStatus(id: threadID, activity: activity, title: title, project: project, statusDetail: activity == .unknown ? statusDetail : ""))
             }
             legacyCache = legacyCache.filter { retainedPaths.contains($0.key) }
             result.available = true
             result.message = result.unknownCount > 0 ? "Some local task statuses could not be read" : "Tasks on this Mac · includes waiting"
         } catch {
             result.tasks = []
-            result.message = "Codex status unavailable · local data unreadable or unsupported"
+            result.message = (error as? StatusReadError)?.errorDescription ?? "Codex local files could not be read. Check access to the Codex data folder."
         }
         return result
     }
@@ -186,22 +194,36 @@ final class CodexAgentStatusIntegration: AgentStatusIntegrating {
         return .unknown
     }
 }
-private enum StatusReadError: Error { case unavailable }
+private enum StatusReadError: LocalizedError {
+    case unavailable
+    case database(String, Int32)
+    var errorDescription: String? {
+        switch self {
+        case .unavailable: return "Codex writer locks could not be inspected"
+        case let .database(file, code):
+            if code == SQLITE_BUSY || code == SQLITE_LOCKED { return "\(file) is busy; retrying on the next refresh" }
+            return "Cannot read \(file): " + String(cString: sqlite3_errstr(code))
+        }
+    }
+}
 
 /// Prepared, read-only queries; no conversation bodies, prompts, or credentials are selected.
 private final class AgentStatusDatabase {
     private var connection: OpaquePointer?
+    private let filename: String
     init(url: URL) throws {
+        filename = url.lastPathComponent
         guard sqlite3_open_v2(url.path, &connection, SQLITE_OPEN_READONLY | SQLITE_OPEN_NOMUTEX, nil) == SQLITE_OK else {
+            let code = sqlite3_errcode(connection)
             sqlite3_close(connection); connection = nil
-            throw StatusReadError.unavailable
+            throw StatusReadError.database(filename, code)
         }
         sqlite3_busy_timeout(connection, 100)
     }
     deinit { sqlite3_close(connection) }
     func rows(_ sql: String, argument: String) throws -> [[String]] {
         var statement: OpaquePointer?
-        guard sqlite3_prepare_v2(connection, sql, -1, &statement, nil) == SQLITE_OK else { throw StatusReadError.unavailable }
+        guard sqlite3_prepare_v2(connection, sql, -1, &statement, nil) == SQLITE_OK else { throw StatusReadError.database(filename, sqlite3_errcode(connection)) }
         defer { sqlite3_finalize(statement) }
         let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
         guard sqlite3_bind_text(statement, 1, argument, -1, transient) == SQLITE_OK else { throw StatusReadError.unavailable }
@@ -209,7 +231,7 @@ private final class AgentStatusDatabase {
         while true {
             let status = sqlite3_step(statement)
             if status == SQLITE_DONE { return result }
-            guard status == SQLITE_ROW else { throw StatusReadError.unavailable }
+            guard status == SQLITE_ROW else { throw StatusReadError.database(filename, status) }
             result.append((0..<sqlite3_column_count(statement)).map { index in
                 sqlite3_column_text(statement, index).map { String(cString: $0) } ?? ""
             })

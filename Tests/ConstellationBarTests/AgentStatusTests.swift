@@ -93,6 +93,7 @@ final class AgentStatusTests: XCTestCase {
         try database(home, "state_5.sqlite", sql: "CREATE TABLE threads(id TEXT, history_mode TEXT, rollout_path TEXT, archived INT); INSERT INTO threads VALUES ('\(activeID)', 'paginated', '', 0)")
         let integration = CodexAgentStatusIntegration(home: home, lockIsHeld: { _ in true })
         XCTAssertEqual(integration.snapshot().unknownCount, 1)
+        XCTAssertTrue(integration.snapshot().tasks[0].statusDetail.contains("thread_history_1.sqlite"))
         XCTAssertEqual(CodexAgentStatusIntegration.activity(turnStatus: "futureStatus"), .unknown)
         XCTAssertEqual(CodexAgentStatusIntegration.activity(turnStatus: "failed"), .idle)
     }
@@ -147,7 +148,20 @@ final class AgentStatusTests: XCTestCase {
         XCTAssertTrue(state.agents.isComplete)
         state.agents.providers[0].available = false
         XCTAssertFalse(state.agents.isComplete)
-        XCTAssertTrue(WidgetCatalog.module(for: .agentStatus).presentation(state, config, WidgetHistory()).text.contains("unavailable"))
+        XCTAssertTrue(WidgetCatalog.module(for: .agentStatus).presentation(state, config, WidgetHistory()).text.contains("incomplete"))
+    }
+    func testPartialStatusKeepsKnownActiveCountVisible() {
+        var state = SystemState()
+        state.agents.providers = [.init(id: "codex", name: "Codex", tasks: [
+            .init(id: "active", activity: .active), .init(id: "unknown", activity: .unknown)
+        ], available: true)]
+        let partial = WidgetCatalog.presentation(for: .agentStatus, system: state, config: .default, history: WidgetHistory())
+        XCTAssertEqual(partial.text, "Codex 1 active · incomplete")
+        XCTAssertEqual(partial.compactText, "1+?")
+        state.agents.providers[0].available = false
+        let unavailable = WidgetCatalog.presentation(for: .agentStatus, system: state, config: .default, history: WidgetHistory())
+        XCTAssertEqual(unavailable.text, "Codex status unavailable")
+        XCTAssertEqual(unavailable.compactText, "—")
     }
     func testCompactWidgetKeepsCountAndUpdatesWithoutLosingTooltip() throws {
         _ = NSApplication.shared
