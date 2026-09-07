@@ -69,3 +69,7 @@ Codex currently stores lifecycle metadata in `state_5.sqlite` and `thread_histor
 Add another integration by implementing `AgentStatusIntegrating`, returning `AgentProviderSnapshot`, registering it in `AgentStatusProvider` and adding its descriptor to `IntegrationCatalog`. Provider IDs are stable strings. Sampling, counts, availability, provider toggles and the detail panel are shared.
 
 The widget catalog now offers one System entry for CPU and memory. Existing configurations migrate to it automatically, including display overrides. The separate Network indicator remains available for throughput at a glance.
+
+### Agent task details
+
+The Agent Status panel lists live local persisted tasks, active first, with their saved name and project directory name. Missing display metadata falls back to an untitled-task label without losing readable status. Only names and directory names are displayed; conversation bodies are not read for this list. Codex's local turn status does not distinguish working from waiting for input or approval, so both remain labeled Active. Unknown lifecycle values stay Unknown. Idle tasks are open local tasks, not a history of every completed task.

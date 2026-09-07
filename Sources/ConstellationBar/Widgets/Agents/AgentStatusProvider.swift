@@ -12,6 +12,19 @@ enum AgentTaskActivity: String, Equatable { case active, idle, unknown }
 struct AgentTaskStatus: Equatable {
     var id: String
     var activity: AgentTaskActivity
+    var title: String = ""
+    var project: String = ""
+    var displayTitle: String { title.isEmpty ? "Untitled task · " + String(id.prefix(8)) : title }
+    var activityLabel: String {
+        switch activity {
+        case .active: return "Active"
+        case .idle: return "Idle"
+        case .unknown: return "Unknown"
+        }
+    }
+    static func displayText(_ value: String) -> String {
+        value.split(whereSeparator: { $0.isWhitespace || $0.unicodeScalars.contains(where: CharacterSet.controlCharacters.contains) }).joined(separator: " ")
+    }
 }
 struct AgentProviderSnapshot: Equatable {
     var id: String
@@ -20,6 +33,16 @@ struct AgentProviderSnapshot: Equatable {
     var available = false
     var message = "Not sampled yet"
     var sampledAt: Date? = nil
+    var sortedTasks: [AgentTaskStatus] {
+        func rank(_ activity: AgentTaskActivity) -> Int {
+            switch activity { case .active: return 0; case .unknown: return 1; case .idle: return 2 }
+        }
+        return tasks.sorted {
+            if rank($0.activity) != rank($1.activity) { return rank($0.activity) < rank($1.activity) }
+            if $0.displayTitle != $1.displayTitle { return $0.displayTitle < $1.displayTitle }
+            return $0.id < $1.id
+        }
+    }
     var activeCount: Int { tasks.filter { $0.activity == .active }.count }
     var idleCount: Int { tasks.filter { $0.activity == .idle }.count }
     var unknownCount: Int { tasks.filter { $0.activity == .unknown }.count }
@@ -39,7 +62,7 @@ final class AgentStatusProvider: SystemProviding {
 }
 
 /// Passive local adapter. Codex's on-disk schema is versioned and may change; failures are explicit.
-/// Only lifecycle metadata is retained. Never starts/resumes tasks or reads authentication files.
+/// Only lifecycle metadata, task names and project directory names are retained. Never starts/resumes tasks or reads authentication files.
 final class CodexAgentStatusIntegration: AgentStatusIntegrating {
     let id = "codex"
     private let home: URL
@@ -82,7 +105,13 @@ final class CodexAgentStatusIntegration: AgentStatusIntegrating {
                     retainedPaths.insert(path)
                     activity = (try? legacyActivity(at: URL(fileURLWithPath: path))) ?? .unknown
                 }
-                result.tasks.append(AgentTaskStatus(id: threadID, activity: activity))
+                // Optional display metadata must never turn a readable lifecycle into an error.
+                let details = (try? metadata.rows("SELECT substr(COALESCE(NULLIF(name, ''), title), 1, 240), substr(cwd, 1, 4096) FROM threads WHERE id = ?", argument: threadID))
+                    ?? (try? metadata.rows("SELECT substr(title, 1, 240), substr(cwd, 1, 4096) FROM threads WHERE id = ?", argument: threadID))
+                let fields = details?.first ?? []
+                let title = fields.count == 2 ? AgentTaskStatus.displayText(fields[0]) : ""
+                let project = fields.count == 2 && !fields[1].isEmpty ? AgentTaskStatus.displayText(URL(fileURLWithPath: fields[1]).lastPathComponent) : ""
+                result.tasks.append(AgentTaskStatus(id: threadID, activity: activity, title: title, project: project))
             }
             legacyCache = legacyCache.filter { retainedPaths.contains($0.key) }
             result.available = true
@@ -159,7 +188,7 @@ final class CodexAgentStatusIntegration: AgentStatusIntegrating {
 }
 private enum StatusReadError: Error { case unavailable }
 
-/// Prepared, read-only queries; no task text, prompts, or credentials are selected.
+/// Prepared, read-only queries; no conversation bodies, prompts, or credentials are selected.
 private final class AgentStatusDatabase {
     private var connection: OpaquePointer?
     init(url: URL) throws {

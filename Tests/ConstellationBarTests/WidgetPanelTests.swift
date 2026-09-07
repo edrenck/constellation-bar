@@ -49,6 +49,24 @@ final class WidgetPanelTests: XCTestCase {
         }
     }
 
+    func testAgentTaskChangesRebuildButSamplingTimestampDoesNot() {
+        var state = SystemState()
+        state.agents.providers = [.init(id: "codex", name: "Codex", tasks: [.init(id: "1", activity: .active, title: "First", project: "App")], available: true)]
+        let panel = MiniAppPanel(kind: .agentStatus, state: state, config: .default, history: WidgetHistory())
+        let signature = panel.signature
+        let firstRow = panel.stack.arrangedSubviews.first
+        state.agents.providers[0].sampledAt = Date()
+        panel.update(state: state, history: WidgetHistory())
+        XCTAssertEqual(panel.signature, signature)
+        XCTAssertTrue(panel.stack.arrangedSubviews.first === firstRow)
+        state.agents.providers[0].tasks[0].title = "Renamed"
+        panel.update(state: state, history: WidgetHistory())
+        XCTAssertNotEqual(panel.signature, signature)
+        state.agents.providers[0].tasks[0].activity = .idle
+        panel.update(state: state, history: WidgetHistory())
+        XCTAssertEqual((panel.stack.arrangedSubviews.first as? NSTextField)?.stringValue, "No tasks running")
+    }
+
     func testSimpleWidgetKeepsSameInspectorAndHoverPanelCanPinItself() throws {
         try withOverlay { overlay, anchor in
             overlay.showWidget(.battery, state: SystemState(), config: .default, anchoredTo: anchor, pinned: false)
