@@ -363,4 +363,3 @@ final class ActiveWindowControl: ModernControlView {
 
     override func mouseDown(with event: NSEvent) { onClick?(self) }
 }
-

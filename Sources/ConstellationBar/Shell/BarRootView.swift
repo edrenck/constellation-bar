@@ -155,4 +155,3 @@ extension BarRootView {
     var currentTheme: BarTheme { configForOverlay.theme }
     var configForOverlay: BarConfig { config }
 }
-

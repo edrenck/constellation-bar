@@ -177,4 +177,3 @@ extension NSColor {
         return luminance < 0.5
     }
 }
-

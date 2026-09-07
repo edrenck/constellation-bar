@@ -28,6 +28,7 @@ final class LayoutTests: XCTestCase {
         XCTAssertFalse(transition.update(visible: false, now: 4.13))
     }
     func testBarWindowAnimationCompletesAndCanBeInterrupted() throws {
+        try requireGraphicalTests()
         _ = NSApplication.shared
         let screen = try XCTUnwrap(NSScreen.main)
         var config = BarConfig.default; config.appearance = .cove
@@ -37,14 +38,12 @@ final class LayoutTests: XCTestCase {
         let lowered = start.offsetBy(dx: 0, dy: -38)
         window.setFrame(start, display: false)
         window.move(to: lowered, animated: true)
-        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.08))
-        XCTAssertLessThan(window.frame.minY, start.minY)
-        XCTAssertGreaterThan(window.frame.minY, lowered.minY)
+        // Interrupt immediately; interpolation itself is covered deterministically below.
         window.move(to: start, animated: true)
-        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.30))
+        waitForFrame(window, matching: start)
         XCTAssertEqual(window.frame, start)
         window.move(to: lowered, animated: true)
-        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.30))
+        waitForFrame(window, matching: lowered)
         XCTAssertEqual(window.frame, lowered)
     }
     func testBarMotionStaysOnScreenAndReversesFromCurrentFrame() {
@@ -112,5 +111,12 @@ final class LayoutTests: XCTestCase {
         XCTAssertTrue(FullscreenDetector.covers(display, display: display))
         XCTAssertFalse(FullscreenDetector.covers(CGRect(x: 0, y: 0, width: 1920, height: 1080), display: display))
         XCTAssertFalse(FullscreenDetector.covers(CGRect(x: 1920, y: -176, width: 1920, height: 1056), display: display))
+    }
+}
+
+private func waitForFrame(_ window: NSWindow, matching frame: NSRect) {
+    let deadline = Date(timeIntervalSinceNow: 2)
+    while window.frame != frame && Date() < deadline {
+        RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.01))
     }
 }

@@ -109,4 +109,3 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         controller?.stop()
     }
 }
-

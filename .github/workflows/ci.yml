@@ -2,20 +2,30 @@ name: Build and test
 on:
   push:
   pull_request:
+  workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   test:
-    strategy:
-      matrix:
-        os: [macos-14, macos-15]
-    runs-on: ${{ matrix.os }}
+    runs-on: macos-15
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.1.1.app/Contents/Developer
     steps:
       - uses: actions/checkout@v4
+      - name: Toolchain
+        run: xcodebuild -version && xcrun swift --version
       - run: swift test
+      - run: node --test extensions/browser-media/content.test.cjs
       - run: ./scripts/build-app.sh --universal
-      - run: lipo -info .build/ConstellationBar.app/Contents/MacOS/ConstellationBar
+      - name: Verify and archive development build
+        run: |
+          lipo -verify_arch arm64 x86_64 .build/ConstellationBar.app/Contents/MacOS/ConstellationBar
+          codesign --verify --strict .build/ConstellationBar.app
+          ditto -c -k --sequesterRsrc --keepParent .build/ConstellationBar.app .build/ConstellationBar-development.zip
       - uses: actions/upload-artifact@v4
         with:
-          name: ConstellationBar-${{ matrix.os }}
-          path: .build/ConstellationBar.app
+          name: ConstellationBar-development
+          path: .build/ConstellationBar-development.zip
