@@ -1,0 +1,24 @@
+name: Draft release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+jobs:
+  package:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check version
+        run: test "${GITHUB_REF_NAME#v}" = "$(cat VERSION)"
+      - run: swift test
+      - run: ./scripts/build-app.sh --universal
+      - name: Archive
+        run: |
+          ditto -c -k --sequesterRsrc --keepParent .build/ConstellationBar.app .build/ConstellationBar-universal.zip
+          cd .build
+          shasum -a 256 ConstellationBar-universal.zip > SHA256SUMS
+      - name: Create draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" .build/ConstellationBar-universal.zip .build/SHA256SUMS --draft --title "ConstellationBar $GITHUB_REF_NAME" --notes "Universal macOS 14+ build. This build is ad-hoc signed and has not been notarized. See docs/RELEASING.md before publishing."

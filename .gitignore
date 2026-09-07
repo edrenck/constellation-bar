@@ -1,0 +1,17 @@
+.DS_Store
+.build/
+.swiftpm/
+.local-backups/
+.opencode/
+constellation-bar.json
+*.log
+.env
+.env.*
+!.env.example
+*.p12
+*.pfx
+*.key
+*.mobileprovision
+.codex/
+.agents/
+docs/design/

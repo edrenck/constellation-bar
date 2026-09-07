@@ -1,0 +1,5 @@
+# Merge these commands into your existing callbacks; do not replace your AeroSpace config.
+# Keep the application installed at /Applications/ConstellationBar.app for this example.
+after-startup-command = ['exec-and-forget open -a ConstellationBar']
+exec-on-workspace-change = ['/bin/sh', '-c', 'pkill -USR1 -x ConstellationBar || true']
+on-focus-changed = ['exec-and-forget /bin/sh -c "pkill -USR1 -x ConstellationBar || true"']
