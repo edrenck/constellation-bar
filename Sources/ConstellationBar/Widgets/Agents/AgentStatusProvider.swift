@@ -8,8 +8,8 @@ protocol AgentStatusIntegrating: AnyObject {
     func snapshot() -> AgentProviderSnapshot
 }
 
-enum AgentTaskActivity: String, Equatable { case active, idle, unknown }
-struct AgentTaskStatus: Equatable {
+enum AgentTaskActivity: String, Equatable, Codable { case active, idle, unknown }
+struct AgentTaskStatus: Equatable, Codable {
     var id: String
     var activity: AgentTaskActivity
     var title: String = ""
@@ -34,6 +34,7 @@ struct AgentProviderSnapshot: Equatable {
     var available = false
     var message = "Not sampled yet"
     var sampledAt: Date? = nil
+    var hostName: String = "This Mac"
     var sortedTasks: [AgentTaskStatus] {
         func rank(_ activity: AgentTaskActivity) -> Int {
             switch activity { case .active: return 0; case .unknown: return 1; case .idle: return 2 }
@@ -57,9 +58,14 @@ struct AgentStatusState: Equatable {
 final class AgentStatusProvider: SystemProviding {
     let kinds: Set<WidgetKind> = [.agentStatus]
     private let integrations: [AgentStatusIntegrating]
-    init(integrations: [AgentStatusIntegrating] = [CodexAgentStatusIntegration()]) { self.integrations = integrations }
+    private let remote: RemoteAgentStatusMonitor?
+    convenience init() { self.init(integrations: [CodexAgentStatusIntegration()], remote: RemoteAgentStatusMonitor()) }
+    init(integrations: [AgentStatusIntegrating], remote: RemoteAgentStatusMonitor? = nil) {
+        self.integrations = integrations; self.remote = remote
+    }
     func sample(config: BarConfig, into state: inout SystemState) {
         state.agents.providers = integrations.filter { config.providerPreferences.includes($0.id) }.map { $0.snapshot() }
+        state.agents.providers += remote?.snapshots(enabled: config.providerPreferences.includes("codex") && config.providerPreferences.includes("codexSSH")) ?? []
     }
 }
 
