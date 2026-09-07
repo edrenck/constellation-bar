@@ -56,6 +56,37 @@ final class AgentStatusTests: XCTestCase {
         XCTAssertTrue(snapshot.tasks.isEmpty, "Never retain a stale active count after a failed read")
         XCTAssertFalse(FileManager.default.fileExists(atPath: home.appendingPathComponent("state_5.sqlite").path), "Read-only open must not recreate missing databases")
     }
+    func testTaskNamesProjectsAndLiveRenamesUseOptionalMetadata() throws {
+        let home = try fixture()
+        _ = try lockFile(home, activeID)
+        try database(home, "state_5.sqlite", sql: """
+        CREATE TABLE threads(id TEXT, history_mode TEXT, rollout_path TEXT, archived INT, title TEXT, cwd TEXT, name TEXT);
+        INSERT INTO threads VALUES ('\(activeID)', 'paginated', '', 0, 'Original title', '/Projects/My App', 'Renamed task');
+        """)
+        try database(home, "thread_history_1.sqlite", sql: """
+        CREATE TABLE thread_turns(thread_id TEXT, status TEXT, rollout_ordinal INT);
+        INSERT INTO thread_turns VALUES ('\(activeID)', 'inProgress', 1);
+        """)
+        let integration = CodexAgentStatusIntegration(home: home, lockIsHeld: { _ in true })
+        let first = try XCTUnwrap(integration.snapshot().tasks.first)
+        XCTAssertEqual(first.displayTitle, "Renamed task")
+        XCTAssertEqual(first.project, "My App")
+        try database(home, "state_5.sqlite", sql: "UPDATE threads SET name = NULL, title = 'Updated title'")
+        XCTAssertEqual(integration.snapshot().tasks.first?.displayTitle, "Updated title")
+        try database(home, "state_5.sqlite", sql: "ALTER TABLE threads DROP COLUMN name")
+        XCTAssertEqual(integration.snapshot().tasks.first?.displayTitle, "Updated title")
+    }
+    func testTaskOrderingFallbackAndWhitespace() {
+        let provider = AgentProviderSnapshot(id: "test", name: "Test", tasks: [
+            .init(id: "idle", activity: .idle, title: "A"),
+            .init(id: "unknown", activity: .unknown, title: "B"),
+            .init(id: "active-z", activity: .active, title: "Z"),
+            .init(id: "active-a", activity: .active, title: "A")
+        ])
+        XCTAssertEqual(provider.sortedTasks.map(\.id), ["active-a", "active-z", "unknown", "idle"])
+        XCTAssertTrue(AgentTaskStatus(id: activeID, activity: .idle).displayTitle.hasPrefix("Untitled task"))
+        XCTAssertEqual(AgentTaskStatus.displayText("  One\n\t two  "), "One two")
+    }
     func testUnknownStatusesAndMissingHistoryStayUnknown() throws {
         let home = try fixture()
         _ = try lockFile(home, activeID)

@@ -50,7 +50,7 @@ final class MiniAppPanel: OverlayContentView, NSSearchFieldDelegate {
     var onPinChange: ((Bool) -> Void)?
     var preferredSize: NSSize {
         switch kind {
-        case .agentStatus: return NSSize(width: 440, height: 430)
+        case .agentStatus: return NSSize(width: 440, height: 480)
         case .calendar: return NSSize(width: 620, height: 530)
         case .nowPlaying: return NSSize(width: 440, height: 550)
         case .vpn: return NSSize(width: 480, height: 540)
@@ -114,7 +114,7 @@ final class MiniAppPanel: OverlayContentView, NSSearchFieldDelegate {
         case .audio: return state.audio.devices.map { "\($0.id)|\($0.name)|\($0.isInput)|\($0.canSetVolume)|\($0.canMute)" }.joined() + "\(state.audio.outputID):\(state.audio.inputID)"
         case .calendar: return "\(state.agenda)"
         case .vpn: return "\(state.vpn)"
-        case .agentStatus: return state.agents.providers.map { "\($0.id)|\($0.available)|\($0.message)" }.joined()
+        case .agentStatus: return state.agents.providers.map { "\($0.id)|\($0.name)|\($0.available)|\($0.message)|\($0.tasks)" }.joined()
         default: return "metrics"
         }
     }
