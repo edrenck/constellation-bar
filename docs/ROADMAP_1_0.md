@@ -1,6 +1,17 @@
 # ConstellationBar 1.0 readiness and extension proposal
 
-Assessment: 2026-09-06. This is a proposed release scope, not a claim that external widgets are implemented or that release checks have passed.
+Initial assessment: 2026-09-06. The findings below record the original baseline; the implementation status here takes precedence.
+
+## Implementation status — 2026-09-06
+
+- The canonical private Git repository is `edrenck/constellation-bar`, with baseline and implementation commits on `main`. Personal configurations, credentials, caches and development screenshot history are excluded.
+- Swift files are grouped into App, Core, Shell, DesignSystem, Settings and feature-owned Widgets folders. Settings sections and rich widget panel content are split out; shared hover/click lifecycle remains in the shell. Domain models live alongside their providers.
+- CI pins Xcode 26.1.1 on macOS 15, runs Swift and browser tests, builds both architectures, verifies the signature and archives the app as a ZIP. Display-dependent tests are opt-in and visibly skipped in headless runs; window completion checks no longer depend on an 80 ms intermediate frame.
+- The distribution script and manual release-draft workflow require Developer ID signing, notarization, stapling and Gatekeeper verification. Real signing/notarization is still unverified: this Mac currently has an Apple Development identity, and the Developer ID certificate and GitHub environment credentials must be configured.
+- About displays the running version, build and source commit. Browser snapshot and command reads enforce a 64 KiB allocation limit and reject special files. Unimplemented integration placeholders are hidden; Codex and browser media are labeled Experimental.
+- **Still open:** runtime external-widget loading and approval, independent provider scheduling, process descendant cleanup, complete browser-companion installation, duplicate-instance handling, clean-install/upgrade and hardware/accessibility testing. External widgets are not advertised as implemented. The current development version remains 0.4.0 until release gates are met.
+
+See [Releasing](RELEASING.md) for the implemented distribution path and required credentials. A working pipeline is not evidence that the final signed artifact or hardware matrix has been validated.
 
 ## Recommendation
 
