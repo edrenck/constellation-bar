@@ -49,8 +49,13 @@ enum WidgetCatalog {
             case .agentStatus:
                 let agents = system.agents
                 let name = agents.providers.count == 1 ? agents.providers[0].name : "Agents"
-                let label = agents.providers.isEmpty ? "Agents off" : !agents.isComplete ? "\(name) status unavailable" : "\(name) \(agents.activeCount) active"
-                return WidgetPresentation(icon: kind.symbolName, text: label, accent: !agents.isComplete ? config.theme.muted : agents.activeCount > 0 ? config.theme.green : config.theme.muted, detail: "\(label) · Tasks on this Mac · includes waiting for input or approval", compactText: agents.isComplete ? String(agents.activeCount) : "—")
+                let label: String
+                if agents.providers.isEmpty { label = "Agents off" }
+                else if !agents.hasReadableProvider { label = "\(name) status unavailable" }
+                else { label = "\(name) \(agents.activeCount) active" + (agents.isComplete ? "" : " · incomplete") }
+                let compact = agents.hasReadableProvider ? String(agents.activeCount) + (agents.isComplete ? "" : "+?") : "—"
+                let diagnostics = agents.providers.filter { !$0.available || $0.unknownCount > 0 }.map(\.message).joined(separator: "\n")
+                return WidgetPresentation(icon: kind.symbolName, text: label, accent: !agents.isComplete ? config.theme.orange : agents.activeCount > 0 ? config.theme.green : config.theme.muted, detail: "\(label) · Tasks on this Mac · includes waiting for input or approval" + (diagnostics.isEmpty ? "" : "\n" + diagnostics), compactText: compact)
             case .audio:
                 let device = system.audio.output
                 let volume = device?.volume.map { " · \(Int($0 * 100))%" } ?? ""
