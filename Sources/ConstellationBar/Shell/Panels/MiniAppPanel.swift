@@ -114,7 +114,7 @@ final class MiniAppPanel: OverlayContentView, NSSearchFieldDelegate {
         case .audio: return state.audio.devices.map { "\($0.id)|\($0.name)|\($0.isInput)|\($0.canSetVolume)|\($0.canMute)" }.joined() + "\(state.audio.outputID):\(state.audio.inputID)"
         case .calendar: return "\(state.agenda)"
         case .vpn: return "\(state.vpn)"
-        case .agentStatus: return state.agents.providers.map { "\($0.id)|\($0.name)|\($0.available)|\($0.message)|\($0.tasks)" }.joined()
+        case .agentStatus: return state.agents.providers.map { "\($0.id)|\($0.name)|\($0.hostName)|\($0.available)|\($0.message)|\($0.tasks)" }.joined()
         default: return "metrics"
         }
     }

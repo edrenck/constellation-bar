@@ -22,13 +22,13 @@ extension MiniAppPanel {
         for provider in agents.providers {
             rule()
             let idle = provider.available ? " · \(provider.idleCount) idle" : " · Unavailable"
-            label(provider.name + idle, size: 13)
+            label(provider.name + " · " + provider.hostName + idle, size: 13)
             guard provider.available else {
                 label(provider.message, size: 12, muted: true)
                 continue
             }
             if provider.tasks.isEmpty {
-                label("No open local tasks", muted: true)
+                label("No open tasks on this host", muted: true)
             }
             for task in provider.sortedTasks {
                 let badgeWidth: CGFloat = 64
@@ -39,7 +39,7 @@ extension MiniAppPanel {
                 taskTitle.lineBreakMode = .byTruncatingTail
                 taskTitle.toolTip = task.displayTitle
                 details.addArrangedSubview(taskTitle)
-                details.addArrangedSubview(text(task.project.isEmpty ? "No project information" : task.project, size: 11, muted: true, width: detailsWidth))
+                details.addArrangedSubview(text(provider.hostName + " · " + (task.project.isEmpty ? "No project information" : task.project), size: 11, muted: true, width: detailsWidth))
                 if task.activity == .unknown && !task.statusDetail.isEmpty {
                     details.addArrangedSubview(text(task.statusDetail, size: 10, muted: true, width: detailsWidth))
                 }
@@ -52,7 +52,7 @@ extension MiniAppPanel {
         }
         if !agents.providers.isEmpty {
             rule()
-            label("Saved tasks on this Mac only. Remote, cloud and temporary internal workers are excluded.", size: 10, muted: true)
+            label("Saved tasks on this Mac and Codex SSH hosts. Cloud tasks and untracked internal workers are not included.", size: 10, muted: true)
         }
         refreshers.append { [weak self] in
             guard let self else { return }

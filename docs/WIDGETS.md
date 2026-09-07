@@ -72,4 +72,12 @@ The widget catalog now offers one System entry for CPU and memory. Existing conf
 
 ### Agent task details
 
-The Agent Status panel lists live local persisted tasks, active first, with their saved name and project directory name. Missing display metadata falls back to an untitled-task label without losing readable status. Only names and directory names are displayed; conversation bodies are not read for this list. Codex's local turn status does not distinguish working from waiting for input or approval, so both remain labeled Active. Unknown lifecycle values stay Unknown. Idle tasks are open local tasks, not a history of every completed task.
+The Agent Status panel lists live persisted tasks on this Mac and discovered Codex SSH hosts, active first, with their saved name and project directory name. Missing display metadata falls back to an untitled-task label without losing readable status. Only names and directory names are displayed; conversation bodies are not read for this list. Codex's local turn status does not distinguish working from waiting for input or approval, so both remain labeled Active. Unknown lifecycle values stay Unknown. Idle tasks are open local tasks, not a history of every completed task.
+
+### Codex connected SSH hosts
+
+Agent Status discovers `codex-managed-remote-connections` in Codex's `.codex-global-state.json` under `CODEX_HOME` (or `~/.codex`). It samples the saved hosts using existing SSH authentication, without starting Codex sessions or installing anything remotely. Each host needs Python 3 and readable Codex metadata under its remote `CODEX_HOME` or `~/.codex`. This uses a versioned private Codex format and remains experimental.
+
+Customize Bar → Connections → **Codex SSH hosts (Experimental)** controls remote polling independently; the main Codex provider must also be enabled. Sampling runs off native provider queues with at most two concurrent connections, a 10-second deadline, 10-second successful refreshes, and 30–120-second failure backoff. An unreachable, unsupported or stale host contributes an unavailable state, never a successful zero. Cached data older than 30 seconds is not counted. Host discovery refreshes every 15 seconds; a metadata read failure is visible.
+
+The helper reads task names, project directory names and lifecycle status over SSH. It does not read credentials or send conversation bodies. SSH uses batch authentication and strict host-key checks; the bar never asks for a password or accepts a new host key. Connect successfully using your normal SSH setup first. Missing Python or a failed SSH connection is shown in that host's panel. Cloud tasks remain unsupported.

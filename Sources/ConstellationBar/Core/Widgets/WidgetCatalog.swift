@@ -48,14 +48,14 @@ enum WidgetCatalog {
             switch kind {
             case .agentStatus:
                 let agents = system.agents
-                let name = agents.providers.count == 1 ? agents.providers[0].name : "Agents"
+                let name = Set(agents.providers.map(\.name)).count == 1 ? agents.providers[0].name : "Agents"
                 let label: String
                 if agents.providers.isEmpty { label = "Agents off" }
                 else if !agents.hasReadableProvider { label = "\(name) status unavailable" }
                 else { label = "\(name) \(agents.activeCount) active" + (agents.isComplete ? "" : " · incomplete") }
                 let compact = agents.hasReadableProvider ? String(agents.activeCount) + (agents.isComplete ? "" : "+?") : "—"
                 let diagnostics = agents.providers.filter { !$0.available || $0.unknownCount > 0 }.map(\.message).joined(separator: "\n")
-                return WidgetPresentation(icon: kind.symbolName, text: label, accent: !agents.isComplete ? config.theme.orange : agents.activeCount > 0 ? config.theme.green : config.theme.muted, detail: "\(label) · Tasks on this Mac · includes waiting for input or approval" + (diagnostics.isEmpty ? "" : "\n" + diagnostics), compactText: compact)
+                return WidgetPresentation(icon: kind.symbolName, text: label, accent: !agents.isComplete ? config.theme.orange : agents.activeCount > 0 ? config.theme.green : config.theme.muted, detail: "\(label) · Local and SSH tasks · includes waiting for input or approval" + (diagnostics.isEmpty ? "" : "\n" + diagnostics), compactText: compact)
             case .audio:
                 let device = system.audio.output
                 let volume = device?.volume.map { " · \(Int($0 * 100))%" } ?? ""
@@ -135,7 +135,7 @@ enum WidgetCatalog {
             guard !systemState.agents.providers.isEmpty else { return [("Providers", "Disabled in Connections")] }
             return systemState.agents.providers.flatMap { provider in
                 [(provider.name, provider.available ? "\(provider.activeCount) active · \(provider.idleCount) idle" : "Unavailable"),
-                 ("Unknown", "\(provider.unknownCount) tasks"), ("Scope", "Local persisted tasks"), ("Active includes", "Input / approval waits")]
+                 ("Unknown", "\(provider.unknownCount) tasks"), ("Host", provider.hostName), ("Active includes", "Input / approval waits")]
             }
         case .audio:
             return [("Output", systemState.audio.output?.name ?? "Unavailable"), ("Tip", "Click to select devices")]

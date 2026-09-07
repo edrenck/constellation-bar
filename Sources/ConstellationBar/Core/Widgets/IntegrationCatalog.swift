@@ -13,6 +13,7 @@ struct IntegrationDescriptor {
 enum IntegrationCatalog {
     static let all: [IntegrationDescriptor] = [
         .init(id: "codex", title: "Codex (Experimental)", category: "Agents", detail: "Local task activity · read-only status"),
+        .init(id: "codexSSH", title: "Codex SSH hosts (Experimental)", category: "Agents", detail: "Read-only status from saved Codex SSH connections · requires Codex provider and Python 3 on each host"),
         .init(id: "appleMusic", title: "Apple Music", category: "Media", detail: "Local Music app · playback and seeking"),
         .init(id: "browser", title: "Browser media (Experimental)", category: "Media", detail: "Chrome, Edge and Brave · optional companion extension"),
         .init(id: "spotify", title: "Spotify", category: "Media", detail: "Coming later", comingLater: true),
