@@ -1,6 +1,6 @@
 # Install, update and remove
 
-The public alpha is still being prepared. Follow these instructions once the release includes a signed, notarized ZIP and a `SHA256SUMS` file.
+[Download the 0.5.0 alpha](https://github.com/edrenck/constellation-bar/releases/tag/v0.5.0). The release includes a Developer ID-signed, notarized and stapled universal ZIP and a `SHA256SUMS` file.
 
 ## Install
 
@@ -10,7 +10,7 @@ The public alpha is still being prepared. Follow these instructions once the rel
 4. AeroSpace is optional. Choose Standalone under Connections if you only want the active app and widgets.
 5. Enable Calendar or Apple Music access using the explicit setup buttons when you want those integrations. Weather needs a label and coordinates. Launch at Login is available after installation in Applications.
 
-For monitor-specific layouts, see [the two-display setup](ALPHA.md#two-display-setup). See [widget setup and limitations](WIDGETS.md) for supported providers.
+For monitor-specific layouts, see [the multi-monitor setup](../README.md#set-up-multiple-monitors). See [widget setup and limitations](WIDGETS.md) for supported providers.
 
 ## Upgrade
 

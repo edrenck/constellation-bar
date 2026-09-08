@@ -4,21 +4,21 @@ Hover or click a widget to open the same panel. Media (Now Playing), Calendar, V
 
 ## Initial providers
 
-| Widget | Available implementation | Later |
-| --- | --- | --- |
-| Media | Apple Music app; optional Chrome/Edge/Brave companion extension | Native Spotify, other browser adapters |
-| Calendar | Apple EventKit, including accounts already synced to Calendar on the Mac | Direct Google Calendar and Outlook authentication |
-| VPN | Configured macOS services, Surfshark service recognition, Tailscale CLI | Additional richer vendor adapters |
-| Audio | macOS Core Audio devices | Extra device-specific metadata |
-| System | macOS CPU, memory, processes and network counters | Additional sources |
+| Widget | Available implementation |
+| --- | --- |
+| Media | Apple Music app; optional Chrome/Edge/Brave companion extension |
+| Calendar | Apple EventKit, including accounts already synced to Calendar on the Mac |
+| VPN | Configured macOS services, Surfshark service recognition, Tailscale CLI |
+| Audio | macOS Core Audio devices |
+| System | macOS CPU, memory, processes and network counters |
 
-Coming-later entries have no setup controls. A listed first-release adapter can still require local software or permission; it is not a guarantee that every vendor version exposes the same capabilities.
+A listed adapter can still require local software or permission; it is not a guarantee that every vendor version exposes the same capabilities.
 
 ### Media
 
 Apple Music offers play/pause, previous/next, seeking, shuffle, repeat (off/all/one), album metadata, and artwork when Music supplies it. Open Music and use **Allow Apple Music access** in the Media panel or Connections. Polling never requests Automation permission. When Music is running but its permission or track read fails, Now Playing stays visible as “Music needs attention,” even with hide-when-idle enabled. The panel shows the provider error and setup action. Genuine idle sessions still follow the hide-when-idle option. Permission requests and playback failures remain visible to the user.
 
-The Music panel follows the approved artwork-and-transport layout and links directly to the current audio output. The Up Next section explains when the provider cannot expose its queue; Apple Music’s public scripting interface does not expose that queue. Unsupported shuffle/repeat controls remain disabled. Music can decline these changes for some queues; read-back checks report that limitation instead of claiming success.
+The Music panel shows artwork and playback controls and links directly to the current audio output. The Up Next section explains when the provider cannot expose its queue; Apple Music’s public scripting interface does not expose that queue. Unsupported shuffle/repeat controls remain disabled. Music can decline these changes for some queues; read-back checks report that limitation instead of claiming success.
 
 Browser playback is a separate, developer-installable extension: see [Browser setup](../extensions/browser-media/README.md). It shares only individually enabled tabs. There is no browser-store release or silent extension installation. The first adapter exposes the page title, play/pause and seeking for top-level HTML media; unsupported transport controls are disabled and queue availability is explained. Safari, cross-origin iframe players and native Spotify are not part of this adapter. Each tab is a separate selectable session. The extension requires re-enabling after navigation.
 
@@ -51,10 +51,6 @@ CPU, memory and network tabs show live samples and selectable 1-minute, 5-minute
 5. Test disabled-provider handling, identity, unavailable states and action failures. Reuse the shared panel unless the provider has a concrete extra interaction.
 
 This is a source-level extension interface, not an arbitrary dynamic-code plugin loader. New calendar account adapters should define deduplication against calendars already exposed through EventKit before enabling aggregation. Providers run on the controller's serial sampling/action queue; state snapshots are delivered to the main thread. Browser bridge writes are atomic and local, native messages are bounded, and commands expire and require acknowledgement.
-
-## Validation and limits
-
-Swift tests cover provider isolation, configuration compatibility, simultaneous VPN identities, meeting URL validation, browser snapshot validation/command acknowledgement and icon selection. JavaScript tests exercise playback, duplicate commands, seeking, rejection and stopping the content script. Native message framing is checked separately. Live checks on this Mac cover System tabs, audio discovery/current-output selection, Calendar setup, VPN status/peers and Cove edges. Apple Music artwork, track changes, playback progress and pause/resume have also been verified live. Calendar account permission remains a user setup step, not claimed as live account validation. The browser extension has local automated coverage but still needs an unpacked install to validate playback in a real browser. Other macOS versions and AirPods hardware have not been tested in this session.
 
 References: [Core Audio output device](https://developer.apple.com/documentation/coreaudio/kaudiohardwarepropertydefaultoutputdevice), [EventKit access](https://developer.apple.com/documentation/eventkit/accessing-the-event-store), [Chrome native messaging](https://developer.chrome.com/docs/extensions/develop/concepts/native-messaging).
 

@@ -71,7 +71,7 @@ Set `widgetPlacement` to `"centered"` to gather workspaces, the focused window, 
 
 ### Widget providers
 
-`providerPreferences.disabled` is an array of provider identifiers to disable (default `[]`). Initial identifiers are `appleMusic`, `browser`, `appleCalendar`, `systemVPN`, `surfshark`, and `tailscale`. New widget identifiers are `audio`, `calendar`, and `system`; existing `nowPlaying`, `vpn`, `cpu`, and `memory` identifiers remain compatible. See [widget setup](WIDGETS.md) for permissions, capabilities, and future providers.
+`providerPreferences.disabled` is an array of provider identifiers to disable (default `[]`). Initial identifiers are `appleMusic`, `browser`, `appleCalendar`, `systemVPN`, `surfshark`, and `tailscale`. New widget identifiers are `audio`, `calendar`, and `system`; existing `nowPlaying`, `vpn`, `cpu`, and `memory` identifiers remain compatible. See [widget setup](WIDGETS.md) for permissions and supported capabilities.
 
 ## Agent Status and System consolidation
 

@@ -1,14 +1,14 @@
 # Changelog
 
-## 0.5.0 — Alpha candidate (unreleased)
+## 0.5.0 — Alpha (2026-09-08)
 
 - Configure widgets and workspace visibility independently for each display.
 - Put widgets in a separate center group while retaining edge status widgets; order each group independently.
 - Keep per-display drag reordering isolated, sample widgets enabled only on another display, and preserve disconnected-display settings.
 - Reopening an installed app brings up configuration; duplicate bundle launches defer to the existing instance.
-- Add a product showcase website, alpha readiness notes, and installation, upgrade, removal and privacy guidance.
+- Add installation, upgrade, removal and privacy guidance.
 
-The notarized download is verified and attached to a GitHub release draft. Public download publication remains gated on the recorded clean-install and hardware checks. Experimental integrations and compatibility limits are documented in `docs/ALPHA.md`.
+[Download the signed and notarized alpha](https://github.com/edrenck/constellation-bar/releases/tag/v0.5.0). See release notes for compatibility coverage and known limitations.
 
 ## 0.4.0 — Development
 
