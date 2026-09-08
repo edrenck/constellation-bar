@@ -88,4 +88,20 @@ struct DisplayOverride: Codable {
     var layout: BarLayout?
     var widgets: [WidgetKind]?
     var hideInFullscreen: Bool?
+    var widgetPlacement: WidgetPlacement?
+    var centerWidgets: [WidgetKind]?
+    var workspaceVisibility: WorkspaceVisibility?
+    var selectedWorkspaces: [String]?
+}
+
+enum WorkspaceVisibility: String, Codable, CaseIterable {
+    case local, all, selected, hidden
+    var title: String {
+        switch self {
+        case .local: return "This display’s workspaces"
+        case .all: return "All workspaces"
+        case .selected: return "Selected workspaces"
+        case .hidden: return "Hide workspaces"
+        }
+    }
 }

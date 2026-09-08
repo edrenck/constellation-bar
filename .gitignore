@@ -15,3 +15,6 @@ constellation-bar.json
 .codex/
 .agents/
 docs/design/
+
+# The website is a separate Sites-owned source repository.
+/website/
