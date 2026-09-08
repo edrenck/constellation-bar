@@ -15,3 +15,7 @@ constellation-bar.json
 .codex/
 .agents/
 docs/design/
+
+*.p8
+*.pem
+*.keychain-db

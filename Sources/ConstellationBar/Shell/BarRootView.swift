@@ -9,6 +9,8 @@ final class BarRootView: NSView {
     private let workspaceStrip = WorkspaceStripView()
     private let activeWindow = ActiveWindowControl()
     private let widgets = WidgetStripView()
+    private let centerWidgets = WidgetStripView()
+    var displayConfigurationID: String?
     private var latestState: BarState?
     private lazy var overlays = BarOverlayCoordinator(ownerView: self)
 
@@ -31,6 +33,7 @@ final class BarRootView: NSView {
         addSubview(workspaceStrip)
         addSubview(activeWindow)
         addSubview(widgets)
+        addSubview(centerWidgets)
 
         workspaceStrip.onWorkspaceClick = { [weak self] name in
             self?.overlays.close()
@@ -48,21 +51,25 @@ final class BarRootView: NSView {
             guard let self, let state = self.latestState else { return }
             self.overlays.showWindowSwitcher(state: state, anchoredTo: control)
         }
-        widgets.onReorder = { [weak self] kinds in
-            self?.interactionDelegate?.reorderWidgets(kinds)
-        }
-        widgets.onWidgetHover = { [weak self] kind, control, entered in
-            guard let self, let state = self.latestState else { return }
-            if entered {
-                self.overlays.scheduleWidget(kind, state: state.system, config: self.config, anchoredTo: control)
-            } else {
-                self.overlays.scheduleClose()
+        for strip in [widgets, centerWidgets] {
+            let centered = strip === centerWidgets
+            strip.onReorder = { [weak self] kinds in
+                guard let self else { return }
+                self.interactionDelegate?.reorderWidgets(kinds, displayID: self.displayConfigurationID, centered: centered)
             }
-        }
-        widgets.onWidgetClick = { [weak self] kind, control in
-            guard let self, let state = self.latestState else { return }
-            if let onWidgetSelection = self.onWidgetSelection { onWidgetSelection(kind); return }
-            self.overlays.showWidget(kind, state: state.system, config: self.config, anchoredTo: control, pinned: true)
+            strip.onWidgetHover = { [weak self] kind, control, entered in
+                guard let self, let state = self.latestState else { return }
+                if entered {
+                    self.overlays.scheduleWidget(kind, state: state.system, config: self.config, anchoredTo: control)
+                } else {
+                    self.overlays.scheduleClose()
+                }
+            }
+            strip.onWidgetClick = { [weak self] kind, control in
+                guard let self, let state = self.latestState else { return }
+                if let onWidgetSelection = self.onWidgetSelection { onWidgetSelection(kind); return }
+                self.overlays.showWidget(kind, state: state.system, config: self.config, anchoredTo: control, pinned: true)
+            }
         }
         apply(config: config)
     }
@@ -81,15 +88,22 @@ final class BarRootView: NSView {
         let layout = config.layout
         let focusWidth: CGFloat = layout == .compact ? 0 : activeWindow.preferredWidth
         let margin = config.sideMargin
-        let estimate = LayoutGeometry.resolve(width: bounds.width, height: contentHeight, margin: margin,
+        let estimate = GroupedLayoutGeometry.resolve(width: bounds.width, height: contentHeight, margin: margin,
             workspaceWidth: workspaceStrip.preferredWidth, focusWidth: focusWidth,
-            widgetWidth: .greatestFiniteMagnitude, leadingWidgets: config.widgetPlacement == .leading, exclusion: exclusion, centered: config.widgetPlacement == .centered)
-        workspaceStrip.fit(to: estimate.workspace.width)
+            widgetWidth: .greatestFiniteMagnitude, centerWidth: config.centerWidgets.isEmpty ? 0 : .greatestFiniteMagnitude,
+            placement: config.widgetPlacement, exclusion: exclusion)
+        workspaceStrip.fit(to: estimate.main.workspace.width)
         widgets.prefersCompact = layout == .compact
-        widgets.fit(to: estimate.widgetBudget)
-        let frames = LayoutGeometry.resolve(width: bounds.width, height: contentHeight, margin: margin,
-            workspaceWidth: min(workspaceStrip.preferredWidth, estimate.workspace.width), focusWidth: focusWidth,
-            widgetWidth: widgets.preferredWidth, leadingWidgets: config.widgetPlacement == .leading, exclusion: exclusion, centered: config.widgetPlacement == .centered)
+        centerWidgets.prefersCompact = layout == .compact
+        widgets.fit(to: estimate.main.widgetBudget)
+        centerWidgets.fit(to: estimate.centerBudget)
+        let grouped = GroupedLayoutGeometry.resolve(width: bounds.width, height: contentHeight, margin: margin,
+            workspaceWidth: min(workspaceStrip.preferredWidth, estimate.main.workspace.width), focusWidth: focusWidth,
+            widgetWidth: widgets.preferredWidth, centerWidth: centerWidgets.preferredWidth,
+            placement: config.widgetPlacement, exclusion: exclusion)
+        let frames = grouped.main
+        centerWidgets.frame = grouped.center.offsetBy(dx: 0, dy: edgeDepth)
+        centerWidgets.isHidden = grouped.center.width == 0
         workspaceStrip.frame = frames.workspace.offsetBy(dx: 0, dy: edgeDepth)
         widgets.frame = frames.widgets.offsetBy(dx: 0, dy: edgeDepth)
         activeWindow.frame = frames.focus.offsetBy(dx: 0, dy: edgeDepth)
@@ -124,6 +138,7 @@ final class BarRootView: NSView {
         workspaceStrip.update(workspaces: state.workspaces, theme: config.theme)
         activeWindow.update(window: state.focusedWindow, theme: config.theme)
         widgets.update(system: state.system, config: config)
+        centerWidgets.update(system: state.system, config: config)
         overlays.refresh(state: state.system, history: widgetHistory)
         needsLayout = true
     }
@@ -138,12 +153,15 @@ final class BarRootView: NSView {
         workspaceStrip.composition = config.layout
         activeWindow.composition = config.layout
         widgets.composition = config.layout
+        centerWidgets.composition = config.layout
         workspaceStrip.apply(theme: config.theme)
         workspaceStrip.apply(visuals: config.visualPreferences)
         activeWindow.apply(theme: config.theme)
         activeWindow.apply(visuals: config.visualPreferences)
         widgets.configure(kinds: config.rightWidgets, theme: config.theme, visuals: config.visualPreferences)
         widgets.refreshAppearance()
+        centerWidgets.configure(kinds: config.centerWidgets, theme: config.theme, visuals: config.visualPreferences)
+        centerWidgets.refreshAppearance()
         if let latestState { render(state: latestState) }
         needsLayout = true
     }

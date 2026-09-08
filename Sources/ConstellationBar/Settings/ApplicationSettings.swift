@@ -13,19 +13,13 @@ extension ConfigurationWindowController {
             formRow("System refresh", refreshPopup)
         ]))
 
-        var displayRows: [NSView] = []
-        for screen in NSScreen.screens {
-            let enabled = NSButton(checkboxWithTitle: screen.localizedName, target: self, action: #selector(displayChanged))
-            let popup = NSPopUpButton()
-            popup.addItems(withTitles: ["Use global layout"] + BarLayout.allCases.map(\.title))
-            popup.target = self; popup.action = #selector(displayChanged)
-            displayControls.append((screen.configurationID, enabled, popup))
-            let row = NSStackView(views: [enabled, popup])
-            row.spacing = 12
-            row.toolTip = screen.configurationID
-            displayRows.append(row)
+        displayEditor.onChange = { [weak self] id, override in
+            guard let self else { return }
+            self.config.displayOverrides[id] = override
+            self.commit()
+            self.displayEditor.sync(config: self.config)
         }
-        stack.addArrangedSubview(makeSection(title: "Display overrides", rows: displayRows))
+        stack.addArrangedSubview(makeSection(title: "Display overrides", rows: [displayEditor]))
         let importButton = NSButton(title: "Import configuration…", target: self, action: #selector(importConfiguration))
         let exportButton = NSButton(title: "Export configuration…", target: self, action: #selector(exportConfiguration))
         stack.addArrangedSubview(makeSection(title: "Share your setup", rows: [NSStackView(views: [importButton, exportButton])]))

@@ -39,6 +39,7 @@ final class ScreenBarController {
         closeBars()
         for screen in targetScreens {
             let window = BarWindow(screen: screen, config: config.forDisplay(screen.configurationID))
+            window.barView.displayConfigurationID = screen.configurationID
             window.barView.interactionDelegate = interactionDelegate
             windows[screen] = window
             window.orderFrontRegardless()
@@ -59,14 +60,8 @@ final class ScreenBarController {
     func render(state: BarState) {
         latestState = state
         for (screen, window) in windows {
-            var local = state
             let index = (NSScreen.screens.firstIndex(of: screen) ?? 0) + 1
-            if config.workspacesOnCurrentDisplay {
-                local.workspaces = state.workspaces.filter { $0.monitorIndex == nil || $0.monitorIndex == index }
-                if let focused = local.focusedWindow, !focused.workspace.isEmpty,
-                   !local.workspaces.contains(where: { $0.name == focused.workspace }) { local.focusedWindow = nil }
-            }
-            window.barView.render(state: local)
+            window.barView.render(state: config.stateForDisplay(state, id: screen.configurationID, monitorIndex: index))
         }
     }
 

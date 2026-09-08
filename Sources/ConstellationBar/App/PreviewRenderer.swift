@@ -73,6 +73,14 @@ enum PreviewRenderer {
             content.addSubview(panel)
             try capture(content, to: directory.appendingPathComponent("mini-app-\(kind.rawValue).png"))
         }
+        var wide = BarConfig.default
+        wide.appearance = .cove; wide.layout = .islands
+        wide.rightWidgets = [.audio, .system, .battery]
+        wide.centerWidgets = [.dateTime, .nowPlaying]
+        let wideContent = backdrop(size: NSSize(width: 1720, height: 110))
+        let wideBar = BarRootView(frame: NSRect(x: 0, y: 32, width: 1720, height: 46), config: wide)
+        wideContent.addSubview(wideBar); wideBar.render(state: state)
+        try capture(wideContent, to: directory.appendingPathComponent("wide-center-widgets.png"))
         let settings = ConfigurationWindowController(config: .default, onChange: { _ in })
         settings.window?.setFrameOrigin(NSPoint(x: -10000, y: -10000))
         settings.window?.orderFront(nil)

@@ -20,6 +20,7 @@ struct BarConfig {
     var aerospacePath = ""
     var updateInterval: TimeInterval = 3
     var systemUpdateInterval: TimeInterval = 2.0
+    var centerWidgets: [WidgetKind] = []
     var rightWidgets: [WidgetKind] = [.battery, .dateTime]
     var surfsharkDisplayName = "Surfshark"
     var tailwindDisplayName = "Tailscale"
@@ -55,6 +56,7 @@ struct BarConfig {
         config.aerospacePath = file.aerospacePath ?? ""
         config.updateInterval = file.updateInterval ?? config.updateInterval
         config.systemUpdateInterval = file.systemUpdateInterval ?? config.systemUpdateInterval
+        config.centerWidgets = file.centerWidgets ?? []
         config.rightWidgets = file.rightWidgets ?? config.rightWidgets
         config.surfsharkDisplayName = file.surfsharkDisplayName ?? config.surfsharkDisplayName
         config.tailwindDisplayName = file.tailwindDisplayName ?? config.tailwindDisplayName
@@ -63,9 +65,11 @@ struct BarConfig {
         config.visualPreferences = file.visualPreferences ?? config.visualPreferences
         config.displayMode = file.displayMode ?? config.displayMode
         try config.validate()
-        config.rightWidgets = WidgetKind.consolidated(config.rightWidgets)
+        config.centerWidgets = WidgetKind.consolidated(config.centerWidgets)
+        config.rightWidgets = WidgetKind.consolidated(config.rightWidgets).filter { !config.centerWidgets.contains($0) }
         for id in config.displayOverrides.keys {
             if let widgets = config.displayOverrides[id]?.widgets { config.displayOverrides[id]?.widgets = WidgetKind.consolidated(widgets) }
+            if let widgets = config.displayOverrides[id]?.centerWidgets { config.displayOverrides[id]?.centerWidgets = WidgetKind.consolidated(widgets) }
         }
         return config
     }
@@ -77,13 +81,18 @@ struct BarConfig {
               ["system", "dark", "light"].contains(themeMode) else {
             throw ConfigurationError.invalid("Check height (30–80), insets, refresh intervals, coordinates, and appearance values.")
         }
-        guard Set(rightWidgets).count == rightWidgets.count, Set(workspaceNames).count == workspaceNames.count,
+        guard Set(rightWidgets + centerWidgets).count == rightWidgets.count + centerWidgets.count, Set(workspaceNames).count == workspaceNames.count,
               workspaceNames.allSatisfy({ !$0.isEmpty }) else {
             throw ConfigurationError.invalid("Workspace names and widgets must be unique; workspace names cannot be empty.")
         }
         for override in displayOverrides.values {
-            if let kinds = override.widgets, Set(kinds).count != kinds.count {
-                throw ConfigurationError.invalid("Display widget lists must be unique.")
+            let kinds = (override.widgets ?? []) + (override.centerWidgets ?? [])
+            if Set(kinds).count != kinds.count {
+                throw ConfigurationError.invalid("A widget can appear only once on each display.")
+            }
+            if let names = override.selectedWorkspaces,
+               Set(names).count != names.count || names.contains(where: { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
+                throw ConfigurationError.invalid("Selected display workspaces must be unique and nonempty.")
             }
         }
     }
@@ -92,7 +101,9 @@ struct BarConfig {
         guard let override = displayOverrides[id] else { return self }
         var config = self
         config.layout = override.layout ?? layout
-        config.rightWidgets = override.widgets ?? rightWidgets
+        config.centerWidgets = override.centerWidgets ?? centerWidgets
+        config.rightWidgets = (override.widgets ?? rightWidgets).filter { !config.centerWidgets.contains($0) }
+        config.widgetPlacement = override.widgetPlacement ?? widgetPlacement
         config.hideInFullscreen = override.hideInFullscreen ?? hideInFullscreen
         return config
     }
@@ -286,6 +297,7 @@ struct ConfigFile: Codable {
     var integration: IntegrationMode?
     var layout: BarLayout?
     var widgetPlacement: WidgetPlacement?
+    var centerWidgets: [WidgetKind]?
     var workspaceAliases: [String: String]?
     var displayOverrides: [String: DisplayOverride]?
     var hideInFullscreen: Bool?
@@ -330,6 +342,7 @@ extension BarConfig {
         file.layout = layout
         file.providerPreferences = providerPreferences
         file.widgetPlacement = widgetPlacement
+        file.centerWidgets = centerWidgets
         file.displayOverrides = displayOverrides
         file.hideInFullscreen = hideInFullscreen
         file.workspacesOnCurrentDisplay = workspacesOnCurrentDisplay

@@ -63,3 +63,58 @@ struct LayoutGeometry {
         return result
     }
 }
+
+/// Independent center and edge widget groups; all regions exclude the camera cutout.
+struct GroupedLayoutGeometry {
+    var main: LayoutGeometry
+    var center: CGRect
+    var centerBudget: CGFloat
+
+    static func resolve(width: CGFloat, height: CGFloat, margin: CGFloat, workspaceWidth: CGFloat,
+                        focusWidth: CGFloat, widgetWidth: CGFloat, centerWidth: CGFloat,
+                        placement: WidgetPlacement, exclusion: ClosedRange<CGFloat>? = nil) -> GroupedLayoutGeometry {
+        guard centerWidth > 0 else {
+            return .init(main: LayoutGeometry.resolve(width: width, height: height, margin: margin,
+                workspaceWidth: workspaceWidth, focusWidth: focusWidth, widgetWidth: widgetWidth,
+                leadingWidgets: placement == .leading, exclusion: exclusion, centered: placement == .centered),
+                center: .zero, centerBudget: 0)
+        }
+        let inset = min(max(0, margin), max(0, width / 4)), gap: CGFloat = 12
+        let lo = inset, hi = max(lo, width - inset)
+        let leading = placement == .leading
+        let h = min(34, height), y = (height - h) / 2
+        let centerBudget: CGFloat
+        let centerX: CGFloat
+        let centerSize: CGFloat
+        let workLo: CGFloat, workHi: CGFloat, edgeLo: CGFloat, edgeHi: CGFloat
+        if let exclusion {
+            let leftEnd = max(lo, min(hi, exclusion.lowerBound - 8))
+            let rightStart = min(hi, max(lo, exclusion.upperBound + 8))
+            let available = leading ? leftEnd - lo : hi - rightStart
+            centerBudget = max(0, (available - gap) * 0.5)
+            centerSize = min(centerWidth, centerBudget)
+            centerX = leading ? leftEnd - centerSize : rightStart
+            workLo = leading ? rightStart : lo
+            workHi = leading ? hi : leftEnd
+            edgeLo = leading ? lo : min(hi, centerX + centerSize + gap)
+            edgeHi = leading ? max(lo, centerX - gap) : hi
+        } else {
+            centerBudget = max(0, (hi - lo) * 0.32)
+            centerSize = min(centerWidth, centerBudget)
+            centerX = (width - centerSize) / 2
+            workLo = leading ? min(hi, centerX + centerSize + gap) : lo
+            workHi = leading ? hi : max(lo, centerX - gap)
+            edgeLo = leading ? lo : min(hi, centerX + centerSize + gap)
+            edgeHi = leading ? max(lo, centerX - gap) : hi
+        }
+        let workAvailable = max(0, workHi - workLo)
+        let ws = min(workspaceWidth, workAvailable * (focusWidth > 0 ? 0.7 : 1))
+        let focus = min(focusWidth, max(0, workAvailable - ws - (ws > 0 ? gap : 0)))
+        let edgeBudget = max(0, edgeHi - edgeLo), edge = min(widgetWidth, edgeBudget)
+        return .init(main: .init(
+            workspace: CGRect(x: leading ? workHi - ws : workLo, y: y, width: ws, height: h),
+            focus: CGRect(x: leading ? workHi - ws - (ws > 0 ? gap : 0) - focus : workLo + ws + (ws > 0 ? gap : 0), y: y, width: focus, height: h),
+            widgets: CGRect(x: leading ? edgeLo : edgeHi - edge, y: y, width: edge, height: h), widgetBudget: edgeBudget),
+            center: CGRect(x: centerX, y: y, width: centerSize, height: h), centerBudget: centerBudget)
+    }
+}

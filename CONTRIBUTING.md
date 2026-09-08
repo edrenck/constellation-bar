@@ -15,3 +15,9 @@ The current automated tests cover config migration/validation, provider parsing 
 `swift test` runs deterministic unit tests; display-dependent panel and animation tests report explicit skips. In a logged-in macOS desktop session, run `CONSTELLATION_UI_TESTS=1 swift test` to include those integration tests. Run browser companion tests with `node --test extensions/browser-media/content.test.cjs`.
 
 See [Architecture](docs/ARCHITECTURE.md) for feature ownership. Changes should be small, reviewable commits on a branch from `main`; open a pull request and wait for Build and test before merging. Keep `VERSION` as the source of the marketing version. Public release artifacts must use the signing pipeline, not the development CI ZIP.
+
+## Contributions and licensing
+
+By submitting a contribution, you agree to make it available under this repository’s MIT license. You retain ownership; no copyright assignment is required. Submit only code/assets you have the right to contribute, preserve upstream notices, and identify any third-party material and its license. See [licensing and future paid offerings](docs/LICENSING.md).
+
+The app source, website source, tests and public documentation live in this repository. Do not commit signing certificates, notarization keys/passwords, private configuration, or Keychain files. The website is self-hosted; its CI builds an export for the maintainer to deploy.

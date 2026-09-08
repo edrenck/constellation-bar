@@ -78,3 +78,32 @@ Set `widgetPlacement` to `"centered"` to gather workspaces, the focused window, 
 Enable `agentStatus` in `rightWidgets` or Customize Bar → Widgets → Agent Status. Its Codex provider is enabled by default when the widget is enabled; disable it independently in Connections or with `providerPreferences.disabled: ["codex"]`. It reads `CODEX_HOME` when set in the bar’s environment, otherwise `~/.codex`.
 
 Legacy `cpu` and `memory` widget identifiers migrate to one `system` entry at the first matching position. This applies to global and per-display widget lists, preserving the order of other widgets. System retains CPU, memory and network tabs. Network stays available as a dedicated throughput indicator. Old graph preferences remain decodable for compatibility, but the separate CPU/Memory picker entries and controls are retired.
+
+## Independent monitor groups (0.5.0 alpha)
+
+`displayOverrides` uses stable macOS display UUIDs. The Application settings editor lists connected displays and saved disconnected displays. Optional override values inherit global settings. `widgets` is the edge group, `centerWidgets` is the independent center group, and `widgetPlacement` selects `trailing`, `leading`, or the existing `centered` composition. With an independent center group, the edge stays at the selected edge (`centered` uses the right edge).
+
+`workspaceVisibility` accepts `local`, `all`, `selected`, or `hidden`. Omit it to follow `workspacesOnCurrentDisplay`. `selectedWorkspaces` is an ordered array of AeroSpace workspace IDs, used in selected mode; unknown IDs are ignored until discovered. These settings affect presentation, not AeroSpace monitor assignment.
+
+```json
+{
+  "schemaVersion": 3,
+  "displayOverrides": {
+    "YOUR-WIDE-DISPLAY-UUID": {
+      "layout": "islands",
+      "widgets": ["system", "audio", "battery"],
+      "centerWidgets": ["dateTime", "nowPlaying"],
+      "widgetPlacement": "trailing",
+      "workspaceVisibility": "selected",
+      "selectedWorkspaces": ["dev", "web"]
+    },
+    "YOUR-SECOND-DISPLAY-UUID": {
+      "widgets": ["vpn", "network"],
+      "centerWidgets": [],
+      "workspaceVisibility": "local"
+    }
+  }
+}
+```
+
+An explicit empty group hides it. Null/omitted groups inherit global values. If an inherited edge widget is explicitly put in the center, it is removed from the effective edge group. Explicit duplicate widgets across groups are rejected. Global `centerWidgets` is also accepted for shared setups.
