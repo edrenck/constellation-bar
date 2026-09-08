@@ -12,16 +12,24 @@ The alpha download is not published yet. Version 0.5.0 is the release candidate 
 - Experimental browser-media companion and Codex activity, including configured SSH hosts.
 - Config import/export, backups, login startup, and an About panel with build identity.
 
+## Verified preparation — 2026-09-08
+
+- The canonical [GitHub repository](https://github.com/edrenck/constellation-bar) is public under MIT, including the app and self-hostable website source. See [Licensing](LICENSING.md) for future paid offerings.
+- Xcode license/setup and the local `constellation-release` notarization profile are configured on the release machine. Credentials are stored in Keychain, not the repository.
+- The local release pipeline produced the Developer ID-signed, notarized and stapled 0.5.0/build 5 universal ZIP from source commit `ab3be670df45`, tagged `v0.5.0`.
+- Apple accepted submission `621aa87f-592b-4f4e-b8cb-84bd04e620cb` with no reported issues. The extracted final ZIP passes checksum, signature, stapled-ticket and Gatekeeper checks.
+- All 64 Swift tests, including graphical tests, passed locally on macOS 27.0 / arm64. Hosted macOS 15 CI built both architectures and passed its tests. Five release-gate tests and browser tests passed. These results do not establish Intel or macOS 14/15 runtime compatibility.
+- Website static export and TypeScript checks passed locally and in CI. The release draft includes a ready-to-upload website ZIP; the source is in `website/` and no deployment is configured.
+- A GitHub prerelease draft holds the app ZIP, its checksum and the website export. A draft is not a publicly downloadable alpha.
+
 ## Remaining publication gates
 
-- Complete Xcode's first-launch license/setup on the build machine. The currently selected Command Line Tools compiler and SDK do not match.
-- Produce a Developer ID-signed, notarized, stapled universal ZIP through `scripts/release.sh`. A Developer ID Application identity is installed; notarization credentials/profile have not been verified.
-- Set up the GitHub `distribution` environment if using hosted signing. Its secrets and variables were unavailable during the readiness check; the repository has no releases.
-- Use the canonical GitHub repository for public source and release downloads. Confirm the repository is public and the release is published before advertising an anonymous download.
-- Download the exact final ZIP on a clean Mac, verify its SHA256 and Gatekeeper assessment, launch it, and record the OS/chip actually tested.
-- Validate two physical displays, including a wide display with center widgets, reconnect/rearrangement, workspace assignment, fullscreen, and sleep/wake. Automated geometry tests and renders do not establish physical-monitor coverage.
-- Verify denied Calendar/Music permissions, keyboard navigation/VoiceOver, manual upgrade, Launch at Login and uninstall.
-- Update the website with the verified download URL, release notes and actual compatibility coverage, then upload its static export to the chosen subdomain. Website source is included in this repository.
+- Download the exact final ZIP on a clean second Mac, verify its SHA256 and Gatekeeper assessment, launch it, and record the OS/chip actually tested.
+- Validate two physical displays, including a wide display with center widgets, reconnect/rearrangement, workspace assignment, fullscreen, and sleep/wake. Automated geometry tests and native renders do not establish physical-monitor coverage.
+- Verify denied Calendar/Music permissions, keyboard navigation/VoiceOver, manual upgrade, Launch at Login and uninstall using the final distribution build.
+- Publish the verified GitHub prerelease after those checks. Update the website with its public download URL, release notes and actual compatibility coverage, then upload the static export to the chosen subdomain.
+
+Hosted signing credentials in GitHub's `distribution` environment are still a follow-up if hosted notarization is desired; the local signing/notarization path is verified and does not depend on that setup.
 
 ## Alpha scope and known limitations
 

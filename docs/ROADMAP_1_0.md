@@ -1,5 +1,7 @@
 # ConstellationBar 1.0 readiness and extension proposal
 
+Current alpha release evidence is in [ALPHA.md](ALPHA.md), including the completed public-repository and notarization work. The dated findings below are historical.
+
 Initial assessment: 2026-09-06. The findings below record the original baseline; the implementation status here takes precedence.
 
 ## Implementation status — 2026-09-06
