@@ -8,7 +8,7 @@
 - Reopening an installed app brings up configuration; duplicate bundle launches defer to the existing instance.
 - Add a product showcase website, alpha readiness notes, and installation, upgrade, removal and privacy guidance.
 
-Publication remains gated on the verified notarized download and recorded clean-install/hardware checks. Experimental integrations and compatibility limits are documented in `docs/ALPHA.md`.
+The notarized download is verified and attached to a GitHub release draft. Public download publication remains gated on the recorded clean-install and hardware checks. Experimental integrations and compatibility limits are documented in `docs/ALPHA.md`.
 
 ## 0.4.0 — Development
 
