@@ -70,7 +70,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$RELEASE_TAG" ".build/distribution/ConstellationBar-$(cat VERSION)-universal.zip" .build/distribution/SHA256SUMS --verify-tag --draft --title "ConstellationBar $RELEASE_TAG" --notes 'Developer ID signed, notarized and stapled universal build. Complete the documented clean-install and hardware checks before publishing.'
+          gh release create "$RELEASE_TAG" ".build/distribution/ConstellationBar-$(cat VERSION)-universal.zip" .build/distribution/SHA256SUMS --verify-tag --draft --prerelease --title "ConstellationBar $RELEASE_TAG Alpha" --notes 'Developer ID signed, notarized and stapled universal build. Complete the documented clean-install and hardware checks before publishing.'
       - name: Remove signing credentials
         if: always()
         run: |
