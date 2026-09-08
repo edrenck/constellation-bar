@@ -52,7 +52,3 @@ Appearance.swift defines the five complete visual languages independently of Bar
 `AgentStatusProvider` samples enabled `AgentStatusIntegrating` implementations. Each returns an `AgentProviderSnapshot` with a stable ID, availability and active/idle/unknown task states. Codex is the initial adapter; it validates live writer locks and reads versioned local lifecycle metadata without spawning a server. Other agent adapters reuse the count, detail panel and provider toggles. `WidgetPresentation.compactText` lets widgets retain essential numeric status when the layout switches to Compact.
 
 `WidgetKind.selectableCases` defines the current picker/menu catalog. The legacy CPU and memory identifiers stay decodable and normalize to one System entry on import, preserving placement in global and display-specific lists.
-
-## Proposed 1.0 direction
-
-See [1.0 readiness and extension proposal](ROADMAP_1_0.md) for the proposed feature layout, runtime extension contract, release gates and acceptance checks. External widgets are not implemented yet; the interfaces described above remain compiled Swift extension points.

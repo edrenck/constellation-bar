@@ -18,6 +18,6 @@ See [Architecture](docs/ARCHITECTURE.md) for feature ownership. Changes should b
 
 ## Contributions and licensing
 
-By submitting a contribution, you agree to make it available under this repository’s MIT license. You retain ownership; no copyright assignment is required. Submit only code/assets you have the right to contribute, preserve upstream notices, and identify any third-party material and its license. See [licensing and future paid offerings](docs/LICENSING.md).
+By submitting a contribution, you agree to make it available under this repository’s MIT license. You retain ownership; no copyright assignment is required. Submit only code/assets you have the right to contribute, preserve upstream notices, and identify any third-party material and its license.
 
-The app source, website source, tests and public documentation live in this repository. Do not commit signing certificates, notarization keys/passwords, private configuration, or Keychain files. The website is self-hosted; its CI builds an export for the maintainer to deploy.
+The app source, tests and public documentation live in this repository. The [website has a separate repository](https://github.com/edrenck/constellation-bar-website). Do not commit signing certificates, notarization keys/passwords, private configuration, or Keychain files.

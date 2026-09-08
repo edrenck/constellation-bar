@@ -19,3 +19,6 @@ docs/design/
 *.p8
 *.pem
 *.keychain-db
+
+# Separate website checkout; source is in constellation-bar-website.
+/website/
