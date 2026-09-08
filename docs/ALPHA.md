@@ -17,11 +17,11 @@ The alpha download is not published yet. Version 0.5.0 is the release candidate 
 - Complete Xcode's first-launch license/setup on the build machine. The currently selected Command Line Tools compiler and SDK do not match.
 - Produce a Developer ID-signed, notarized, stapled universal ZIP through `scripts/release.sh`. A Developer ID Application identity is installed; notarization credentials/profile have not been verified.
 - Set up the GitHub `distribution` environment if using hosted signing. Its secrets and variables were unavailable during the readiness check; the repository has no releases.
-- Choose a public artifact location. The source repository is currently private, so its downloads cannot serve anonymous visitors.
+- Use the canonical GitHub repository for public source and release downloads. Confirm the repository is public and the release is published before advertising an anonymous download.
 - Download the exact final ZIP on a clean Mac, verify its SHA256 and Gatekeeper assessment, launch it, and record the OS/chip actually tested.
 - Validate two physical displays, including a wide display with center widgets, reconnect/rearrangement, workspace assignment, fullscreen, and sleep/wake. Automated geometry tests and renders do not establish physical-monitor coverage.
 - Verify denied Calendar/Music permissions, keyboard navigation/VoiceOver, manual upgrade, Launch at Login and uninstall.
-- Update the website with the verified download URL, release notes and actual compatibility coverage, then publish it publicly.
+- Update the website with the verified download URL, release notes and actual compatibility coverage, then upload its static export to the chosen subdomain. Website source is included in this repository.
 
 ## Alpha scope and known limitations
 

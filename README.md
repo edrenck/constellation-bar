@@ -84,7 +84,7 @@ References: [AeroSpace callbacks](https://nikitabobko.github.io/AeroSpace/guide)
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) and the [module architecture](docs/ARCHITECTURE.md). Providers, widget presentations, layout geometry, and AppKit views are separate. Third-party binary plugins and a script-widget protocol are future work; the current extension point is compiled Swift modules.
 
-MIT licensed. Weather is provided by [Open-Meteo](https://open-meteo.com/) and is requested only when configured and enabled. Apple Music access uses macOS Automation permission. No telemetry is collected.
+MIT licensed, including commercial use. See [licensing and future paid offerings](docs/LICENSING.md) and [third-party notices](THIRD_PARTY_NOTICES.md). Weather is provided by [Open-Meteo](https://open-meteo.com/) and is requested only when configured and enabled. Apple Music access uses macOS Automation permission. No telemetry is collected.
 
 
 ### Five appearances
@@ -96,3 +96,7 @@ Run `swift run ConstellationBar --render-previews .build/appearance-previews` fo
 ## Interactive widgets
 
 Media, Calendar, VPN, Audio and System now have interactive panels, with independent provider options and capability-aware controls. Apple Music and the optional browser companion are the initial media providers; native Spotify is marked for later. Read [widget capabilities and setup](docs/WIDGETS.md) before enabling integrations.
+
+## Product website
+
+The complete website source is in [`website/`](website/README.md). `npm ci` and `npm run build` in that folder produce a portable `dist/client/` directory with HTML, CSS, JavaScript and images for your own subdomain or static host. CI builds a downloadable website artifact; it does not deploy it.
