@@ -30,6 +30,7 @@ jobs:
           test "$RELEASE_TAG" = "v$(cat VERSION)"
           test "$(git rev-parse HEAD)" = "$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")"
           test -z "$(git status --porcelain)"
+      - run: python3 scripts/tests/test_release.py
       - run: swift test
       - run: node --test extensions/browser-media/content.test.cjs
       - name: Import distribution credentials
@@ -70,7 +71,14 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$RELEASE_TAG" ".build/distribution/ConstellationBar-$(cat VERSION)-universal.zip" .build/distribution/SHA256SUMS --verify-tag --draft --title "ConstellationBar $RELEASE_TAG" --notes 'Developer ID signed, notarized and stapled universal build. Complete the documented clean-install and hardware checks before publishing.'
+          gh release create "$RELEASE_TAG" ".build/distribution/ConstellationBar-$(cat VERSION)-universal.zip" .build/distribution/SHA256SUMS --verify-tag --draft --prerelease --title "ConstellationBar $RELEASE_TAG Alpha" --notes 'Developer ID signed, notarized and stapled universal build. Complete the documented clean-install and hardware checks before publishing.'
+      - name: Retain notarization diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: notarization-diagnostics
+          path: .build/notarization-report.*/
+          if-no-files-found: ignore
       - name: Remove signing credentials
         if: always()
         run: |

@@ -1,0 +1,35 @@
+name: Website export
+on:
+  push:
+    paths: ['website/**', 'LICENSE', '.github/workflows/website.yml']
+  pull_request:
+    paths: ['website/**', 'LICENSE', '.github/workflows/website.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: website
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - run: npx tsc --noEmit
+      - name: Verify static export
+        run: |
+          test -s dist/client/index.html
+          test -s dist/client/THIRD_PARTY_NOTICES.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: constellation-website
+          path: website/dist/client/
+          include-hidden-files: true
+          if-no-files-found: error

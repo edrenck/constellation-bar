@@ -141,9 +141,7 @@ final class BarController {
         sampleInFlight = true
         var config = self.config
         // A display override can enable modules that are absent from the global layout.
-        for override in config.displayOverrides.values where override.enabled != false {
-            for kind in override.widgets ?? [] where !config.rightWidgets.contains(kind) { config.rightWidgets.append(kind) }
-        }
+        config.rightWidgets = config.widgetsForSampling
         let generation = self.generation
         sampleQueue.async { [weak self] in
             guard let self else { return }
@@ -184,9 +182,13 @@ extension BarController: BarInteractionDelegate {
             DispatchQueue.main.async { self?.requestFocusRefresh() }
         }
     }
-    func reorderWidgets(_ kinds: [WidgetKind]) {
-        guard kinds != config.rightWidgets else { return }
-        config.rightWidgets = kinds
+    func reorderWidgets(_ kinds: [WidgetKind], displayID: String?, centered: Bool) {
+        if let displayID {
+            var override = config.displayOverrides[displayID] ?? DisplayOverride()
+            if centered { override.centerWidgets = kinds } else { override.widgets = kinds }
+            config.displayOverrides[displayID] = override
+        } else if centered { config.centerWidgets = kinds }
+        else { config.rightWidgets = kinds }
         ConfigurationStore.save(config)
         screenController.apply(config: config)
         onConfigChange?(config)

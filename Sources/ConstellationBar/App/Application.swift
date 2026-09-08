@@ -77,6 +77,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
+        if let bundleID = Bundle.main.bundleIdentifier,
+           let existing = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
+            .filter({ $0.processIdentifier != ProcessInfo.processInfo.processIdentifier && !$0.isTerminated })
+            .min(by: { $0.processIdentifier < $1.processIdentifier }),
+           existing.processIdentifier < ProcessInfo.processInfo.processIdentifier {
+            existing.activate(options: [])
+            DistributedNotificationCenter.default().postNotificationName(Self.reopenNotification, object: nil, deliverImmediately: true)
+            NSApp.terminate(nil)
+            return
+        }
+        DistributedNotificationCenter.default().addObserver(self, selector: #selector(openSettings), name: Self.reopenNotification, object: nil)
         let loaded = BarConfig.load()
         controller = BarController(config: loaded)
         statusController = StatusMenuController(config: loaded) { [weak self] config in
@@ -103,9 +114,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    private static let reopenNotification = Notification.Name("dev.constellation.bar.reopen")
+
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        statusController?.showConfiguration()
+        return true
+    }
+
     @objc private func openSettings() { statusController?.showConfiguration() }
 
     func applicationWillTerminate(_ notification: Notification) {
+        DistributedNotificationCenter.default().removeObserver(self)
         controller?.stop()
     }
 }

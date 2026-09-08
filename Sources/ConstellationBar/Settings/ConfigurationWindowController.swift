@@ -29,7 +29,7 @@ final class ConfigurationWindowController: NSWindowController, NSTextFieldDelega
     var providerButtons: [String: NSButton] = [:]
     var moduleRows: [(Set<WidgetKind>, NSView)] = []
     let noModuleOptions = NSTextField(labelWithString: "This module uses your system settings.")
-    var displayControls: [(String, NSButton, NSPopUpButton)] = []
+    let displayEditor = DisplaySettingsEditor()
     var appearanceButtons: [AppearanceChoiceButton] = []
     let appearanceDetail = NSTextField(wrappingLabelWithString: "")
     let modePopup = NSPopUpButton()
@@ -70,6 +70,7 @@ final class ConfigurationWindowController: NSWindowController, NSTextFieldDelega
         super.init(window: window)
         NotificationCenter.default.addObserver(self, selector: #selector(applicationDidBecomeActive), name: NSApplication.didBecomeActiveNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(updateDiagnostics), name: IntegrationDiagnostics.changed, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(displaysChanged), name: NSApplication.didChangeScreenParametersNotification, object: nil)
         buildInterface()
         preview.onWidgetSelection = { [weak self] kind in
             guard let self else { return }
@@ -126,10 +127,7 @@ final class ConfigurationWindowController: NSWindowController, NSTextFieldDelega
         workspaceOrderField.stringValue = config.workspaceNames.joined(separator: ", ")
         fullscreenButton.state = config.hideInFullscreen ? .on : .off
         localSpacesButton.state = config.workspacesOnCurrentDisplay ? .on : .off
-        for (id, enabled, popup) in displayControls {
-            enabled.state = config.displayOverrides[id]?.enabled == false ? .off : .on
-            popup.selectItem(at: config.displayOverrides[id]?.layout.flatMap { BarLayout.allCases.firstIndex(of: $0).map { $0 + 1 } } ?? 0)
-        }
+        displayEditor.sync(config: config)
         rebuildWidgetOrder()
         syncLaunchAtLogin()
         updateDiagnostics()
@@ -381,15 +379,7 @@ final class ConfigurationWindowController: NSWindowController, NSTextFieldDelega
         config.integration = IntegrationMode.allCases[max(0, integrationPopup.indexOfSelectedItem)]
         commit()
     }
-    @objc func displayChanged() {
-        for (id, enabled, popup) in displayControls {
-            var override = config.displayOverrides[id] ?? DisplayOverride()
-            override.enabled = enabled.state == .on
-            override.layout = popup.indexOfSelectedItem > 0 ? BarLayout.allCases[popup.indexOfSelectedItem - 1] : nil
-            config.displayOverrides[id] = override
-        }
-        commit()
-    }
+    @objc func displaysChanged() { displayEditor.sync(config: config) }
     func rebuildWidgetOrder() {
         orderedWidgets.arrangedSubviews.forEach { orderedWidgets.removeArrangedSubview($0); $0.removeFromSuperview() }
         for (index, kind) in config.rightWidgets.enumerated() {

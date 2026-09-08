@@ -12,6 +12,10 @@ Each layout supports status on either side, widget reordering, overflow menus, l
 
 ![Rail layout](docs/images/rail.png)
 
+## Alpha status
+
+The public alpha is in preparation; there is no public download yet. See [release gates and two-display setup](docs/ALPHA.md), [installation/upgrade/removal](docs/INSTALLATION.md), and [changelog](CHANGELOG.md).
+
 ## Requirements and installation
 
 - macOS 14 or later. Universal builds include Apple Silicon and Intel binaries.
@@ -50,11 +54,11 @@ Choose **Customize Bar…** from the menu-bar icon:
 - **Widgets:** visibility, graph options, media idle behavior, weather coordinates and units. Click a module in the preview to jump to its options.
 - **Appearance:** palettes, accent, density, material, contrast, and indicators.
 - **Connections:** workspace provider, optional executable override, preferred workspace order, diagnostics.
-- **Application:** login startup, display behavior, per-display layout overrides, configuration import/export.
+- **Application:** login startup, display behavior, per-display layout overrides, configuration import/export. Choose a display to set its Edge and Center widget groups, ordering, and local/all/selected/hidden workspace buttons.
 
 Discovered workspaces always remain available. A preferred list only controls ordering. Use `workspaceAliases` in the JSON configuration to give workspace IDs display labels. Narrow layouts preserve workspace access through an overflow menu.
 
-Built-in widgets: battery, VPN, network, System (CPU and memory), Agent Status (Codex), disk, uptime, thermal pressure, clock, Music/Spotify playback, and weather. VPN discovery enumerates configured macOS network services; Tailscale adds optional CLI controls. Some third-party VPNs are not exposed by macOS network-service enumeration.
+Built-in widgets: battery, VPN, network, System (CPU and memory), Agent Status (Codex), disk, uptime, thermal pressure, clock, Apple Music playback, and weather. VPN discovery enumerates configured macOS network services; Tailscale adds optional CLI controls. Some third-party VPNs are not exposed by macOS network-service enumeration.
 
 ## Configuration
 
@@ -66,7 +70,7 @@ The app reads configuration in this order:
 4. `./constellation-bar.json` during command-line development only
 5. Built-in portable defaults
 
-The app never loads a personal configuration from its bundle. Saving creates a `.backup` file before the first rewrite. Unversioned files migrate to schema version 2 when saved, retaining the previous Islands layout and personal settings. Invalid or unsupported files produce an error and are not overwritten.
+The app never loads a personal configuration from its bundle. Saving creates a `.backup` file before the first rewrite. Older files migrate to schema version 3 when saved, retaining the previous Islands layout and personal settings. Invalid or unsupported files produce an error and are not overwritten.
 
 Start from [minimal](examples/minimal.json), [performance](examples/performance.json), or [standalone](examples/standalone.json). See the [configuration reference](docs/CONFIGURATION.md) for display overrides and validation limits.
 
@@ -80,7 +84,7 @@ References: [AeroSpace callbacks](https://nikitabobko.github.io/AeroSpace/guide)
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) and the [module architecture](docs/ARCHITECTURE.md). Providers, widget presentations, layout geometry, and AppKit views are separate. Third-party binary plugins and a script-widget protocol are future work; the current extension point is compiled Swift modules.
 
-MIT licensed. Weather is provided by [Open-Meteo](https://open-meteo.com/) and is requested only when configured and enabled. Music/Spotify access uses macOS Automation permission. No telemetry is collected.
+MIT licensed, including commercial use. See [licensing and future paid offerings](docs/LICENSING.md) and [third-party notices](THIRD_PARTY_NOTICES.md). Weather is provided by [Open-Meteo](https://open-meteo.com/) and is requested only when configured and enabled. Apple Music access uses macOS Automation permission. No telemetry is collected.
 
 
 ### Five appearances
@@ -92,3 +96,7 @@ Run `swift run ConstellationBar --render-previews .build/appearance-previews` fo
 ## Interactive widgets
 
 Media, Calendar, VPN, Audio and System now have interactive panels, with independent provider options and capability-aware controls. Apple Music and the optional browser companion are the initial media providers; native Spotify is marked for later. Read [widget capabilities and setup](docs/WIDGETS.md) before enabling integrations.
+
+## Product website
+
+The complete website source is in [`website/`](website/README.md). `npm ci` and `npm run build` in that folder produce a portable `dist/client/` directory with HTML, CSS, JavaScript and images for your own subdomain or static host. CI builds a downloadable website artifact; it does not deploy it.
