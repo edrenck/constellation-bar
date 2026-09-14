@@ -6,7 +6,7 @@ Hover or click a widget to open the same panel. Media (Now Playing), Calendar, V
 
 | Widget | Available implementation |
 | --- | --- |
-| Media | Apple Music app; optional Chrome/Edge/Brave companion extension |
+| Media | macOS Now Playing · apps and browsers that publish system media metadata |
 | Calendar | Apple EventKit, including accounts already synced to Calendar on the Mac |
 | VPN | Configured macOS services, Surfshark service recognition, Tailscale CLI |
 | Audio | macOS Core Audio devices |
@@ -16,11 +16,9 @@ A listed adapter can still require local software or permission; it is not a gua
 
 ### Media
 
-Apple Music offers play/pause, previous/next, seeking, shuffle, repeat (off/all/one), album metadata, and artwork when Music supplies it. Open Music and use **Allow Apple Music access** in the Media panel or Connections. Polling never requests Automation permission. When Music is running but its permission or track read fails, Now Playing stays visible as “Music needs attention,” even with hide-when-idle enabled. The panel shows the provider error and setup action. Genuine idle sessions still follow the hide-when-idle option. Permission requests and playback failures remain visible to the user.
+Music follows the active macOS Now Playing session, including participating native players and browsers. No browser extension or Apple Music Automation permission is required. Enable **macOS Now Playing** under Connections. The panel displays title, artist, album, playback progress and artwork when supplied by the system, with play/pause and previous/next commands routed to the system player. Audio devices and volume live in the Audio widget.
 
-The Music panel shows artwork and playback controls and links directly to the current audio output. The Up Next section explains when the provider cannot expose its queue; Apple Music’s public scripting interface does not expose that queue. Unsupported shuffle/repeat controls remain disabled. Music can decline these changes for some queues; read-back checks report that limitation instead of claiming success.
-
-Browser playback is a separate, developer-installable extension: see [Browser setup](../extensions/browser-media/README.md). It shares only individually enabled tabs. There is no browser-store release or silent extension installation. The first adapter exposes the page title, play/pause and seeking for top-level HTML media; unsupported transport controls are disabled and queue availability is explained. Safari, cross-origin iframe players and native Spotify are not part of this adapter. Each tab is a separate selectable session. The extension requires re-enabling after navigation.
+The adapter reads Apple's private MediaRemote interface through a bundled callback helper loaded by the system Perl host, with a bounded timeout. Artwork is cached for the current track while macOS loads it; larger covers are resized to stay within the response limit. Compatibility can change with macOS updates. Apps that do not publish to macOS Now Playing cannot appear here. Artwork may be absent; seeking, shuffle, repeat and Up Next are not exposed by this initial adapter. Read failures remain visible as “Music needs attention”; an empty system session follows the hide-when-idle setting. The legacy browser companion source remains in the repository but is no longer used by the widget.
 
 ### Calendar
 

@@ -4,9 +4,12 @@ import Foundation
 struct BarConfig {
     var appearance: BarAppearance = .nativeGlass
     var themeMode = "system"
-    var coveEdgeDepth: CGFloat { appearance == .cove && layout == .rail && visualPreferences.coveScreenBorder ? 20 : 0 }
+    var coveEdgeDepth: CGFloat { appearance == .cove && layout == .rail && visualPreferences.coveScreenBorder ? 6 : 0 }
     var theme: BarTheme { appearance.theme(mode: themeMode) }
     var height: CGFloat = 46
+    /// Fallback physical height when no connected display exposes a notch.
+    /// Otherwise the complete bar follows the notch height plus 1 mm.
+    var physicalHeightMillimeters: CGFloat = 7.4
     var topInset: CGFloat = 0
     var sideMargin: CGFloat = 16
     var workspaceNames: [String] = []
@@ -14,6 +17,8 @@ struct BarConfig {
     var integration: IntegrationMode = .automatic
     var layout: BarLayout = .rail
     var widgetPlacement: WidgetPlacement = .trailing
+    var barPresentation: BarPresentation = .fullWidth
+    var widgetLayout = WidgetZoneLayout()
     var displayOverrides: [String: DisplayOverride] = [:]
     var hideInFullscreen = true
     var workspacesOnCurrentDisplay = true
@@ -36,11 +41,12 @@ struct BarConfig {
 
     static func decode(_ data: Data) throws -> BarConfig {
         let file = try JSONDecoder().decode(ConfigFile.self, from: data)
-        guard (file.schemaVersion ?? 1) <= 3 else { throw ConfigurationError.invalid("This config needs a newer version of ConstellationBar.") }
+        guard (file.schemaVersion ?? 1) <= 4 else { throw ConfigurationError.invalid("This config needs a newer version of ConstellationBar.") }
         var config = BarConfig.default
         config.themeMode = file.themeMode ?? config.themeMode
         config.appearance = file.appearance ?? .nativeGlass
         config.height = file.height.map { CGFloat($0) } ?? config.height
+        config.physicalHeightMillimeters = file.physicalHeightMillimeters.map { CGFloat($0) } ?? config.physicalHeightMillimeters
         config.topInset = file.topInset.map { CGFloat($0) } ?? config.topInset
         config.sideMargin = file.sideMargin.map { CGFloat($0) } ?? config.sideMargin
         config.workspaceNames = file.workspaceNames ?? []
@@ -50,6 +56,7 @@ struct BarConfig {
         config.layout = file.layout ?? (file.schemaVersion == nil ? .islands : .rail)
         config.providerPreferences = file.providerPreferences ?? ProviderPreferences()
         config.widgetPlacement = file.widgetPlacement ?? .trailing
+        config.barPresentation = file.barPresentation ?? (config.layout == .rail ? .fullWidth : .floating)
         config.displayOverrides = file.displayOverrides ?? [:]
         config.hideInFullscreen = file.hideInFullscreen ?? true
         config.workspacesOnCurrentDisplay = file.workspacesOnCurrentDisplay ?? true
@@ -58,6 +65,7 @@ struct BarConfig {
         config.systemUpdateInterval = file.systemUpdateInterval ?? config.systemUpdateInterval
         config.centerWidgets = file.centerWidgets ?? []
         config.rightWidgets = file.rightWidgets ?? config.rightWidgets
+        config.widgetLayout = file.widgetLayout ?? WidgetZoneLayout.legacy(rightWidgets: config.rightWidgets, centerWidgets: config.centerWidgets, placement: config.widgetPlacement)
         config.surfsharkDisplayName = file.surfsharkDisplayName ?? config.surfsharkDisplayName
         config.tailwindDisplayName = file.tailwindDisplayName ?? config.tailwindDisplayName
         config.widgetPreferences = file.widgetPreferences ?? config.widgetPreferences
@@ -71,17 +79,20 @@ struct BarConfig {
             if let widgets = config.displayOverrides[id]?.widgets { config.displayOverrides[id]?.widgets = WidgetKind.consolidated(widgets) }
             if let widgets = config.displayOverrides[id]?.centerWidgets { config.displayOverrides[id]?.centerWidgets = WidgetKind.consolidated(widgets) }
         }
+        // A v4 layout is authoritative. Keep the legacy fields in step so old
+        // integrations and imported files continue to behave predictably.
+        config.syncLegacyWidgetFields()
         return config
     }
 
     func validate() throws {
-        guard (30...80).contains(height), (0...120).contains(topInset), (0...100).contains(sideMargin),
+        guard (30...80).contains(height), (6...20).contains(physicalHeightMillimeters), (0...120).contains(topInset), (0...100).contains(sideMargin),
               (0.5...60).contains(updateInterval), (1...60).contains(systemUpdateInterval),
               (-90...90).contains(weather.latitude), (-180...180).contains(weather.longitude),
               ["system", "dark", "light"].contains(themeMode) else {
-            throw ConfigurationError.invalid("Check height (30–80), insets, refresh intervals, coordinates, and appearance values.")
+            throw ConfigurationError.invalid("Check height, physical size, insets, refresh intervals, coordinates, and appearance values.")
         }
-        guard Set(rightWidgets + centerWidgets).count == rightWidgets.count + centerWidgets.count, Set(workspaceNames).count == workspaceNames.count,
+        guard Set(rightWidgets + centerWidgets).count == rightWidgets.count + centerWidgets.count, Set(widgetLayout.allItems).count == widgetLayout.allItems.count, Set(workspaceNames).count == workspaceNames.count,
               workspaceNames.allSatisfy({ !$0.isEmpty }) else {
             throw ConfigurationError.invalid("Workspace names and widgets must be unique; workspace names cannot be empty.")
         }
@@ -94,6 +105,9 @@ struct BarConfig {
                Set(names).count != names.count || names.contains(where: { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
                 throw ConfigurationError.invalid("Selected display workspaces must be unique and nonempty.")
             }
+            if let widgetLayout = override.widgetLayout, Set(widgetLayout.allItems).count != widgetLayout.allItems.count {
+                throw ConfigurationError.invalid("A bar widget can appear only once on each display.")
+            }
         }
     }
 
@@ -101,11 +115,34 @@ struct BarConfig {
         guard let override = displayOverrides[id] else { return self }
         var config = self
         config.layout = override.layout ?? layout
+        config.appearance = override.appearance ?? appearance
+        config.themeMode = override.themeMode ?? themeMode
+        config.visualPreferences = override.visualPreferences ?? visualPreferences
+        config.barPresentation = override.barPresentation ?? override.layout.map { $0 == .rail ? .fullWidth : .floating } ?? barPresentation
+        if override.layout == nil, override.barPresentation != nil {
+            config.layout = config.barPresentation == .fullWidth ? .rail : .islands
+        }
         config.centerWidgets = override.centerWidgets ?? centerWidgets
         config.rightWidgets = (override.widgets ?? rightWidgets).filter { !config.centerWidgets.contains($0) }
         config.widgetPlacement = override.widgetPlacement ?? widgetPlacement
+        if let zones = override.widgetLayout { config.widgetLayout = zones }
+        else if override.widgets != nil || override.centerWidgets != nil || override.widgetPlacement != nil {
+            config.widgetLayout = WidgetZoneLayout.legacy(rightWidgets: config.rightWidgets, centerWidgets: config.centerWidgets, placement: config.widgetPlacement)
+        }
+        config.syncLegacyWidgetFields()
         config.hideInFullscreen = override.hideInFullscreen ?? hideInFullscreen
         return config
+    }
+
+    mutating func setWidgetLayout(_ layout: WidgetZoneLayout) {
+        widgetLayout = layout
+        syncLegacyWidgetFields()
+    }
+
+    mutating func syncLegacyWidgetFields() {
+        centerWidgets = WidgetKind.consolidated(widgetLayout.center.compactMap(\.widgetKind))
+        rightWidgets = WidgetKind.consolidated(widgetLayout.left.compactMap(\.widgetKind) + widgetLayout.right.compactMap(\.widgetKind))
+            .filter { !centerWidgets.contains($0) }
     }
 
 }
@@ -297,6 +334,8 @@ struct ConfigFile: Codable {
     var integration: IntegrationMode?
     var layout: BarLayout?
     var widgetPlacement: WidgetPlacement?
+    var barPresentation: BarPresentation?
+    var widgetLayout: WidgetZoneLayout?
     var centerWidgets: [WidgetKind]?
     var workspaceAliases: [String: String]?
     var displayOverrides: [String: DisplayOverride]?
@@ -305,6 +344,7 @@ struct ConfigFile: Codable {
     var themeMode: String?
     var appearance: BarAppearance?
     var height: Double?
+    var physicalHeightMillimeters: Double?
     var topInset: Double?
     var sideMargin: Double?
     var workspaceNames: [String]?
@@ -332,8 +372,11 @@ struct ConfigFile: Codable {
 extension BarConfig {
     func encoded() throws -> Data {
         try validate()
+        let persistedWidgetLayout: WidgetZoneLayout = Set(widgetLayout.allWidgetKinds) == Set(rightWidgets + centerWidgets)
+            ? widgetLayout
+            : WidgetZoneLayout.legacy(rightWidgets: rightWidgets, centerWidgets: centerWidgets, placement: widgetPlacement)
         var file = ConfigFile()
-        file.schemaVersion = 3
+        file.schemaVersion = 4
         file.themeMode = themeMode
         file.appearance = appearance
         file.workspaceNames = workspaceNames
@@ -342,6 +385,8 @@ extension BarConfig {
         file.layout = layout
         file.providerPreferences = providerPreferences
         file.widgetPlacement = widgetPlacement
+        file.barPresentation = barPresentation
+        file.widgetLayout = persistedWidgetLayout
         file.centerWidgets = centerWidgets
         file.displayOverrides = displayOverrides
         file.hideInFullscreen = hideInFullscreen
@@ -357,6 +402,7 @@ extension BarConfig {
         file.visualPreferences = visualPreferences
         file.displayMode = displayMode
         file.height = Double(height)
+        file.physicalHeightMillimeters = Double(physicalHeightMillimeters)
         file.topInset = Double(topInset)
         file.sideMargin = Double(sideMargin)
         let encoder = JSONEncoder()

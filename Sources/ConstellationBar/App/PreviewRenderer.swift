@@ -84,7 +84,7 @@ enum PreviewRenderer {
         let settings = ConfigurationWindowController(config: .default, onChange: { _ in })
         settings.window?.setFrameOrigin(NSPoint(x: -10000, y: -10000))
         settings.window?.orderFront(nil)
-        for index in 0..<5 {
+        for index in ConfigurationWindowController.sectionTitles.indices {
             settings.selectSection(index)
             guard let content = settings.window?.contentView else { continue }
             try writeBitmap(content, to: directory.appendingPathComponent("settings-\(index).png"))

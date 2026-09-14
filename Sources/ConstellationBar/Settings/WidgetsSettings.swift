@@ -7,7 +7,7 @@ extension ConfigurationWindowController {
         widgetGrid.rowSpacing = 8
         widgetGrid.columnSpacing = 20
         widgetGrid.xPlacement = .fill
-        stack.addArrangedSubview(makeSection(title: "Visible Widgets", rows: [widgetGrid]))
+        stack.addArrangedSubview(makeSection(title: "Default visible widgets", rows: [widgetGrid]))
 
         configureWidgetOptionControls()
         modulePopup.addItems(withTitles: WidgetKind.selectableCases.map(\.menuTitle))
@@ -21,7 +21,8 @@ extension ConfigurationWindowController {
             ([.weather], formRow("Location", weatherLocationButton)),
             ([.weather], formRow("Location label", weatherLocationField)),
             ([.weather], coordinateRow()),
-            ([.weather], formRow("Temperature", weatherUnitPopup))
+            ([.weather], formRow("Temperature", weatherUnitPopup)),
+            ([.weather], NSTextField(wrappingLabelWithString: "Weather uses Open-Meteo and refreshes every 10 minutes. Enter latitude and longitude for your location."))
         ]
         stack.addArrangedSubview(makeSection(title: "Widget Options", rows: [formRow("Configure", modulePopup)] + moduleRows.map { $0.1 } + [noModuleOptions]))
         selectModule()

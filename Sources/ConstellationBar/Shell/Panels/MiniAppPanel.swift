@@ -14,7 +14,7 @@ final class PanelDocument: NSView { override var isFlipped: Bool { true } }
 
 /// Layouts follow the approved mini-app boards, while adapters own data and capabilities.
 final class MiniAppPanel: OverlayContentView, NSSearchFieldDelegate {
-    static let kinds: Set<WidgetKind> = [.nowPlaying, .calendar, .vpn, .audio, .system, .cpu, .memory, .agentStatus]
+    static let kinds: Set<WidgetKind> = [.nowPlaying, .calendar, .vpn, .audio, .system, .cpu, .memory, .agentStatus, .battery, .weather]
     let kind: WidgetKind
     let config: BarConfig
     var state: SystemState
@@ -110,8 +110,10 @@ final class MiniAppPanel: OverlayContentView, NSSearchFieldDelegate {
     }
     var structuralSignature: String {
         switch kind {
-        case .nowPlaying: return state.mediaSessions.map { "\($0.id)|\($0.playback.title)|\($0.playback.artist)|\($0.album)|\($0.canSeek)|\($0.canSkip)|\($0.shuffle != nil)|\($0.repeatMode != nil)" }.joined() + state.providerStatuses.description
+        case .nowPlaying: return state.mediaSessions.map { "\($0.id)|\($0.playback.title)|\($0.playback.artist)|\($0.album)|\($0.playback.duration)|\($0.artwork?.hashValue ?? 0)|\($0.canSeek)|\($0.canSkip)|\($0.shuffle != nil)|\($0.repeatMode != nil)" }.joined() + state.providerStatuses.description
         case .audio: return state.audio.devices.map { "\($0.id)|\($0.name)|\($0.isInput)|\($0.canSetVolume)|\($0.canMute)" }.joined() + "\(state.audio.outputID):\(state.audio.inputID)"
+        case .battery: return "\(state.battery)"
+        case .weather: return "\(state.weather)"
         case .calendar: return "\(state.agenda)"
         case .vpn: return "\(state.vpn)"
         case .agentStatus: return state.agents.providers.map { "\($0.id)|\($0.name)|\($0.hostName)|\($0.available)|\($0.message)|\($0.tasks)" }.joined()
@@ -127,6 +129,7 @@ final class MiniAppPanel: OverlayContentView, NSSearchFieldDelegate {
         case .calendar: buildCalendar()
         case .vpn: buildVPN()
         case .agentStatus: buildAgents()
+        case .battery, .weather: buildStatusDetails()
         default: buildSystem()
         }
         refreshers.forEach { $0() }; needsLayout = true

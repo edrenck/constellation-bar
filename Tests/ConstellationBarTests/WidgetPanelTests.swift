@@ -21,6 +21,27 @@ final class WidgetPanelTests: XCTestCase {
         try run(overlay, anchor)
     }
 
+    func testBatteryAndWeatherUseFullPanelAndSharedCloseControl() throws {
+        for kind: WidgetKind in [.battery, .weather] {
+            try withOverlay { overlay, anchor in
+                overlay.showWidget(kind, state: ConfigurationPreviewView.previewState.system, config: .default, anchoredTo: anchor, pinned: true)
+                let panel = try XCTUnwrap(overlay.panel?.contentView as? MiniAppPanel)
+                let system = MiniAppPanel(kind: .system, state: SystemState(), config: .default, history: WidgetHistory())
+                XCTAssertEqual(panel.preferredSize, system.preferredSize)
+                panel.frame.size = panel.preferredSize; panel.layoutSubtreeIfNeeded()
+                XCTAssertEqual(panel.closeControl.frame.size, NSSize(width: 28, height: 28))
+                XCTAssertEqual(panel.closeControl.toolTip, "Close panel")
+                let signature = panel.signature
+                var changed = ConfigurationPreviewView.previewState.system
+                changed.battery.percent = 12; changed.weather.temperature = 31
+                panel.update(state: changed, history: WidgetHistory())
+                XCTAssertNotEqual(panel.signature, signature)
+                panel.closeControl.performClick(nil)
+                XCTAssertNil(overlay.panel)
+            }
+        }
+    }
+
     func testHoverAndClickReuseFullPanelAndCancelPendingDismissal() throws {
         try withOverlay { overlay, anchor in
             overlay.scheduleWidget(.system, state: SystemState(), config: .default, anchoredTo: anchor)
@@ -69,11 +90,11 @@ final class WidgetPanelTests: XCTestCase {
 
     func testSimpleWidgetKeepsSameInspectorAndHoverPanelCanPinItself() throws {
         try withOverlay { overlay, anchor in
-            overlay.showWidget(.battery, state: SystemState(), config: .default, anchoredTo: anchor, pinned: false)
+            overlay.showWidget(.network, state: SystemState(), config: .default, anchoredTo: anchor, pinned: false)
             let inspector = try XCTUnwrap(overlay.panel?.contentView as? WidgetInspectorView)
             let size = overlay.panel?.frame.size
             XCTAssertEqual(inspector.subviews.compactMap { $0 as? NSButton }.count, 1, "Hover also has the close control")
-            overlay.showWidget(.battery, state: SystemState(), config: .default, anchoredTo: anchor, pinned: true)
+            overlay.showWidget(.network, state: SystemState(), config: .default, anchoredTo: anchor, pinned: true)
             XCTAssertTrue(overlay.panel?.contentView === inspector)
             XCTAssertEqual(overlay.panel?.frame.size, size)
             overlay.close()

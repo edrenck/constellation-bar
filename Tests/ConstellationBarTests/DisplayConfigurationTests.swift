@@ -78,4 +78,34 @@ final class DisplayConfigurationTests: XCTestCase {
             }
         }
     }
+
+    func testEveryBarElementCanMoveBetweenIndependentZones() throws {
+        var config = BarConfig.default
+        let layout = WidgetZoneLayout(left: [.workspaces], center: [.currentApp, .widget(.nowPlaying)], right: [.widget(.battery)], alignment: .centerAll)
+        config.setWidgetLayout(layout)
+        config.displayOverrides["studio"] = DisplayOverride(
+            appearance: .cove,
+            barPresentation: .floating,
+            widgetLayout: WidgetZoneLayout(left: [.widget(.weather)], center: [.workspaces], right: [.currentApp, .widget(.dateTime)], alignment: .spread)
+        )
+        let decoded = try BarConfig.decode(config.encoded())
+        XCTAssertEqual(decoded.widgetLayout, layout)
+        XCTAssertEqual(decoded.forDisplay("studio").appearance, .cove)
+        XCTAssertEqual(decoded.forDisplay("studio").barPresentation, .floating)
+        XCTAssertEqual(decoded.forDisplay("studio").widgetLayout.center, [.workspaces])
+        XCTAssertEqual(decoded.forDisplay("studio").widgetLayout.right, [.currentApp, .widget(.dateTime)])
+    }
+
+    func testZoneGeometryKeepsSpreadZonesApart() {
+        for width: CGFloat in [320, 640, 1440, 3440] {
+            let layout = BarZoneLayoutGeometry.resolve(width: width, height: 46, margin: 16,
+                widths: [240, 320, 360], alignment: .spread)
+            let frames = [layout.left, layout.center, layout.right].filter { $0.width > 0 }
+            for (index, frame) in frames.enumerated() {
+                XCTAssertGreaterThanOrEqual(frame.minX, 0)
+                XCTAssertLessThanOrEqual(frame.maxX, width)
+                for other in frames.dropFirst(index + 1) { XCTAssertFalse(frame.intersects(other)) }
+            }
+        }
+    }
 }

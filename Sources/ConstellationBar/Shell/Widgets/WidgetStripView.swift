@@ -22,7 +22,7 @@ final class WidgetStripView: NSView {
     private var proposedDropIndex: Int?
     private var hiddenKinds: [WidgetKind] = []
     private var forcedHiddenKinds: Set<WidgetKind> = []
-    private var widthLimit = CGFloat.greatestFiniteMagnitude
+    private var widthLimit: CGFloat = 100_000
     var onReorder: (([WidgetKind]) -> Void)?
     var onWidgetHover: ((WidgetKind, NSView, Bool) -> Void)?
     var onWidgetClick: ((WidgetKind, NSView) -> Void)?
@@ -58,6 +58,7 @@ final class WidgetStripView: NSView {
 
     override func layout() {
         super.layout()
+        guard bounds.width > 12, bounds.height > 6 else { return }
         backdrop.frame = bounds
         stack.frame = bounds.insetBy(dx: 5, dy: 2)
         if let proposedDropIndex { positionDropIndicator(at: proposedDropIndex) }

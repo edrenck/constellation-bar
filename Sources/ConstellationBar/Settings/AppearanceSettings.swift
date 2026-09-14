@@ -4,6 +4,9 @@ import AppKit
 extension ConfigurationWindowController {
     func buildAppearanceSettings(in stack: NSStackView) {
         configureAppearanceControls()
+        resetAppearanceButton.title = "Reset shared appearance"
+        resetAppearanceButton.target = self
+        resetAppearanceButton.action = #selector(resetAppearance)
         let gallery = NSStackView()
         gallery.orientation = .horizontal
         gallery.distribution = .fillEqually
@@ -18,12 +21,12 @@ extension ConfigurationWindowController {
         gallery.heightAnchor.constraint(equalToConstant: 100).isActive = true
         appearanceDetail.font = .systemFont(ofSize: 12)
         appearanceDetail.textColor = .secondaryLabelColor
-        stack.addArrangedSubview(makeSection(title: "Appearance Studio", rows: [
+        stack.addArrangedSubview(makeSection(title: "Default appearance", rows: [
             gallery, appearanceDetail,
             formRow("Native mode", modePopup),
             formRow("Cove Rail", coveBorderButton),
             formRow("Density", densityPopup),
-            formRow("Space contents", workspaceAppsButton)
+            resetAppearanceButton
         ]))
 
     }

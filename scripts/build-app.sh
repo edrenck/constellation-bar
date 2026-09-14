@@ -15,7 +15,8 @@ APP_DIR="$PROJECT_ROOT/.build/ConstellationBar.app"
 STAGING_DIR="$(mktemp -d "$PROJECT_ROOT/.build/app-staging.XXXXXX")"
 trap 'rm -rf "$STAGING_DIR"' EXIT
 STAGED_APP="$STAGING_DIR/ConstellationBar.app"
-mkdir -p "$STAGED_APP/Contents/MacOS" "$STAGED_APP/Contents/Resources"
+mkdir -p "$STAGED_APP/Contents/MacOS" "$STAGED_APP/Contents/Resources" "$STAGED_APP/Contents/Frameworks"
+cp "$BINARY_DIR/libNativeMediaHelper.dylib" "$STAGED_APP/Contents/Frameworks/"
 cp "$BINARY_DIR/ConstellationBar" "$STAGED_APP/Contents/MacOS/ConstellationBar"
 cp extensions/browser-media/README.md "$STAGED_APP/Contents/Resources/BrowserMedia-README.md"
 cp LICENSE "$STAGED_APP/Contents/Resources/LICENSE.txt"
@@ -37,6 +38,7 @@ SIGN_ARGS=(--force --sign "$SIGNING_IDENTITY")
 if [[ "$SIGNING_IDENTITY" != "-" ]]; then
   SIGN_ARGS+=(--options runtime --timestamp --entitlements "$PROJECT_ROOT/Resources/ConstellationBar.entitlements")
 fi
+codesign "${SIGN_ARGS[@]}" "$STAGED_APP/Contents/Frameworks/libNativeMediaHelper.dylib"
 codesign "${SIGN_ARGS[@]}" "$STAGED_APP"
 codesign --verify --strict "$STAGED_APP"
 # Preserve the last build until a complete replacement is available.

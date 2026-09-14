@@ -38,7 +38,7 @@ See the [configuration reference](docs/CONFIGURATION.md) for examples, defaults 
 
 ## Privacy
 
-The app collects no telemetry. Calendar access and Apple Music automation are opt-in. Weather sends configured coordinates to [Open-Meteo](https://open-meteo.com/) only when enabled. The optional browser companion and Codex integration are experimental; see [integration details](docs/WIDGETS.md) before enabling them.
+The app collects no telemetry. Calendar access is opt-in. Music uses macOS Now Playing without a browser extension. Weather sends configured coordinates to [Open-Meteo](https://open-meteo.com/) only when enabled. The native media adapter and Codex integration are experimental; see [integration details](docs/WIDGETS.md) before enabling them.
 
 ## Build and contribute
 
@@ -60,3 +60,17 @@ For immediate AeroSpace updates, merge the [example callbacks](examples/aerospac
 The product website has its own repository: [constellation-bar-website](https://github.com/edrenck/constellation-bar-website), including the HTML/CSS source, assets and static export instructions.
 
 [MIT licensed](LICENSE). See [third-party notices](THIRD_PARTY_NOTICES.md) and the [changelog](CHANGELOG.md).
+
+### Configuration organization
+
+The configuration window uses a sidebar and applies changes immediately to the native bar.
+
+- **Displays:** shared bar shape and alignment, display selection, and per-display widget zones and overrides.
+- **Widgets:** default visibility and shared options such as date format, music behavior, and weather location.
+- **Appearance:** shared theme, color mode, density, and appearance reset.
+- **Workspaces:** workspace source, AeroSpace path, ordering, and app icons.
+- **Connections:** data providers for widgets.
+- **Application:** launch at login, refresh interval, and configuration import/export.
+- **Diagnostics:** integration status and configuration file location.
+
+Display overrides take precedence over shared defaults. Use “Reset this display to global settings” to restore inheritance. Undo remains available in the sidebar for configuration edits made during this session.

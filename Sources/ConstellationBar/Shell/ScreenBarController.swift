@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import QuartzCore
+import ApplicationServices
 
 final class ScreenBarController {
     private var config: BarConfig
@@ -119,12 +120,16 @@ final class BarWindow: NSPanel {
         isOpaque = false
         backgroundColor = .clear
         hasShadow = false
-        level = .statusBar
-        collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle, .fullScreenAuxiliary]
+        // Stay above ordinary app content but below notification banners. In
+        // particular, do not opt into fullScreenAuxiliary: macOS should own a
+        // native fullscreen display without a persistent bar above its video.
+        level = NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue - 1)
+        collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
         isMovable = false
         ignoresMouseEvents = false
         contentView = barView
         setFrame(rect, display: true)
+        applyContentScale(for: screen, config: config)
         targetFrame = rect
     }
 
@@ -169,17 +174,43 @@ final class BarWindow: NSPanel {
         let sizeChanged = oldTarget?.size != rect.size
         if sizeChanged {
             barView.frame = NSRect(origin: .zero, size: rect.size)
+            setFrame(rect, display: true)
+            applyContentScale(for: screen, config: config)
             barView.apply(config: config)
         }
         move(to: rect, animated: isVisible && !sizeChanged && oldTarget?.minX == rect.minX && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion)
+    }
+
+    private func applyContentScale(for screen: NSScreen, config: BarConfig) {
+        let scale = Self.contentScale(for: screen, config: config)
+        barView.bounds = NSRect(x: 0, y: 0, width: max(1, frame.width / scale), height: max(1, frame.height / scale))
+        barView.needsLayout = true
+    }
+
+    /// Convert the fixed logical design grid into a real-world measurement.
+    /// `NSScreen.frame` reflects the selected macOS scaling mode, while
+    /// `CGDisplayScreenSize` is the panel's physical size, so their ratio is
+    /// exactly what keeps native and "Default" scaling visually consistent.
+    private static func contentScale(for screen: NSScreen, config: BarConfig) -> CGFloat {
+        let reference = NSScreen.screens.first { $0.safeAreaInsets.top > 0 }
+        let target = reference.flatMap {
+            DisplaySizing.notchTarget(notchPoints: $0.safeAreaInsets.top,
+                screenPointHeight: $0.frame.height,
+                screenMillimeterHeight: CGDisplayScreenSize($0.displayID).height)
+        } ?? config.physicalHeightMillimeters
+        // The target includes Cove's decorative shoulders, rather than adding
+        // their height on top of an already calibrated bar.
+        return DisplaySizing.scale(logicalHeight: config.height + config.coveEdgeDepth, physicalHeight: target,
+                            screenPoints: screen.frame.size, screenMillimeters: CGDisplayScreenSize(screen.displayID))
     }
 
     private static func frame(for screen: NSScreen, config: BarConfig, avoidingMenuBar: Bool) -> NSRect {
         let frame = screen.frame
         let menuBarHeight = max(NSStatusBar.system.thickness, frame.maxY - screen.visibleFrame.maxY)
         let clearance = avoidingMenuBar ? menuBarHeight : 0
-        let totalHeight = config.height + config.coveEdgeDepth
-        let y = frame.maxY - totalHeight - clearance - config.topInset
+        let scale = contentScale(for: screen, config: config)
+        let totalHeight = (config.height + config.coveEdgeDepth) * scale
+        let y = frame.maxY - totalHeight - clearance - config.topInset * scale
         return NSRect(x: frame.minX, y: y, width: frame.width, height: totalHeight)
     }
 }
@@ -246,18 +277,74 @@ enum FullscreenDetector {
         abs(window.minX - display.minX) <= 2 && abs(window.minY - display.minY) <= 2 &&
         abs(window.width - display.width) <= 2 && abs(window.height - display.height) <= 2
     }
+    private static func nativeFullscreen(pid: pid_t, bounds: CGRect) -> Bool? {
+        if pid == ProcessInfo.processInfo.processIdentifier {
+            return NSApp.windows.contains { $0.styleMask.contains(.fullScreen) }
+        }
+        guard pid > 0, AXIsProcessTrusted() else { return nil }
+        let app = AXUIElementCreateApplication(pid)
+        AXUIElementSetMessagingTimeout(app, 0.05)
+        var raw: CFTypeRef?
+        guard AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &raw) == .success,
+              let windows = raw as? [AXUIElement] else { return nil }
+        for window in windows {
+            var positionValue: CFTypeRef?, sizeValue: CFTypeRef?, fullValue: CFTypeRef?
+            guard AXUIElementCopyAttributeValue(window, kAXPositionAttribute as CFString, &positionValue) == .success,
+                  AXUIElementCopyAttributeValue(window, kAXSizeAttribute as CFString, &sizeValue) == .success,
+                  let positionValue, let sizeValue,
+                  CFGetTypeID(positionValue) == AXValueGetTypeID(), CFGetTypeID(sizeValue) == AXValueGetTypeID() else { continue }
+            var position = CGPoint.zero, size = CGSize.zero
+            AXValueGetValue(positionValue as! AXValue, .cgPoint, &position)
+            AXValueGetValue(sizeValue as! AXValue, .cgSize, &size)
+            guard covers(CGRect(origin: position, size: size), display: bounds) else { continue }
+            if AXUIElementCopyAttributeValue(window, "AXFullScreen" as CFString, &fullValue) == .success {
+                return fullValue as? Bool
+            }
+        }
+        return nil
+    }
+
     static func coveredDisplays() -> Set<CGDirectDisplayID> {
         guard let info = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else { return [] }
         var covered = Set<CGDirectDisplayID>()
         for window in info {
             let owner = window[kCGWindowOwnerName as String] as? String ?? ""
-            if ["ConstellationBar", "Window Server", "Dock"].contains(owner) { continue }
+            if ["Window Server", "Dock"].contains(owner) { continue }
             guard (window[kCGWindowLayer as String] as? Int ?? 0) == 0,
                   let bounds = window[kCGWindowBounds as String] as? [String: CGFloat],
                   let x = bounds["X"], let y = bounds["Y"], let w = bounds["Width"], let h = bounds["Height"] else { continue }
             let rect = CGRect(x: x, y: y, width: w, height: h)
-            for screen in NSScreen.screens where covers(rect, display: CGDisplayBounds(screen.displayID)) { covered.insert(screen.displayID) }
+            let matching = NSScreen.screens.filter { covers(rect, display: CGDisplayBounds($0.displayID)) }
+            guard !matching.isEmpty else { continue }
+            let pid = window[kCGWindowOwnerPID as String] as? pid_t ?? 0
+            // A tiled/maximized window can have exactly the display's bounds.
+            // When Accessibility supplies an explicit fullscreen state, honor it.
+            if nativeFullscreen(pid: pid, bounds: rect) == false { continue }
+            matching.forEach { covered.insert($0.displayID) }
         }
         return covered
+    }
+}
+
+/// Reject missing or implausible EDID measurements instead of magnifying the
+/// bar using bad monitor metadata. Both axes must describe the same panel.
+enum DisplaySizing {
+    static func notchTarget(notchPoints: CGFloat, screenPointHeight: CGFloat,
+                            screenMillimeterHeight: CGFloat) -> CGFloat? {
+        guard notchPoints > 0, screenPointHeight > 0,
+              (70...2000).contains(screenMillimeterHeight) else { return nil }
+        let notchMillimeters = notchPoints / screenPointHeight * screenMillimeterHeight
+        guard (3...12).contains(notchMillimeters) else { return nil }
+        return notchMillimeters + 1
+    }
+
+    static func scale(logicalHeight: CGFloat, physicalHeight: CGFloat,
+                      screenPoints: CGSize, screenMillimeters: CGSize) -> CGFloat {
+        guard screenPoints.width > 0, screenPoints.height > 0,
+              (100...3000).contains(screenMillimeters.width), (70...2000).contains(screenMillimeters.height) else { return 1 }
+        let x = screenPoints.width / screenMillimeters.width
+        let y = screenPoints.height / screenMillimeters.height
+        guard (0.8...1.25).contains(x / y), (1...20).contains(y), logicalHeight > 0 else { return 1 }
+        return physicalHeight * y / logicalHeight
     }
 }

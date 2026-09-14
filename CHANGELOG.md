@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.0 — Alpha (2026-09-14)
+
+- Replace configuration tabs and the embedded live preview with a larger window and persistent section sidebar.
+- Separate display overrides, default widgets, shared appearance, workspaces, connections, application preferences, and diagnostics.
+- Keep Undo available across sections and clarify which settings apply globally.
+- Preserve unrelated inherited settings when changing a display override.
+- Arrange all bar elements in left, center, and right zones with per-display themes and fullscreen behavior.
+- Follow macOS Now Playing through an experimental native media adapter, without browser extension setup.
+- Refine notch-aware sizing and widget panels.
+
 ## 0.5.0 — Alpha (2026-09-08)
 
 - Configure widgets and workspace visibility independently for each display.

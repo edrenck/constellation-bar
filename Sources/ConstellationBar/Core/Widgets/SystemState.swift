@@ -16,7 +16,7 @@ struct SystemState: Equatable {
     var nowPlaying: NowPlayingState = .empty
     var weather: WeatherState = .unavailable
     func hidesNowPlaying(whenIdle: Bool) -> Bool { whenIdle && nowPlaying.source.isEmpty && !mediaNeedsAttention }
-    var mediaNeedsAttention: Bool { providerStatuses.contains { $0.needsAttention && ["appleMusic", "browser"].contains($0.id) } }
+    var mediaNeedsAttention: Bool { providerStatuses.contains { $0.needsAttention && ["nativeMedia", "appleMusic", "browser"].contains($0.id) } }
     var mediaSessions: [MediaSession] = []
     var providerStatuses: [ProviderStatus] = []
     var audio = AudioState()

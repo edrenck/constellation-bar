@@ -45,6 +45,7 @@ final class WorkspaceStripView: NSView {
 
     override func layout() {
         super.layout()
+        guard bounds.width > 12, bounds.height > 6 else { return }
         backdrop.frame = bounds
         stack.frame = bounds.insetBy(dx: 6, dy: 3)
         overflow.frame = bounds.insetBy(dx: 6, dy: 3)
@@ -272,7 +273,10 @@ final class WorkspaceControlView: ModernControlView {
         label.font = style.font(size: 12, weight: focused ? .semibold : .regular)
         label.textColor = focused ? theme.selectionText : workspace.windows.isEmpty ? theme.muted : theme.foreground
         setFillColor(focused ? (selectionInStrip ? .clear : theme.selectionFill) : isHovered ? theme.surfaceStrong : .clear)
-        cornerRadiusOverride = style.selectionRadius
+        // Hover and selection geometry should feel like one control family.
+        // Cove previously used its small selection radius here while widgets
+        // used the bar radius, producing the square-vs-pill mismatch.
+        cornerRadiusOverride = style.barRadius
         layer?.borderWidth = (focused || isHovered) && NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast ? 1 : 0
         layer?.borderColor = theme.foreground.cgColor
         layer?.shadowOpacity = 0

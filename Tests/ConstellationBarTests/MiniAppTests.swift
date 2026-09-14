@@ -43,7 +43,7 @@ final class MiniAppTests: XCTestCase {
         state = SystemState(); provider.sample(config: config, into: &state)
         XCTAssertEqual(music.calls, 1)
         XCTAssertEqual(state.mediaSessions.map(\.providerID), ["browser"])
-        XCTAssertTrue(IntegrationCatalog.all.first { $0.id == "spotify" }!.comingLater)
+        XCTAssertNotNil(IntegrationCatalog.all.first { $0.id == "nativeMedia" })
     }
     func testBrowserBridgeValidatesPathsExpiresCommandsAndAcknowledges() throws {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)

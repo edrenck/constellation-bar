@@ -1,7 +1,6 @@
 import AppKit
 
-/// Small native, keyboard-accessible style swatches. The live bar preview above
-/// the gallery uses the real renderer and the user's current layout/modules.
+/// Native, keyboard-accessible style swatches for the shared appearance.
 final class AppearanceChoiceButton: NSButton {
     let choice: BarAppearance
     var mode = "system"

@@ -48,15 +48,7 @@ extension ConfigurationWindowController {
             stack.topAnchor.constraint(equalTo: container.topAnchor, constant: 14),
             stack.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -14)
         ])
-        let index: Int
-        switch title {
-        case "Composition", "Module order": index = 0
-        case "Visible Widgets", "Widget Options": index = 1
-        case "Appearance Studio": index = 2
-        case "Connections", "Diagnostics", "Widget Providers": index = 3
-        default: index = 4
-        }
-        sections[index, default: []].append(container)
+        sections[buildingSection, default: []].append(container)
         return container
     }
 

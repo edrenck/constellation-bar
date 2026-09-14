@@ -9,16 +9,32 @@ final class FlippedSettingsView: NSView {
 final class ConfigurationWindowController: NSWindowController, NSTextFieldDelegate {
     var config: BarConfig
     let onChange: (BarConfig) -> Void
-    lazy var preview = ConfigurationPreviewView(config: config)
     var undoStack: [BarConfig] = []
     var lastCommittedConfig: BarConfig
     let undoButton = NSButton(title: "Undo", target: nil, action: nil)
     let resetAppearanceButton = NSButton(title: "Reset Appearance", target: nil, action: nil)
 
-    let sectionsControl = NSSegmentedControl(labels: ["Layout", "Widgets", "Appearance", "Connections", "Application"], trackingMode: .selectOne, target: nil, action: nil)
+    static let sectionTitles = ["Displays", "Widgets", "Appearance", "Workspaces", "Connections", "Application", "Diagnostics"]
+    static let sectionDescriptions = [
+        "Choose a display and arrange its bar. Display overrides take precedence over shared defaults.",
+        "Choose default widgets for displays without a custom arrangement. Widget options apply everywhere.",
+        "Set the shared appearance. Displays with a custom theme keep their own settings.",
+        "Choose your workspace source, ordering, and app icons.",
+        "Choose which services supply widget data. Arrange visible widgets in Displays.",
+        "Manage startup, refresh frequency, and configuration files.",
+        "Check integration availability and the configuration file location."
+    ]
+    var selectedSection = 0
+    var buildingSection = 0
+    var sidebarButtons: [NSButton] = []
+    let sectionTitle = NSTextField(labelWithString: "")
+    let sectionDescription = NSTextField(wrappingLabelWithString: "")
+    let settingsScroll = NSScrollView()
     var sections: [Int: [NSView]] = [:]
     let layoutPopup = NSPopUpButton()
     let placementPopup = NSPopUpButton()
+    let barPresentationPopup = NSPopUpButton()
+    let widgetAlignmentPopup = NSPopUpButton()
     let integrationPopup = NSPopUpButton()
     let aerospacePathField = NSTextField()
     let workspaceOrderField = NSTextField()
@@ -59,25 +75,19 @@ final class ConfigurationWindowController: NSWindowController, NSTextFieldDelega
         self.lastCommittedConfig = config
         self.onChange = onChange
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 780, height: 760),
+            contentRect: NSRect(x: 0, y: 0, width: 1080, height: 800),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
             backing: .buffered,
             defer: false
         )
         window.title = "Customize ConstellationBar"
-        window.minSize = NSSize(width: 700, height: 600)
+        window.minSize = NSSize(width: 980, height: 640)
         window.collectionBehavior = [.moveToActiveSpace]
         super.init(window: window)
         NotificationCenter.default.addObserver(self, selector: #selector(applicationDidBecomeActive), name: NSApplication.didBecomeActiveNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(updateDiagnostics), name: IntegrationDiagnostics.changed, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(displaysChanged), name: NSApplication.didChangeScreenParametersNotification, object: nil)
         buildInterface()
-        preview.onWidgetSelection = { [weak self] kind in
-            guard let self else { return }
-            self.modulePopup.selectItem(at: WidgetKind.selectableCases.firstIndex(of: kind.canonical) ?? 0)
-            self.selectModule()
-            self.selectSection(1)
-        }
         sync(config: config)
     }
 
@@ -108,7 +118,7 @@ final class ConfigurationWindowController: NSWindowController, NSTextFieldDelega
         coveBorderButton.toolTip = "Cove Rail only: extend to both screen edges with downward-curving corners."
         densityPopup.selectItem(at: BarDensity.allCases.firstIndex(of: config.visualPreferences.density) ?? 1)
         workspaceAppsButton.state = config.visualPreferences.showsWorkspaceAppIcons ? .on : .off
-        for (kind, button) in widgetButtons { button.state = config.rightWidgets.contains(kind) ? .on : .off }
+        for (kind, button) in widgetButtons { button.state = config.widgetLayout.allWidgetKinds.contains(kind) ? .on : .off }
         if let index = DateTimePresentation.allCases.firstIndex(of: config.widgetPreferences.dateTimePresentation) { datePopup.selectItem(at: index) }
         artistButton.state = config.widgetPreferences.nowPlayingShowsArtist ? .on : .off
         hideIdlePlayerButton.state = config.widgetPreferences.nowPlayingHidesWhenIdle ? .on : .off
@@ -122,6 +132,8 @@ final class ConfigurationWindowController: NSWindowController, NSTextFieldDelega
         refreshPopup.selectItem(at: refreshValues.enumerated().min(by: { abs($0.element - config.systemUpdateInterval) < abs($1.element - config.systemUpdateInterval) })?.offset ?? 1)
         layoutPopup.selectItem(at: BarLayout.allCases.firstIndex(of: config.layout) ?? 0)
         placementPopup.selectItem(at: WidgetPlacement.allCases.firstIndex(of: config.widgetPlacement) ?? 0)
+        barPresentationPopup.selectItem(at: BarPresentation.allCases.firstIndex(of: config.barPresentation) ?? 0)
+        widgetAlignmentPopup.selectItem(at: WidgetAlignment.allCases.firstIndex(of: config.widgetLayout.alignment) ?? 1)
         integrationPopup.selectItem(at: IntegrationMode.allCases.firstIndex(of: config.integration) ?? 0)
         aerospacePathField.stringValue = config.aerospacePath
         workspaceOrderField.stringValue = config.workspaceNames.joined(separator: ", ")
@@ -131,12 +143,13 @@ final class ConfigurationWindowController: NSWindowController, NSTextFieldDelega
         rebuildWidgetOrder()
         syncLaunchAtLogin()
         updateDiagnostics()
-        if isWindowLoaded { preview.apply(config: config) }
         undoButton.isEnabled = !undoStack.isEmpty
     }
 
     func selectSection(_ index: Int) {
-        sectionsControl.selectedSegment = index
+        guard Self.sectionTitles.indices.contains(index) else { return }
+        window?.makeFirstResponder(nil)
+        selectedSection = index
         sectionChanged()
         window?.contentView?.layoutSubtreeIfNeeded()
     }
@@ -149,13 +162,55 @@ final class ConfigurationWindowController: NSWindowController, NSTextFieldDelega
         background.state = .active
         window.contentView = background
 
-        let scroll = NSScrollView()
+        let sidebar = NSStackView()
+        sidebar.translatesAutoresizingMaskIntoConstraints = false
+        sidebar.orientation = .vertical
+        sidebar.alignment = .leading
+        sidebar.spacing = 6
+        background.addSubview(sidebar)
+        let brand = NSTextField(labelWithString: "ConstellationBar")
+        brand.font = .systemFont(ofSize: 16, weight: .semibold)
+        sidebar.addArrangedSubview(brand)
+        sidebar.setCustomSpacing(22, after: brand)
+        let symbols = ["display.2", "square.grid.2x2", "paintpalette", "rectangle.3.group", "link", "gearshape", "waveform.path.ecg"]
+        for (index, title) in Self.sectionTitles.enumerated() {
+            let button = NSButton(title: title, target: self, action: #selector(sidebarSelected(_:)))
+            button.setButtonType(.pushOnPushOff)
+            button.bezelStyle = .regularSquare
+            button.isBordered = false
+            button.wantsLayer = true
+            button.layer?.cornerRadius = 7
+            button.alignment = .left
+            button.image = NSImage(systemSymbolName: symbols[index], accessibilityDescription: nil)
+            button.imagePosition = .imageLeading
+            button.tag = index
+            button.font = .systemFont(ofSize: 14, weight: .medium)
+            sidebar.addArrangedSubview(button)
+            button.widthAnchor.constraint(equalTo: sidebar.widthAnchor).isActive = true
+            button.heightAnchor.constraint(equalToConstant: 36).isActive = true
+            sidebarButtons.append(button)
+        }
+        let liveNote = NSTextField(wrappingLabelWithString: "Changes apply immediately to your desktop bar.")
+        liveNote.font = .systemFont(ofSize: 12)
+        liveNote.textColor = .secondaryLabelColor
+        sidebar.addArrangedSubview(liveNote)
+        liveNote.widthAnchor.constraint(equalTo: sidebar.widthAnchor).isActive = true
+        sidebar.setCustomSpacing(22, after: sidebarButtons.last!)
+        undoButton.target = self
+        undoButton.action = #selector(undoLastChange)
+        sidebar.addArrangedSubview(undoButton)
+
+        let scroll = settingsScroll
         scroll.translatesAutoresizingMaskIntoConstraints = false
         scroll.hasVerticalScroller = true
-        scroll.drawsBackground = false
+        scroll.drawsBackground = true
+        scroll.backgroundColor = .windowBackgroundColor
         background.addSubview(scroll)
         NSLayoutConstraint.activate([
-            scroll.leadingAnchor.constraint(equalTo: background.leadingAnchor),
+            sidebar.leadingAnchor.constraint(equalTo: background.leadingAnchor, constant: 16),
+            sidebar.topAnchor.constraint(equalTo: background.topAnchor, constant: 24),
+            sidebar.widthAnchor.constraint(equalToConstant: 190),
+            scroll.leadingAnchor.constraint(equalTo: sidebar.trailingAnchor, constant: 16),
             scroll.trailingAnchor.constraint(equalTo: background.trailingAnchor),
             scroll.topAnchor.constraint(equalTo: background.topAnchor),
             scroll.bottomAnchor.constraint(equalTo: background.bottomAnchor)
@@ -179,44 +234,25 @@ final class ConfigurationWindowController: NSWindowController, NSTextFieldDelega
             stack.bottomAnchor.constraint(equalTo: document.bottomAnchor, constant: -24)
         ])
 
-        let title = NSTextField(labelWithString: "Arrange your desktop.")
-        title.font = .systemFont(ofSize: 22, weight: .bold)
-        stack.addArrangedSubview(title)
-        let subtitle = NSTextField(wrappingLabelWithString: "Choose a layout, then click a module in the preview to configure it. Changes appear live.")
-        subtitle.textColor = .secondaryLabelColor
-        stack.addArrangedSubview(subtitle)
-
-        preview.translatesAutoresizingMaskIntoConstraints = false
-        preview.widthAnchor.constraint(greaterThanOrEqualToConstant: 590).isActive = true
-        preview.heightAnchor.constraint(equalToConstant: 76).isActive = true
-        stack.addArrangedSubview(preview)
-
-        let historyControls = NSStackView()
-        historyControls.orientation = .horizontal
-        historyControls.spacing = 8
-        undoButton.target = self
-        undoButton.action = #selector(undoLastChange)
-        undoButton.isEnabled = false
-        resetAppearanceButton.target = self
-        resetAppearanceButton.action = #selector(resetAppearance)
-        historyControls.addArrangedSubview(undoButton)
-        historyControls.addArrangedSubview(resetAppearanceButton)
-        stack.addArrangedSubview(historyControls)
-
-        sectionsControl.target = self
-        sectionsControl.action = #selector(sectionChanged)
-        sectionsControl.selectedSegment = 0
-        stack.addArrangedSubview(sectionsControl)
+        sectionTitle.font = .systemFont(ofSize: 26, weight: .bold)
+        sectionDescription.textColor = .secondaryLabelColor
+        stack.addArrangedSubview(sectionTitle)
+        stack.addArrangedSubview(sectionDescription)
+        sectionDescription.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true
+        buildingSection = 0
         buildLayoutSettings(in: stack)
-        buildAppearanceSettings(in: stack)
+        buildingSection = 1
         buildWidgetsSettings(in: stack)
+        buildingSection = 2
+        buildAppearanceSettings(in: stack)
+        buildingSection = 3
+        buildWorkspacesSettings(in: stack)
+        buildingSection = 4
         buildConnectionsSettings(in: stack)
+        buildingSection = 5
         buildApplicationSettings(in: stack)
-        let weatherNote = NSTextField(wrappingLabelWithString: "Weather uses Open-Meteo and refreshes at most every 10 minutes. Enter WGS84 latitude and longitude for your location.")
-        weatherNote.textColor = .tertiaryLabelColor
-        weatherNote.font = .systemFont(ofSize: 11)
-        stack.addArrangedSubview(weatherNote)
-        sections[1, default: []].append(weatherNote)
+        buildingSection = 6
+        buildDiagnosticsSettings(in: stack)
         for views in sections.values {
             for view in views { view.widthAnchor.constraint(equalTo: stack.widthAnchor).isActive = true }
         }
@@ -234,11 +270,7 @@ final class ConfigurationWindowController: NSWindowController, NSTextFieldDelega
         aerospaceStatus.stringValue = IntegrationDiagnostics.workspace
         let tailscale = ExecutableDiscovery.find("tailscale")
         tailscaleStatus.stringValue = tailscale.map { "Available · \($0)" } ?? "CLI unavailable · system VPN status available"
-        let runningIDs = Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))
-        var players = [("com.apple.Music", "Apple Music")].compactMap { runningIDs.contains($0.0) ? $0.1 : nil }
-        let browserSessions = BrowserMediaIntegration().sessions().sessions.count
-        if browserSessions > 0 { players.append("Browser · \(browserSessions) session(s)") }
-        mediaStatus.stringValue = players.isEmpty ? "No supported player running" : players.joined(separator: ", ")
+        mediaStatus.stringValue = config.providerPreferences.includes("nativeMedia") ? "macOS Now Playing · system player" : "macOS Now Playing disabled"
         weatherStatus.stringValue = config.weather.isConfigured ? "Configured · \(config.weather.locationLabel)" : "Optional · choose a location to enable"
         configPathStatus.stringValue = ConfigurationStore.lastError ?? ConfigFile.writableURL().path
     }
@@ -264,11 +296,12 @@ final class ConfigurationWindowController: NSWindowController, NSTextFieldDelega
 
     @objc func widgetVisibilityChanged(_ sender: NSButton) {
         guard let raw = sender.identifier?.rawValue, let kind = WidgetKind(rawValue: raw) else { return }
+        var zones = config.widgetLayout
+        for zone in BarZone.allCases { zones.setItems(zones.items(in: zone).filter { $0.widgetKind != kind }, in: zone) }
         if sender.state == .on {
-            if !config.rightWidgets.contains(kind) { config.rightWidgets.append(kind) }
-        } else {
-            config.rightWidgets.removeAll { $0 == kind }
+            zones.right.append(.widget(kind))
         }
+        config.setWidgetLayout(zones)
         commit()
     }
 
@@ -351,7 +384,7 @@ final class ConfigurationWindowController: NSWindowController, NSTextFieldDelega
             lastCommittedConfig = config
         }
         undoButton.isEnabled = !undoStack.isEmpty
-        preview.apply(config: config)
+        displayEditor.sync(config: config)
         onChange(config)
     }
 
@@ -360,12 +393,27 @@ final class ConfigurationWindowController: NSWindowController, NSTextFieldDelega
         for (kinds, row) in moduleRows { row.isHidden = !kinds.contains(selected) }
         noModuleOptions.isHidden = moduleRows.contains { $0.0.contains(selected) }
     }
+    @objc func sidebarSelected(_ sender: NSButton) { selectSection(sender.tag) }
     @objc func sectionChanged() {
-        for (index, views) in sections { views.forEach { $0.isHidden = index != sectionsControl.selectedSegment } }
+        for (index, views) in sections { views.forEach { $0.isHidden = index != selectedSection } }
+        for button in sidebarButtons {
+            button.state = button.tag == selectedSection ? .on : .off
+            button.layer?.backgroundColor = button.tag == selectedSection
+                ? NSColor.controlAccentColor.withAlphaComponent(0.18).cgColor : NSColor.clear.cgColor
+        }
+        sectionTitle.stringValue = Self.sectionTitles[selectedSection]
+        sectionDescription.stringValue = Self.sectionDescriptions[selectedSection]
+        window?.contentView?.layoutSubtreeIfNeeded()
+        settingsScroll.contentView.scroll(to: .zero)
+        settingsScroll.reflectScrolledClipView(settingsScroll.contentView)
     }
     @objc func layoutChanged() {
-        config.layout = BarLayout.allCases[max(0, layoutPopup.indexOfSelectedItem)]
-        config.widgetPlacement = WidgetPlacement.allCases[max(0, placementPopup.indexOfSelectedItem)]
+        config.barPresentation = BarPresentation.allCases[max(0, barPresentationPopup.indexOfSelectedItem)]
+        var zones = config.widgetLayout
+        zones.alignment = WidgetAlignment.allCases[max(0, widgetAlignmentPopup.indexOfSelectedItem)]
+        config.layout = config.barPresentation == .fullWidth ? .rail : .islands
+        config.widgetPlacement = zones.alignment == .centerAll ? .centered : .trailing
+        config.setWidgetLayout(zones)
         commit()
         sync(config: config)
     }
