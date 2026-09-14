@@ -14,7 +14,29 @@ extension ConfigurationWindowController {
         stack.addArrangedSubview(makeSection(title: "Workspace contents", rows: [workspaceAppsButton, localSpacesButton]))
     }
 
+    @objc func calendarProviderChanged() {
+        config.providerPreferences.calendarProvider = CalendarProviderChoice.allCases[max(0, calendarProviderPopup.indexOfSelectedItem)]
+        commit()
+    }
+    @objc func chooseOutlookFolder() {
+        WidgetServices.shared.outlook.requestAccess { error in
+            if let error { let alert = NSAlert(); alert.messageText = "Outlook folder access"; alert.informativeText = error; alert.runModal() }
+        }
+    }
+    @objc func disconnectOutlookFolder() {
+        OutlookCacheAccess.disconnect()
+        WidgetServices.shared.outlook.invalidate()
+    }
     func buildConnectionsSettings(in stack: NSStackView) {
+        calendarProviderPopup.addItems(withTitles: CalendarProviderChoice.allCases.map(\.title))
+        calendarProviderPopup.target = self
+        calendarProviderPopup.action = #selector(calendarProviderChanged)
+        stack.addArrangedSubview(makeSection(title: "Calendar", rows: [formRow("Provider", calendarProviderPopup),
+            NSTextField(wrappingLabelWithString: "Choose Apple Calendar or Outlook for Mac. Outlook uses read-only access to its local data folder. Open Outlook to keep the cache up to date. ConstellationBar does not sign in or contact calendar servers.")]))
+        let connectOutlook = NSButton(title: "Choose Outlook data folder…", target: self, action: #selector(chooseOutlookFolder))
+        let disconnectOutlook = NSButton(title: "Disconnect Outlook folder", target: self, action: #selector(disconnectOutlookFolder))
+        stack.addArrangedSubview(makeSection(title: "Outlook local access", rows: [connectOutlook, disconnectOutlook,
+            NSTextField(wrappingLabelWithString: "Choose Library → Group Containers → UBF8T346G9.Office → Outlook. Only calendar records are displayed; Outlook’s files are never changed.")]))
         let providerRows: [NSView] = IntegrationCatalog.all.filter { !$0.comingLater }.map { descriptor in
             let toggle = NSButton(checkboxWithTitle: descriptor.title, target: self, action: #selector(providerChanged(_:)))
             toggle.identifier = NSUserInterfaceItemIdentifier(descriptor.id)

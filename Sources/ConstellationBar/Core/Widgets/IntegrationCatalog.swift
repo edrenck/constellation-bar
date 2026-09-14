@@ -17,7 +17,7 @@ enum IntegrationCatalog {
         .init(id: "nativeMedia", title: "macOS Now Playing", category: "Media", detail: "System player · no browser extension required"),
         .init(id: "appleCalendar", title: "Apple Calendar", category: "Calendar", detail: "Calendars synced to this Mac · read-only agenda"),
         .init(id: "googleCalendar", title: "Google Calendar (direct)", category: "Calendar", detail: "Coming later · synced calendars work through Apple Calendar", comingLater: true),
-        .init(id: "outlook", title: "Outlook (direct)", category: "Calendar", detail: "Coming later · synced calendars work through Apple Calendar", comingLater: true),
+        .init(id: "outlook", title: "Outlook for Mac", category: "Calendar", detail: "Local calendar cache · read-only folder access · no Microsoft sign-in"),
         .init(id: "systemVPN", title: "macOS VPN services", category: "VPN", detail: "Configured network services"),
         .init(id: "surfshark", title: "Surfshark", category: "VPN", detail: "System service status and app shortcut"),
         .init(id: "tailscale", title: "Tailscale", category: "VPN", detail: "CLI status, peers and exit-node details"),

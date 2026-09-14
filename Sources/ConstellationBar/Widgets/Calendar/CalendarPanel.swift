@@ -10,9 +10,11 @@ extension MiniAppPanel {
     func buildCalendar() {
         guard state.agenda.authorized else {
             label("Your day, at a glance", size: 28); label(state.agenda.message, muted: true)
-            if config.providerPreferences.includes("appleCalendar") { add(button("Allow Calendar access") { [weak self] in self?.perform(.authorizeCalendar) }, width: bodyWidth, height: 34) }
-            label("Includes calendars already synced to this Mac.", size: 11, muted: true); return
+            let provider = config.providerPreferences.calendarProvider
+            if config.providerPreferences.includes(provider.rawValue) { add(button(provider == .outlook ? "Choose Outlook data folder" : "Allow Calendar access") { [weak self] in self?.perform(.authorizeCalendar) }, width: bodyWidth, height: 34) }
+            label(provider == .outlook ? "Read-only local access. Open Outlook to keep its cached events up to date." : "Includes calendars already synced to this Mac.", size: 11, muted: true); return
         }
+        if !state.agenda.message.isEmpty { label(state.agenda.message, size: 11, muted: true) }
         if calendarChooser {
             label("Choose calendars", size: 24)
             for source in state.agenda.calendars {
@@ -68,7 +70,8 @@ extension MiniAppPanel {
             if !event.location.isEmpty { add(text(event.location, size: 12, muted: true, width: half), to: details) }
             if !event.attendees.isEmpty { add(text(event.attendees.prefix(5).joined(separator: ", "), size: 11, muted: true, width: half), to: details) }
             if let url = event.meetingURL { let join = button("Join meeting", treatment: .filled) { NSWorkspace.shared.open(url) }; join.symbolName = "video.fill"; add(join, width: half, height: 34, to: details) }
-            add(button("Open in Calendar") { [weak self] in self?.openApp("com.apple.iCal") }, width: half, height: 32, to: details)
+            let outlook = config.providerPreferences.calendarProvider == .outlook
+            add(button(outlook ? "Open in Outlook" : "Open in Calendar") { [weak self] in self?.openApp(outlook ? "com.microsoft.Outlook" : "com.apple.iCal") }, width: half, height: 32, to: details)
         }
         let columns = row([agenda, details], spacing: 24); columns.alignment = .top; add(columns, width: bodyWidth)
         rule()

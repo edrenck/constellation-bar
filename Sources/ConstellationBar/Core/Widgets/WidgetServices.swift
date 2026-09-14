@@ -4,6 +4,7 @@ import AppKit
 final class WidgetServices {
     static let shared = WidgetServices()
     let calendar = AppleCalendarIntegration()
+    let outlook = OutlookCalendarIntegration()
     let audio = AudioProvider()
     let media: [MediaIntegrating] = [NativeMediaIntegration()]
     func perform(_ action: WidgetAction) throws {

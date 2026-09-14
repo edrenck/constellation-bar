@@ -6,9 +6,10 @@ struct BarConfig {
     var themeMode = "system"
     var coveEdgeDepth: CGFloat { appearance == .cove && layout == .rail && visualPreferences.coveScreenBorder ? 6 : 0 }
     var theme: BarTheme { appearance.theme(mode: themeMode) }
+    var sizeMultiplier: Double = 1
     var height: CGFloat = 46
-    /// Fallback physical height when no connected display exposes a notch.
-    /// Otherwise the complete bar follows the notch height plus 1 mm.
+    /// Physical target for displays without their own notch. External displays
+    /// also enforce a readable logical minimum.
     var physicalHeightMillimeters: CGFloat = 7.4
     var topInset: CGFloat = 0
     var sideMargin: CGFloat = 16
@@ -97,6 +98,9 @@ struct BarConfig {
             throw ConfigurationError.invalid("Workspace names and widgets must be unique; workspace names cannot be empty.")
         }
         for override in displayOverrides.values {
+            if let size = override.sizeMultiplier, !(0.75...3).contains(size) {
+                throw ConfigurationError.invalid("Display size must be between 75% and 300%.")
+            }
             let kinds = (override.widgets ?? []) + (override.centerWidgets ?? [])
             if Set(kinds).count != kinds.count {
                 throw ConfigurationError.invalid("A widget can appear only once on each display.")
@@ -114,6 +118,7 @@ struct BarConfig {
     func forDisplay(_ id: String) -> BarConfig {
         guard let override = displayOverrides[id] else { return self }
         var config = self
+        config.sizeMultiplier = override.sizeMultiplier ?? sizeMultiplier
         config.layout = override.layout ?? layout
         config.appearance = override.appearance ?? appearance
         config.themeMode = override.themeMode ?? themeMode
