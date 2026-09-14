@@ -5,7 +5,7 @@ final class WidgetServices {
     static let shared = WidgetServices()
     let calendar = AppleCalendarIntegration()
     let audio = AudioProvider()
-    let media: [MediaIntegrating] = [AppleMusicIntegration(), BrowserMediaIntegration()]
+    let media: [MediaIntegrating] = [NativeMediaIntegration()]
     func perform(_ action: WidgetAction) throws {
         switch action {
         case let .playback(session, command): try mediaProvider(session).perform(session: session, command: command, position: nil)

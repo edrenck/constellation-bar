@@ -15,12 +15,8 @@ extension MiniAppPanel {
             let glyph = PanelGlyph(); glyph.image = NSImage(systemSymbolName: "music.note", accessibilityDescription: nil); glyph.color = config.theme.muted; glyph.tile = config.theme.surface
             add(row([NSView(), glyph, NSView()]), width: bodyWidth, height: 80); glyph.widthAnchor.constraint(equalToConstant: 80).isActive = true
             label(state.mediaNeedsAttention ? "Music needs attention" : "Nothing playing", size: 23)
-            for provider in state.providerStatuses where ["appleMusic", "browser"].contains(provider.id) { label(provider.message, muted: true) }
-            if config.providerPreferences.includes("appleMusic") {
-                add(button("Open Apple Music") { [weak self] in self?.openApp("com.apple.Music") }, width: bodyWidth, height: 34)
-                add(button("Allow Apple Music access") { [weak self] in self?.perform(.authorizeMusic) }, width: bodyWidth, height: 34)
-            }
-            add(button("Browser setup guide") { [weak self] in self?.openBrowserGuide() }, width: bodyWidth, height: 34)
+            for provider in state.providerStatuses where provider.id == "nativeMedia" { label(provider.message, muted: true) }
+            label("Start playback in any app that appears in macOS Now Playing.", muted: true)
             return
         }
         let art = NSImageView(); art.image = session.artwork.flatMap(NSImage.init(data:)) ?? NSImage(systemSymbolName: "music.note", accessibilityDescription: "Artwork unavailable")
@@ -65,8 +61,7 @@ extension MiniAppPanel {
             label("This provider does not expose its Up Next queue to the bar.", size: 11, muted: true)
             if session.providerID == "appleMusic" { add(button("View queue in Music") { [weak self] in self?.openApp("com.apple.Music") }, width: bodyWidth, height: 30) }
         }
-        rule()
-        add(actionRow(state.audio.output?.name ?? "Audio output", symbol: state.audio.output?.symbol ?? "headphones") { [weak self] in self?.onOpenAudio?() }, width: bodyWidth, height: 36)
+
     }
     @objc func mediaSourceChanged(_ sender: NSPopUpButton) {
         guard state.mediaSessions.indices.contains(sender.indexOfSelectedItem) else { return }

@@ -15,7 +15,7 @@ enum AudioDeviceIcon {
     }
 }
 final class AudioProvider: SystemProviding {
-    let kinds: Set<WidgetKind> = [.audio, .nowPlaying]
+    let kinds: Set<WidgetKind> = [.audio]
     func sample(config: BarConfig, into state: inout SystemState) { state.audio = snapshot() }
     func snapshot() -> AudioState {
         let system = AudioObjectID(kAudioObjectSystemObject)

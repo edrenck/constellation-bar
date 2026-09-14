@@ -9,7 +9,7 @@ final class MediaProvider: SystemProviding {
         for integration in integrations where config.providerPreferences.includes(integration.id) {
             let result = integration.sessions()
             state.mediaSessions += result.sessions
-            state.providerStatuses.append(ProviderStatus(id: integration.id, message: result.status, needsAttention: result.sessions.isEmpty && integration.id == "appleMusic" && NSWorkspace.shared.runningApplications.contains { $0.bundleIdentifier == "com.apple.Music" } && result.status != "Nothing playing in Apple Music."))
+            state.providerStatuses.append(ProviderStatus(id: integration.id, message: result.status, needsAttention: result.sessions.isEmpty && (integration.id == "nativeMedia" && result.status != "Nothing playing on this Mac." || integration.id == "appleMusic" && NSWorkspace.shared.runningApplications.contains { $0.bundleIdentifier == "com.apple.Music" } && result.status != "Nothing playing in Apple Music.")))
         }
         state.nowPlaying = state.mediaSessions.first(where: { $0.playback.isPlaying })?.playback ?? state.mediaSessions.first?.playback ?? .empty
     }

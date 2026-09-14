@@ -8,8 +8,10 @@ final class BarRootView: NSView {
     var previewExclusion: ClosedRange<CGFloat>?
     private let workspaceStrip = WorkspaceStripView()
     private let activeWindow = ActiveWindowControl()
-    private let widgets = WidgetStripView()
-    private let centerWidgets = WidgetStripView()
+    private var widgetStrips: [WidgetStripView] = []
+    private var zoneViews: [BarZone: [NSView]] = [:]
+    private var groupDividers: [NSView] = []
+    private var dividerIndex = 0
     var displayConfigurationID: String?
     private var latestState: BarState?
     private lazy var overlays = BarOverlayCoordinator(ownerView: self)
@@ -32,8 +34,6 @@ final class BarRootView: NSView {
         addSubview(railBackgroundRight)
         addSubview(workspaceStrip)
         addSubview(activeWindow)
-        addSubview(widgets)
-        addSubview(centerWidgets)
 
         workspaceStrip.onWorkspaceClick = { [weak self] name in
             self?.overlays.close()
@@ -51,11 +51,131 @@ final class BarRootView: NSView {
             guard let self, let state = self.latestState else { return }
             self.overlays.showWindowSwitcher(state: state, anchoredTo: control)
         }
-        for strip in [widgets, centerWidgets] {
-            let centered = strip === centerWidgets
+        apply(config: config)
+    }
+
+    override func layout() {
+        super.layout()
+        var exclusion = previewExclusion
+        let contentScale = max(0.01, (window?.frame.width ?? bounds.width) / max(1, bounds.width))
+        if let screen = window?.screen, screen.safeAreaInsets.top > 0,
+           (window?.frame.maxY ?? 0) > screen.frame.maxY - screen.safeAreaInsets.top,
+           let left = screen.auxiliaryTopLeftArea, let right = screen.auxiliaryTopRightArea {
+            exclusion = ((left.maxX - screen.frame.minX) / contentScale)...((right.minX - screen.frame.minX) / contentScale)
+        }
+        let edgeDepth = min(config.coveEdgeDepth, max(0, bounds.height - config.height))
+        let contentHeight = bounds.height - edgeDepth
+        let contentMidY = edgeDepth + contentHeight / 2
+        let presentation = config.barPresentation
+        let margin = presentation == .fullWidth ? 0 : config.sideMargin
+        for strip in widgetStrips {
+            strip.prefersCompact = false
+            strip.fit(to: 100_000)
+        }
+        workspaceStrip.fit(to: .greatestFiniteMagnitude)
+        let widths = BarZone.allCases.map { desiredWidth(for: $0) }
+        let zones = BarZoneLayoutGeometry.resolve(width: bounds.width, height: contentHeight, margin: margin,
+            widths: widths, alignment: config.widgetLayout.alignment, exclusion: exclusion)
+        workspaceStrip.isHidden = !config.widgetLayout.allItems.contains(.workspaces)
+        activeWindow.isHidden = !config.widgetLayout.allItems.contains(.currentApp)
+        dividerIndex = 0
+        layoutZone(.left, frame: zones.left.offsetBy(dx: 0, dy: edgeDepth))
+        layoutZone(.center, frame: zones.center.offsetBy(dx: 0, dy: edgeDepth))
+        layoutZone(.right, frame: zones.right.offsetBy(dx: 0, dy: edgeDepth))
+        groupDividers.dropFirst(dividerIndex).forEach { $0.isHidden = true }
+        railBackground.frame = NSRect(x: 0, y: edgeDepth, width: bounds.width, height: contentHeight)
+        railBackground.isHidden = presentation != .fullWidth
+        railBackgroundRight.isHidden = true
+        let touchesTop = previewTopAttached || (window?.screen.map { abs((window?.frame.maxY ?? 0) - $0.frame.maxY) < 0.5 } ?? false)
+        railBackground.attachesToTop = config.appearance == .cove && presentation == .fullWidth && config.topInset == 0 && touchesTop
+        railBackground.screenBorderDepth = config.coveEdgeDepth
+        if config.coveEdgeDepth > 0 {
+            railBackground.frame = NSRect(x: -1, y: max(0, edgeDepth - config.coveEdgeDepth), width: bounds.width + 2, height: bounds.height)
+            railBackgroundRight.isHidden = true
+        } else if railBackground.attachesToTop {
+            railBackground.frame = NSRect(x: 0, y: contentMidY - 18, width: bounds.width, height: bounds.height - (contentMidY - 18))
+            railBackgroundRight.isHidden = true
+        }
+    }
+
+    private func preferredWidth(of view: NSView) -> CGFloat {
+        if view === workspaceStrip { return workspaceStrip.preferredWidth }
+        if view === activeWindow { return activeWindow.preferredWidth }
+        return (view as? WidgetStripView)?.preferredWidth ?? 0
+    }
+
+    private func desiredWidth(for zone: BarZone) -> CGFloat {
+        let widths = (zoneViews[zone] ?? []).map { preferredWidth(of: $0) }.filter { $0 > 0 }
+        return widths.reduce(0, +) + CGFloat(max(0, widths.count - 1)) * 8
+    }
+
+    private func layoutZone(_ zone: BarZone, frame: NSRect) {
+        let views = zoneViews[zone] ?? []
+        let entries = views.map { ($0, preferredWidth(of: $0)) }.filter { $0.1 > 0 }
+        views.filter { preferredWidth(of: $0) == 0 }.forEach { $0.isHidden = true }
+        let gap: CGFloat = 8
+        let gaps = CGFloat(max(0, entries.count - 1)) * gap
+        let desired = entries.reduce(CGFloat.zero) { $0 + $1.1 }
+        let actualGap = min(gap, frame.width / CGFloat(max(1, entries.count - 1)))
+        let budget = max(0, frame.width - min(gaps, frame.width))
+        let factor = desired > 0 ? min(1, budget / desired) : 1
+        var x = frame.minX
+        for (index, entry) in entries.enumerated() {
+            let (view, desiredWidth) = entry
+            let width = max(0, desiredWidth * factor)
+            view.frame = NSRect(x: x, y: frame.minY, width: width, height: frame.height)
+            if view === workspaceStrip { workspaceStrip.fit(to: width) }
+            if let strip = view as? WidgetStripView { strip.fit(to: width) }
+            view.isHidden = width == 0
+            if config.appearance == .cove, index > 0, width > 0 {
+                if dividerIndex == groupDividers.count {
+                    let divider = NSView(); divider.wantsLayer = true
+                    addSubview(divider); groupDividers.append(divider)
+                }
+                let divider = groupDividers[dividerIndex]; dividerIndex += 1
+                divider.frame = NSRect(x: x - actualGap / 2, y: frame.midY - 8, width: 0.5, height: 16)
+                divider.layer?.backgroundColor = config.theme.foreground.withAlphaComponent(0.24).cgColor
+                divider.isHidden = false
+            }
+            x += width + actualGap
+        }
+    }
+
+    /// Keep contiguous system widgets together, but never move them across
+    /// Workspaces or Current App when building the visual hierarchy.
+    private func configureZones() {
+        widgetStrips.forEach { $0.removeFromSuperview() }
+        widgetStrips.removeAll(); zoneViews.removeAll()
+        for zone in BarZone.allCases {
+            var views: [NSView] = []
+            var pending: [WidgetKind] = []
+            func flushWidgets() {
+                guard !pending.isEmpty else { return }
+                let strip = WidgetStripView()
+                strip.composition = config.barPresentation == .fullWidth ? .rail : .islands
+                strip.configure(kinds: pending, theme: config.theme, visuals: config.visualPreferences)
+                strip.refreshAppearance()
+                wire(strip, zone: zone)
+                addSubview(strip); widgetStrips.append(strip); views.append(strip)
+                pending.removeAll()
+            }
+            for item in config.widgetLayout.items(in: zone) {
+                if let kind = item.widgetKind { pending.append(kind) }
+                else {
+                    flushWidgets()
+                    if item == .workspaces { views.append(workspaceStrip) }
+                    if item == .currentApp { views.append(activeWindow) }
+                }
+            }
+            flushWidgets()
+            zoneViews[zone] = views
+        }
+    }
+
+    private func wire(_ strip: WidgetStripView, zone: BarZone) {
             strip.onReorder = { [weak self] kinds in
                 guard let self else { return }
-                self.interactionDelegate?.reorderWidgets(kinds, displayID: self.displayConfigurationID, centered: centered)
+                self.interactionDelegate?.reorderWidgets(kinds, displayID: self.displayConfigurationID, zone: zone)
             }
             strip.onWidgetHover = { [weak self] kind, control, entered in
                 guard let self, let state = self.latestState else { return }
@@ -70,61 +190,6 @@ final class BarRootView: NSView {
                 if let onWidgetSelection = self.onWidgetSelection { onWidgetSelection(kind); return }
                 self.overlays.showWidget(kind, state: state.system, config: self.config, anchoredTo: control, pinned: true)
             }
-        }
-        apply(config: config)
-    }
-
-    override func layout() {
-        super.layout()
-        var exclusion = previewExclusion
-        if let screen = window?.screen, screen.safeAreaInsets.top > 0,
-           (window?.frame.maxY ?? 0) > screen.frame.maxY - screen.safeAreaInsets.top,
-           let left = screen.auxiliaryTopLeftArea, let right = screen.auxiliaryTopRightArea {
-            exclusion = (left.maxX - screen.frame.minX)...(right.minX - screen.frame.minX)
-        }
-        let edgeDepth = min(config.coveEdgeDepth, max(0, bounds.height - config.height))
-        let contentHeight = bounds.height - edgeDepth
-        let contentMidY = edgeDepth + contentHeight / 2
-        let layout = config.layout
-        let focusWidth: CGFloat = layout == .compact ? 0 : activeWindow.preferredWidth
-        let margin = config.sideMargin
-        let estimate = GroupedLayoutGeometry.resolve(width: bounds.width, height: contentHeight, margin: margin,
-            workspaceWidth: workspaceStrip.preferredWidth, focusWidth: focusWidth,
-            widgetWidth: .greatestFiniteMagnitude, centerWidth: config.centerWidgets.isEmpty ? 0 : .greatestFiniteMagnitude,
-            placement: config.widgetPlacement, exclusion: exclusion)
-        workspaceStrip.fit(to: estimate.main.workspace.width)
-        widgets.prefersCompact = layout == .compact
-        centerWidgets.prefersCompact = layout == .compact
-        widgets.fit(to: estimate.main.widgetBudget)
-        centerWidgets.fit(to: estimate.centerBudget)
-        let grouped = GroupedLayoutGeometry.resolve(width: bounds.width, height: contentHeight, margin: margin,
-            workspaceWidth: min(workspaceStrip.preferredWidth, estimate.main.workspace.width), focusWidth: focusWidth,
-            widgetWidth: widgets.preferredWidth, centerWidth: centerWidgets.preferredWidth,
-            placement: config.widgetPlacement, exclusion: exclusion)
-        let frames = grouped.main
-        centerWidgets.frame = grouped.center.offsetBy(dx: 0, dy: edgeDepth)
-        centerWidgets.isHidden = grouped.center.width == 0
-        workspaceStrip.frame = frames.workspace.offsetBy(dx: 0, dy: edgeDepth)
-        widgets.frame = frames.widgets.offsetBy(dx: 0, dy: edgeDepth)
-        activeWindow.frame = frames.focus.offsetBy(dx: 0, dy: edgeDepth)
-        activeWindow.isHidden = layout == .compact || frames.focus.width < 80
-        workspaceStrip.isHidden = frames.workspace.width == 0
-        railBackground.frame = NSRect(x: margin, y: contentMidY - 18, width: max(0, bounds.width - 2 * margin), height: 36)
-        railBackground.isHidden = layout != .rail
-        railBackgroundRight.isHidden = layout != .rail || exclusion == nil
-        let touchesTop = previewTopAttached || (window?.screen.map { abs((window?.frame.maxY ?? 0) - $0.frame.maxY) < 0.5 } ?? false)
-        railBackground.attachesToTop = config.appearance == .cove && layout == .rail && config.topInset == 0 && touchesTop
-        railBackground.screenBorderDepth = config.coveEdgeDepth
-        if config.coveEdgeDepth > 0 {
-            railBackground.frame = NSRect(x: -1, y: max(0, edgeDepth - config.coveEdgeDepth), width: bounds.width + 2, height: bounds.height)
-            railBackgroundRight.isHidden = true
-        } else if railBackground.attachesToTop {
-            railBackground.frame = NSRect(x: 0, y: contentMidY - 18, width: bounds.width, height: bounds.height - (contentMidY - 18))
-            railBackgroundRight.isHidden = true
-        } else if let exclusion {
-            railBackground.frame.size.width = max(0, exclusion.lowerBound - margin - 8)
-            railBackgroundRight.frame = NSRect(x: exclusion.upperBound + 8, y: contentMidY - 18, width: max(0, bounds.width - margin - exclusion.upperBound - 8), height: 36)
-        }
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
@@ -137,8 +202,7 @@ final class BarRootView: NSView {
         activeWindow.toolTip = state.providerStatus
         workspaceStrip.update(workspaces: state.workspaces, theme: config.theme)
         activeWindow.update(window: state.focusedWindow, theme: config.theme)
-        widgets.update(system: state.system, config: config)
-        centerWidgets.update(system: state.system, config: config)
+        widgetStrips.forEach { $0.update(system: state.system, config: config) }
         overlays.refresh(state: state.system, history: widgetHistory)
         needsLayout = true
     }
@@ -150,18 +214,14 @@ final class BarRootView: NSView {
         railBackground.apply(visuals: config.visualPreferences)
         railBackgroundRight.theme = config.theme
         railBackgroundRight.apply(visuals: config.visualPreferences)
-        workspaceStrip.composition = config.layout
-        activeWindow.composition = config.layout
-        widgets.composition = config.layout
-        centerWidgets.composition = config.layout
+        let composition: BarLayout = config.barPresentation == .fullWidth ? .rail : .islands
+        workspaceStrip.composition = composition
+        activeWindow.composition = composition
         workspaceStrip.apply(theme: config.theme)
         workspaceStrip.apply(visuals: config.visualPreferences)
         activeWindow.apply(theme: config.theme)
         activeWindow.apply(visuals: config.visualPreferences)
-        widgets.configure(kinds: config.rightWidgets, theme: config.theme, visuals: config.visualPreferences)
-        widgets.refreshAppearance()
-        centerWidgets.configure(kinds: config.centerWidgets, theme: config.theme, visuals: config.visualPreferences)
-        centerWidgets.refreshAppearance()
+        configureZones()
         if let latestState { render(state: latestState) }
         needsLayout = true
     }
@@ -169,7 +229,7 @@ final class BarRootView: NSView {
 
 extension BarRootView {
     var currentSystemState: SystemState? { latestState?.system }
-    var widgetHistory: WidgetHistory { widgets.fullHistory }
+    var widgetHistory: WidgetHistory { widgetStrips.first?.fullHistory ?? WidgetHistory() }
     var currentTheme: BarTheme { configForOverlay.theme }
     var configForOverlay: BarConfig { config }
 }

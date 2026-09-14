@@ -182,13 +182,28 @@ extension BarController: BarInteractionDelegate {
             DispatchQueue.main.async { self?.requestFocusRefresh() }
         }
     }
-    func reorderWidgets(_ kinds: [WidgetKind], displayID: String?, centered: Bool) {
+    func reorderWidgets(_ kinds: [WidgetKind], displayID: String?, zone: BarZone) {
         if let displayID {
             var override = config.displayOverrides[displayID] ?? DisplayOverride()
-            if centered { override.centerWidgets = kinds } else { override.widgets = kinds }
+            var layout = override.widgetLayout ?? config.forDisplay(displayID).widgetLayout
+            let existing = layout.items(in: zone)
+            var reordered = kinds.makeIterator()
+            let replacement = existing.map { item in
+                item.widgetKind.map { kinds.contains($0) } == true ? BarItem.widget(reordered.next()!) : item
+            }
+            layout.setItems(replacement, in: zone)
+            override.widgetLayout = layout
             config.displayOverrides[displayID] = override
-        } else if centered { config.centerWidgets = kinds }
-        else { config.rightWidgets = kinds }
+        } else {
+            var layout = config.widgetLayout
+            let existing = layout.items(in: zone)
+            var reordered = kinds.makeIterator()
+            let replacement = existing.map { item in
+                item.widgetKind.map { kinds.contains($0) } == true ? BarItem.widget(reordered.next()!) : item
+            }
+            layout.setItems(replacement, in: zone)
+            config.setWidgetLayout(layout)
+        }
         ConfigurationStore.save(config)
         screenController.apply(config: config)
         onConfigChange?(config)

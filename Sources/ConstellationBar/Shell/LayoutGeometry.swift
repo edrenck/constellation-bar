@@ -118,3 +118,90 @@ struct GroupedLayoutGeometry {
             center: CGRect(x: centerX, y: y, width: centerSize, height: h), centerBudget: centerBudget)
     }
 }
+
+/// Three independent editable zones. This deliberately operates on complete
+/// zone widths rather than knowing about specific widgets, so workspaces and
+/// the current app follow exactly the same placement rules as system widgets.
+struct BarZoneLayoutGeometry {
+    var left: CGRect
+    var center: CGRect
+    var right: CGRect
+
+    static func resolve(width: CGFloat, height: CGFloat, margin: CGFloat, widths: [CGFloat], alignment: WidgetAlignment,
+                        exclusion: ClosedRange<CGFloat>? = nil) -> BarZoneLayoutGeometry {
+        let inset = min(max(0, margin), max(0, width / 4))
+        let requested = Array((widths + [0, 0, 0]).prefix(3)).map { max(0, $0) }
+        let h = min(34, height), y = (height - h) / 2
+        let gap: CGFloat = 12
+        let available = max(0, width - inset * 2)
+        func centered(_ values: [CGFloat], lo: CGFloat, hi: CGFloat) -> [CGRect] {
+            let count = values.filter { $0 > 0 }.count
+            let spacing = min(gap, max(0, hi - lo) / CGFloat(max(1, count - 1)))
+            let gaps = CGFloat(max(0, count - 1)) * spacing
+            let total = values.reduce(0, +)
+            let factor = total > 0 ? min(1, max(0, hi - lo - gaps) / total) : 1
+            var x = lo + max(0, hi - lo - total * factor - gaps) / 2
+            return values.map { value in
+                let frame = CGRect(x: x, y: y, width: value * factor, height: h)
+                if value > 0 { x += frame.width + spacing }
+                return frame
+            }
+        }
+        if alignment == .centerAll {
+            var frames: [CGRect]
+            if let exclusion {
+                let leftEnd = max(inset, exclusion.lowerBound - gap)
+                let rightStart = min(width - inset, exclusion.upperBound + gap)
+                // Assign whole zones to either side of the camera. Pick the
+                // split that preserves the most content and then center it.
+                var best: [CGRect] = []; var bestScore: CGFloat = -1
+                for split in 0...3 {
+                    let lhs = centered(Array(requested.prefix(split)), lo: inset, hi: leftEnd)
+                    let rhs = centered(Array(requested.dropFirst(split)), lo: rightStart, hi: width - inset)
+                    let candidate = lhs + rhs
+                    let score = candidate.reduce(CGFloat.zero) { $0 + $1.width }
+                    if score > bestScore { best = candidate; bestScore = score }
+                }
+                frames = best
+            } else { frames = centered(requested, lo: inset, hi: width - inset) }
+            return .init(left: frames[0], center: frames[1], right: frames[2])
+        }
+
+        var centerWidth = min(requested[1], available)
+        var centerX = (width - centerWidth) / 2
+        var leftBudget: CGFloat
+        var rightBudget: CGFloat
+        if let exclusion {
+            let leftEnd = max(inset, exclusion.lowerBound - gap)
+            let rightStart = min(width - inset, exclusion.upperBound + gap)
+            leftBudget = max(0, leftEnd - inset)
+            rightBudget = max(0, width - inset - rightStart)
+            if centerWidth > 0 {
+                let leftRoom = max(0, leftBudget - min(requested[0], leftBudget / 2) - gap)
+                let rightRoom = max(0, rightBudget - min(requested[2], rightBudget / 2) - gap)
+                if rightRoom >= leftRoom {
+                    centerWidth = min(centerWidth, rightRoom); centerX = rightStart
+                    rightBudget = max(0, width - inset - centerX - centerWidth - gap)
+                } else {
+                    centerWidth = min(centerWidth, leftRoom); centerX = leftEnd - centerWidth
+                    leftBudget = max(0, centerX - inset - gap)
+                }
+            }
+        } else if centerWidth > 0 {
+            // Reserve the symmetric space around the centered zone before
+            // fitting either edge; asymmetric side widths must not push it.
+            if requested[0] > 0 || requested[2] > 0 { centerWidth = min(centerWidth, max(0, available * 0.5 - gap)) }
+            centerX = (width - centerWidth) / 2
+            leftBudget = max(0, centerX - inset - gap)
+            rightBudget = max(0, width - inset - centerX - centerWidth - gap)
+        } else {
+            let total = requested[0] + requested[2]
+            let factor = total > 0 ? min(1, max(0, available - (requested[0] > 0 && requested[2] > 0 ? gap : 0)) / total) : 1
+            leftBudget = requested[0] * factor; rightBudget = requested[2] * factor
+        }
+        let leftWidth = min(requested[0], leftBudget), rightWidth = min(requested[2], rightBudget)
+        return .init(left: CGRect(x: inset, y: y, width: leftWidth, height: h),
+                     center: CGRect(x: centerX, y: y, width: centerWidth, height: h),
+                     right: CGRect(x: width - inset - rightWidth, y: y, width: rightWidth, height: h))
+    }
+}

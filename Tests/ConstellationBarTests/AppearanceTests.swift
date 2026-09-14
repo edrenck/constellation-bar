@@ -43,7 +43,7 @@ final class AppearanceTests: XCTestCase {
         for appearance in BarAppearance.allCases {
             for layout in BarLayout.allCases {
                 config.appearance = appearance; config.layout = layout
-                XCTAssertEqual(config.coveEdgeDepth, appearance == .cove && layout == .rail ? 20 : 0)
+                XCTAssertEqual(config.coveEdgeDepth, appearance == .cove && layout == .rail ? 6 : 0)
             }
         }
     }

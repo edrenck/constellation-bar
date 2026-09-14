@@ -14,7 +14,7 @@ struct BarState: Equatable {
 protocol BarInteractionDelegate: AnyObject {
     func switchToWorkspace(_ name: String)
     func focusWindow(_ id: Int, workspace: String)
-    func reorderWidgets(_ kinds: [WidgetKind], displayID: String?, centered: Bool)
+    func reorderWidgets(_ kinds: [WidgetKind], displayID: String?, zone: BarZone)
     func performWidgetAction(_ action: WidgetAction, completion: @escaping (String?) -> Void)
 }
 

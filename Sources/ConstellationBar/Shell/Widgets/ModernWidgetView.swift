@@ -75,7 +75,7 @@ final class ModernWidgetView: ModernControlView, NSDraggingSource {
     }
 
     func refreshAppearance() {
-        divider.isHidden = !hasTrailingDivider || theme.appearanceID == .cove
+        divider.isHidden = !hasTrailingDivider
         updateAppearance()
     }
 
@@ -87,7 +87,7 @@ final class ModernWidgetView: ModernControlView, NSDraggingSource {
 
     func setHasTrailingDivider(_ hasTrailingDivider: Bool) {
         self.hasTrailingDivider = hasTrailingDivider
-        divider.isHidden = !hasTrailingDivider || theme.appearanceID == .cove
+        divider.isHidden = !hasTrailingDivider
     }
 
     func setCompactPresentation(_ compact: Bool) {
@@ -104,7 +104,8 @@ final class ModernWidgetView: ModernControlView, NSDraggingSource {
         image?.isTemplate = true
         iconView.image = image
         iconView.contentTintColor = [.thermal, .agentStatus].contains(kind) ? accent : theme.foreground
-        divider.layer?.backgroundColor = theme.border.withAlphaComponent(0.42).cgColor
+        let dividerColor = theme.appearanceID == .cove ? theme.foreground.withAlphaComponent(0.24) : theme.border.withAlphaComponent(0.42)
+        divider.layer?.backgroundColor = dividerColor.cgColor
         fullText = text
         self.compactText = compactText
         refreshLabel()
