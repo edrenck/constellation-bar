@@ -36,7 +36,7 @@ extension BarConfig {
 extension BarConfig {
     func resolvedOverride(for id: String) -> DisplayOverride {
         let local = forDisplay(id)
-        return DisplayOverride(enabled: displayOverrides[id]?.enabled ?? true,
+        return DisplayOverride(sizeMultiplier: local.sizeMultiplier, enabled: displayOverrides[id]?.enabled ?? true,
             layout: local.layout, hideInFullscreen: local.hideInFullscreen,
             workspaceVisibility: displayOverrides[id]?.workspaceVisibility ?? (workspacesOnCurrentDisplay ? .local : .all),
             selectedWorkspaces: displayOverrides[id]?.selectedWorkspaces,

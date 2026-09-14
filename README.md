@@ -74,3 +74,13 @@ The configuration window uses a sidebar and applies changes immediately to the n
 - **Diagnostics:** integration status and configuration file location.
 
 Display overrides take precedence over shared defaults. Use “Reset this display to global settings” to restore inheritance. Undo remains available in the sidebar for configuration edits made during this session.
+
+### 0.7 display sizing and local Outlook calendars
+
+In **Layout → Per-display setup**, choose the monitor and set **Bar size**. Automatic retains the built-in display’s physical calibration and gives external displays a readable minimum logical size. For a large 4K monitor viewed farther away, try 125% or 150%. Changes are saved for that display, including when disconnected. Reset restores automatic sizing.
+
+In **Connections → Calendar → Provider**, choose **Apple Calendar** or **Outlook for Mac**. Apple Calendar remains the default. For Outlook, open the Calendar widget and select **Choose Outlook data folder**. Select `~/Library/Group Containers/UBF8T346G9.Office/Outlook`. ConstellationBar stores a read-only, security-scoped folder bookmark; **Connections → Outlook local access → Disconnect Outlook folder** removes it.
+
+The Outlook provider reads local cached calendar records without Microsoft sign-in, credentials, event edits, or calendar-server requests. Outlook itself handles synchronization. Keep Outlook up to date and open it to refresh its cache. The bar rereads the cache approximately every 15 seconds, showing the past week and next three weeks. Choose which calendars appear using the calendar panel’s gear button. **Open in Outlook** opens the local app.
+
+The cache adapter is verified with Outlook 16.112.4 and its Gmail calendars. It follows the checksummed active storage directory, excluding abandoned versions and deleted records. Cached recurring occurrences retain their individual dates. Only the supported Nostromo-i calendar schema is decoded; an incompatible or changing cache displays a status message instead of guessing. The current adapter displays titles, calendar names, times, and all-day events; locations, attendees, and meeting links are not yet decoded from this cache. A legacy Automation fallback remains available when that interface already exposes calendar events.

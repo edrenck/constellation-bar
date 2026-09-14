@@ -42,6 +42,7 @@ final class ConfigurationWindowController: NSWindowController, NSTextFieldDelega
     let localSpacesButton = NSButton(checkboxWithTitle: "Show each display’s own workspaces", target: nil, action: nil)
     let orderedWidgets = NSStackView()
     let modulePopup = NSPopUpButton()
+    let calendarProviderPopup = NSPopUpButton()
     var providerButtons: [String: NSButton] = [:]
     var moduleRows: [(Set<WidgetKind>, NSView)] = []
     let noModuleOptions = NSTextField(labelWithString: "This module uses your system settings.")
@@ -107,6 +108,7 @@ final class ConfigurationWindowController: NSWindowController, NSTextFieldDelega
 
     func sync(config: BarConfig) {
         self.config = config
+        calendarProviderPopup.selectItem(at: CalendarProviderChoice.allCases.firstIndex(of: config.providerPreferences.calendarProvider) ?? 0)
         for (id, button) in providerButtons { button.state = config.providerPreferences.includes(id) ? .on : .off }
         lastCommittedConfig = config
         modePopup.selectItem(at: ["system", "light", "dark"].firstIndex(of: config.themeMode) ?? 0)

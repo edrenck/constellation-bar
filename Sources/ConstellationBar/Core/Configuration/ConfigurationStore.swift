@@ -166,6 +166,7 @@ enum BarZone: String, Codable, CaseIterable {
 }
 
 struct DisplayOverride: Codable {
+    var sizeMultiplier: Double?
     var enabled: Bool?
     var layout: BarLayout?
     var widgets: [WidgetKind]?

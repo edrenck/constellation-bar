@@ -10,6 +10,8 @@ final class DisplaySettingsEditor: NSStackView, NSTextFieldDelegate {
     private(set) var selectedID: String?
     var onSelection: ((String) -> Void)?
     private let display = NSPopUpButton()
+    private let size = NSPopUpButton()
+    private let sizeValues: [Double] = [0.75, 1, 1.25, 1.5, 1.75, 2, 2.5, 3]
     private let enabled = NSButton(checkboxWithTitle: "Show a bar on this display", target: nil, action: nil)
     private let appearancePopup = NSPopUpButton()
     private let surface = NSPopUpButton()
@@ -26,19 +28,21 @@ final class DisplaySettingsEditor: NSStackView, NSTextFieldDelegate {
     override init(frame: NSRect) {
         super.init(frame: frame)
         orientation = .vertical; alignment = .leading; spacing = 10
+        size.addItems(withTitles: ["Automatic"] + sizeValues.map { "\(Int($0 * 100))%" })
         display.target = self; display.action = #selector(selectDisplay)
         appearancePopup.addItems(withTitles: ["Use global theme"] + BarAppearance.allCases.map(\.title))
         themeMode.addItems(withTitles: ["Use global color mode", "System", "Light", "Dark"])
         surface.addItems(withTitles: ["Use global bar"] + BarPresentation.allCases.map(\.title))
         alignmentPopup.addItems(withTitles: ["Use global alignment"] + WidgetAlignment.allCases.map(\.title))
         workspaces.addItems(withTitles: ["Use global workspace setting"] + WorkspaceVisibility.allCases.map(\.title))
-        for control in [enabled, appearancePopup, themeMode, border, fullscreen, surface, alignmentPopup, workspaces] as [NSControl] {
+        for control in [size, enabled, appearancePopup, themeMode, border, fullscreen, surface, alignmentPopup, workspaces] as [NSControl] {
             control.target = self; control.action = #selector(optionsChanged(_:))
         }
         selectedNames.placeholderString = "Workspace IDs, separated by commas"; selectedNames.delegate = self
         copyToAll.target = self; copyToAll.action = #selector(copySettings)
         reset.target = self; reset.action = #selector(resetDisplay)
         addArrangedSubview(row("Editing display", display)); addArrangedSubview(enabled)
+        addArrangedSubview(row("Bar size", size))
         addArrangedSubview(row("Theme", appearancePopup)); addArrangedSubview(row("Bar", surface)); addArrangedSubview(row("Alignment", alignmentPopup))
         addArrangedSubview(row("Color mode", themeMode)); addArrangedSubview(border); addArrangedSubview(fullscreen)
         addArrangedSubview(row("Workspaces", workspaces)); addArrangedSubview(row("Workspace IDs", selectedNames))
@@ -80,6 +84,8 @@ final class DisplaySettingsEditor: NSStackView, NSTextFieldDelegate {
     }
     private func syncSelection() {
         let value = current
+        size.selectItem(at: value.sizeMultiplier.flatMap { sizeValues.firstIndex(of: $0).map { $0 + 1 } } ?? 0)
+        size.isEnabled = selectedID != nil
         enabled.state = value.enabled == false ? .off : .on
         appearancePopup.selectItem(at: value.appearance.flatMap { BarAppearance.allCases.firstIndex(of: $0).map { $0 + 1 } } ?? 0)
         themeMode.selectItem(at: value.themeMode.flatMap { ["system", "light", "dark"].firstIndex(of: $0).map { $0 + 1 } } ?? 0)
@@ -106,6 +112,7 @@ final class DisplaySettingsEditor: NSStackView, NSTextFieldDelegate {
     @objc private func optionsChanged(_ sender: NSControl) {
         var value = current
         // Only override the setting the user changed; preserve inheritance elsewhere.
+        if sender === size { value.sizeMultiplier = size.indexOfSelectedItem > 0 ? sizeValues[size.indexOfSelectedItem - 1] : nil }
         if sender === enabled { value.enabled = enabled.state == .on }
         if sender === themeMode {
             value.themeMode = themeMode.indexOfSelectedItem > 0 ? ["system", "light", "dark"][themeMode.indexOfSelectedItem - 1] : nil

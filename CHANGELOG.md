@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.7.0 — Alpha (2026-09-14)
+
+- Calibrate each display independently instead of sizing external monitors from a connected MacBook notch.
+- Keep external bars at least their logical design size, with a per-display 75–300% size adjustment.
+- Select Apple Calendar (default) or Outlook for Mac in Connections; either provider can be disabled.
+- Read Outlook’s local calendar cache through an optional read-only folder grant. No Microsoft sign-in, tokens, or calendar-server requests.
+- Add Outlook folder connection/disconnection and provider-aware event navigation. Validate the active directory to exclude stale versions and deleted events.
+
+Validation: synthetic regression tests cover active/deleted records, edits, recurring occurrence identities, Unicode, all-day dates, corrupt caches, and unsupported schemas. The production reader was checked against Outlook 16.112.4 with Gmail; it returns the calendar events visible in Outlook and excludes the removed integration-test event. Calendar-cache compatibility is versioned; Outlook refreshes the available occurrence window.
+
 ## 0.6.0 — Alpha (2026-09-14)
 
 - Replace configuration tabs and the embedded live preview with a larger window and persistent section sidebar.

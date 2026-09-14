@@ -187,21 +187,16 @@ final class BarWindow: NSPanel {
         barView.needsLayout = true
     }
 
-    /// Convert the fixed logical design grid into a real-world measurement.
-    /// `NSScreen.frame` reflects the selected macOS scaling mode, while
-    /// `CGDisplayScreenSize` is the panel's physical size, so their ratio is
-    /// exactly what keeps native and "Default" scaling visually consistent.
+    /// Calibrate each display independently; external displays retain readable
+    /// logical dimensions instead of inheriting a laptop's small notch height.
     private static func contentScale(for screen: NSScreen, config: BarConfig) -> CGFloat {
-        let reference = NSScreen.screens.first { $0.safeAreaInsets.top > 0 }
-        let target = reference.flatMap {
-            DisplaySizing.notchTarget(notchPoints: $0.safeAreaInsets.top,
-                screenPointHeight: $0.frame.height,
-                screenMillimeterHeight: CGDisplayScreenSize($0.displayID).height)
-        } ?? config.physicalHeightMillimeters
-        // The target includes Cove's decorative shoulders, rather than adding
-        // their height on top of an already calibrated bar.
-        return DisplaySizing.scale(logicalHeight: config.height + config.coveEdgeDepth, physicalHeight: target,
-                            screenPoints: screen.frame.size, screenMillimeters: CGDisplayScreenSize(screen.displayID))
+        let physical = CGDisplayScreenSize(screen.displayID)
+        let target = DisplaySizing.notchTarget(notchPoints: screen.safeAreaInsets.top,
+            screenPointHeight: screen.frame.height, screenMillimeterHeight: physical.height)
+        return DisplaySizing.readableScale(logicalHeight: config.height + config.coveEdgeDepth,
+            physicalHeight: target ?? config.physicalHeightMillimeters,
+            screenPoints: screen.frame.size, screenMillimeters: physical,
+            isBuiltIn: CGDisplayIsBuiltin(screen.displayID) != 0, multiplier: config.sizeMultiplier)
     }
 
     private static func frame(for screen: NSScreen, config: BarConfig, avoidingMenuBar: Bool) -> NSRect {
@@ -329,6 +324,14 @@ enum FullscreenDetector {
 /// Reject missing or implausible EDID measurements instead of magnifying the
 /// bar using bad monitor metadata. Both axes must describe the same panel.
 enum DisplaySizing {
+    static func readableScale(logicalHeight: CGFloat, physicalHeight: CGFloat,
+                              screenPoints: CGSize, screenMillimeters: CGSize,
+                              isBuiltIn: Bool, multiplier: Double = 1) -> CGFloat {
+        let physical = scale(logicalHeight: logicalHeight, physicalHeight: physicalHeight,
+            screenPoints: screenPoints, screenMillimeters: screenMillimeters)
+        return (isBuiltIn ? physical : max(1, physical)) * CGFloat(multiplier)
+    }
+
     static func notchTarget(notchPoints: CGFloat, screenPointHeight: CGFloat,
                             screenMillimeterHeight: CGFloat) -> CGFloat? {
         guard notchPoints > 0, screenPointHeight > 0,

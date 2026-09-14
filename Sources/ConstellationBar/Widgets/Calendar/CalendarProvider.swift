@@ -39,9 +39,16 @@ final class AppleCalendarIntegration: CalendarIntegrating {
 }
 final class CalendarProvider: SystemProviding {
     let kinds: Set<WidgetKind> = [.calendar]
-    let integration: CalendarIntegrating
-    init(integration: CalendarIntegrating = WidgetServices.shared.calendar) { self.integration = integration }
+    private let integrations: [CalendarIntegrating]
+    init(integration: CalendarIntegrating? = nil) {
+        integrations = integration.map { [$0] } ?? [WidgetServices.shared.calendar, WidgetServices.shared.outlook]
+    }
     func sample(config: BarConfig, into state: inout SystemState) {
-        state.agenda = config.providerPreferences.includes(integration.id) ? integration.agenda() : AgendaState(message: "Apple Calendar is disabled in Connections.")
+        let selected = config.providerPreferences.calendarProvider
+        guard config.providerPreferences.includes(selected.rawValue) else {
+            state.agenda = AgendaState(message: "\(selected.title) is disabled in Connections."); return
+        }
+        state.agenda = integrations.first { $0.id == selected.rawValue }?.agenda()
+            ?? AgendaState(message: "The selected calendar provider is unavailable.")
     }
 }
