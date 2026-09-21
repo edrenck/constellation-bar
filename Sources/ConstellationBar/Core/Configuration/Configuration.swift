@@ -144,6 +144,40 @@ struct BarConfig {
         syncLegacyWidgetFields()
     }
 
+    mutating func setGlobalWidgets(_ kinds: [WidgetKind]) {
+        var layout = widgetLayout
+        for zone in BarZone.allCases {
+            layout.setItems(layout.items(in: zone).filter { $0.widgetKind == nil }, in: zone)
+        }
+        layout.right.append(contentsOf: WidgetKind.consolidated(kinds).map(BarItem.widget))
+        setWidgetLayout(layout)
+    }
+
+    mutating func toggleGlobalWidget(_ kind: WidgetKind) {
+        let kind = kind.canonical
+        var layout = widgetLayout
+        let wasVisible = layout.allWidgetKinds.contains(kind)
+        for zone in BarZone.allCases {
+            layout.setItems(layout.items(in: zone).filter { $0.widgetKind?.canonical != kind }, in: zone)
+        }
+        if !wasVisible { layout.right.append(.widget(kind)) }
+        setWidgetLayout(layout)
+    }
+
+    mutating func moveGlobalEdgeWidget(from index: Int, to destination: Int) {
+        var ordered = widgetLayout.left.compactMap(\.widgetKind) + widgetLayout.right.compactMap(\.widgetKind)
+        guard ordered.indices.contains(index), ordered.indices.contains(destination) else { return }
+        ordered.swapAt(index, destination)
+        var iterator = ordered.makeIterator()
+        var layout = widgetLayout
+        for zone in [BarZone.left, .right] {
+            layout.setItems(layout.items(in: zone).map { item in
+                item.widgetKind == nil ? item : .widget(iterator.next()!)
+            }, in: zone)
+        }
+        setWidgetLayout(layout)
+    }
+
     mutating func syncLegacyWidgetFields() {
         centerWidgets = WidgetKind.consolidated(widgetLayout.center.compactMap(\.widgetKind))
         rightWidgets = WidgetKind.consolidated(widgetLayout.left.compactMap(\.widgetKind) + widgetLayout.right.compactMap(\.widgetKind))

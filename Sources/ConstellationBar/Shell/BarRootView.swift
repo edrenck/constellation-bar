@@ -4,6 +4,7 @@ final class BarRootView: NSView {
     private var config: BarConfig
     private let railBackground = ModernControlView()
     private let railBackgroundRight = ModernControlView()
+    private var islandBackgrounds: [BarZone: ModernControlView] = [:]
     var previewTopAttached = false
     var previewExclusion: ClosedRange<CGFloat>?
     private let workspaceStrip = WorkspaceStripView()
@@ -32,6 +33,12 @@ final class BarRootView: NSView {
         layer?.backgroundColor = NSColor.clear.cgColor
         addSubview(railBackground)
         addSubview(railBackgroundRight)
+        for zone in BarZone.allCases {
+            let background = ModernControlView()
+            background.isHidden = true
+            islandBackgrounds[zone] = background
+            addSubview(background)
+        }
         addSubview(workspaceStrip)
         addSubview(activeWindow)
 
@@ -82,6 +89,7 @@ final class BarRootView: NSView {
         layoutZone(.left, frame: zones.left.offsetBy(dx: 0, dy: edgeDepth))
         layoutZone(.center, frame: zones.center.offsetBy(dx: 0, dy: edgeDepth))
         layoutZone(.right, frame: zones.right.offsetBy(dx: 0, dy: edgeDepth))
+        layoutIslandBackgrounds(presentation: presentation)
         groupDividers.dropFirst(dividerIndex).forEach { $0.isHidden = true }
         railBackground.frame = NSRect(x: 0, y: edgeDepth, width: bounds.width, height: contentHeight)
         railBackground.isHidden = presentation != .fullWidth
@@ -107,6 +115,23 @@ final class BarRootView: NSView {
     private func desiredWidth(for zone: BarZone) -> CGFloat {
         let widths = (zoneViews[zone] ?? []).map { preferredWidth(of: $0) }.filter { $0 > 0 }
         return widths.reduce(0, +) + CGFloat(max(0, widths.count - 1)) * 8
+    }
+
+    private func layoutIslandBackgrounds(presentation: BarPresentation) {
+        let horizontalPadding: CGFloat = 4
+        for zone in BarZone.allCases {
+            guard let background = islandBackgrounds[zone] else { continue }
+            let entries = (zoneViews[zone] ?? []).filter { !$0.isHidden && $0.frame.width > 0 }
+            guard presentation == .floating, let first = entries.first, let last = entries.last else {
+                background.isHidden = true
+                continue
+            }
+            let minX = first.frame.minX - horizontalPadding
+            let maxX = last.frame.maxX + horizontalPadding
+            background.frame = NSRect(x: minX, y: first.frame.minY,
+                                       width: max(0, maxX - minX), height: first.frame.height)
+            background.isHidden = false
+        }
     }
 
     private func layoutZone(_ zone: BarZone, frame: NSRect) {
@@ -152,7 +177,9 @@ final class BarRootView: NSView {
             func flushWidgets() {
                 guard !pending.isEmpty else { return }
                 let strip = WidgetStripView()
-                strip.composition = config.barPresentation == .fullWidth ? .rail : .islands
+                // Floating zones use one shared surface. Keep their child
+                // controls rail-like so they do not render nested islands.
+                strip.composition = .rail
                 strip.configure(kinds: pending, theme: config.theme, visuals: config.visualPreferences)
                 strip.refreshAppearance()
                 wire(strip, zone: zone)
@@ -194,7 +221,9 @@ final class BarRootView: NSView {
 
     override func hitTest(_ point: NSPoint) -> NSView? {
         let hit = super.hitTest(point)
-        return hit === self || hit === railBackground || hit === railBackgroundRight ? nil : hit
+        let isPassiveBackground = hit === self || hit === railBackground || hit === railBackgroundRight ||
+            islandBackgrounds.values.contains { $0 === hit }
+        return isPassiveBackground ? nil : hit
     }
 
     func render(state: BarState) {
@@ -214,13 +243,18 @@ final class BarRootView: NSView {
         railBackground.apply(visuals: config.visualPreferences)
         railBackgroundRight.theme = config.theme
         railBackgroundRight.apply(visuals: config.visualPreferences)
-        let composition: BarLayout = config.barPresentation == .fullWidth ? .rail : .islands
-        workspaceStrip.composition = composition
-        activeWindow.composition = composition
+        workspaceStrip.composition = .rail
+        activeWindow.composition = .rail
         workspaceStrip.apply(theme: config.theme)
         workspaceStrip.apply(visuals: config.visualPreferences)
         activeWindow.apply(theme: config.theme)
         activeWindow.apply(visuals: config.visualPreferences)
+        for background in islandBackgrounds.values {
+            background.theme = config.theme
+            background.apply(visuals: config.visualPreferences)
+            background.screenBorderDepth = 0
+            background.attachesToTop = false
+        }
         configureZones()
         if let latestState { render(state: latestState) }
         needsLayout = true

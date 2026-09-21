@@ -120,10 +120,12 @@ final class BarWindow: NSPanel {
         isOpaque = false
         backgroundColor = .clear
         hasShadow = false
-        // Stay above ordinary app content but below notification banners. In
-        // particular, do not opt into fullScreenAuxiliary: macOS should own a
-        // native fullscreen display without a persistent bar above its video.
-        level = NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue - 1)
+        // Stay above ordinary app content while yielding to system surfaces
+        // such as Notification Center. A hand-tuned statusBar offset is not
+        // stable across macOS versions and can cover notification banners.
+        // Do not opt into fullScreenAuxiliary: macOS should own a native
+        // fullscreen display without a persistent bar above its video.
+        level = .floating
         collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
         isMovable = false
         ignoresMouseEvents = false
@@ -272,9 +274,28 @@ enum FullscreenDetector {
         abs(window.minX - display.minX) <= 2 && abs(window.minY - display.minY) <= 2 &&
         abs(window.width - display.width) <= 2 && abs(window.height - display.height) <= 2
     }
-    private static func nativeFullscreen(pid: pid_t, bounds: CGRect) -> Bool? {
+    private static func overlapRatio(_ window: CGRect, display: CGRect) -> CGFloat {
+        let intersection = window.intersection(display)
+        guard !intersection.isNull else { return 0 }
+        return intersection.width * intersection.height / max(1, display.width * display.height)
+    }
+
+    /// Fullscreen windows normally match the display exactly, but the Window
+    /// Server can report a one-pixel inset or a slightly stale frame while a
+    /// Space is changing. A nearly full display is a safe geometric fallback;
+    /// maximized windows remain below this threshold and are not hidden.
+    static func isFullscreenCandidate(_ window: CGRect, display: CGRect, nativeState: Bool?) -> Bool {
+        if nativeState == true { return overlapRatio(window, display: display) >= 0.90 }
+        guard nativeState != false else { return false }
+        return covers(window, display: display) || overlapRatio(window, display: display) >= 0.99
+    }
+
+    private static func nativeFullscreen(pid: pid_t, display: CGRect) -> Bool? {
         if pid == ProcessInfo.processInfo.processIdentifier {
-            return NSApp.windows.contains { $0.styleMask.contains(.fullScreen) }
+            return NSApp.windows.contains {
+                $0.styleMask.contains(.fullScreen) &&
+                overlapRatio($0.frame, display: display) >= 0.99
+            }
         }
         guard pid > 0, AXIsProcessTrusted() else { return nil }
         let app = AXUIElementCreateApplication(pid)
@@ -282,6 +303,7 @@ enum FullscreenDetector {
         var raw: CFTypeRef?
         guard AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &raw) == .success,
               let windows = raw as? [AXUIElement] else { return nil }
+        var explicitState: Bool?
         for window in windows {
             var positionValue: CFTypeRef?, sizeValue: CFTypeRef?, fullValue: CFTypeRef?
             guard AXUIElementCopyAttributeValue(window, kAXPositionAttribute as CFString, &positionValue) == .success,
@@ -291,12 +313,15 @@ enum FullscreenDetector {
             var position = CGPoint.zero, size = CGSize.zero
             AXValueGetValue(positionValue as! AXValue, .cgPoint, &position)
             AXValueGetValue(sizeValue as! AXValue, .cgSize, &size)
-            guard covers(CGRect(origin: position, size: size), display: bounds) else { continue }
             if AXUIElementCopyAttributeValue(window, "AXFullScreen" as CFString, &fullValue) == .success {
-                return fullValue as? Bool
+                guard let value = fullValue as? Bool else { continue }
+                let axBounds = CGRect(origin: position, size: size)
+                guard overlapRatio(axBounds, display: display) >= 0.90 else { continue }
+                explicitState = explicitState == true ? true : value
+                if value { return true }
             }
         }
-        return nil
+        return explicitState
     }
 
     static func coveredDisplays() -> Set<CGDirectDisplayID> {
@@ -309,12 +334,12 @@ enum FullscreenDetector {
                   let bounds = window[kCGWindowBounds as String] as? [String: CGFloat],
                   let x = bounds["X"], let y = bounds["Y"], let w = bounds["Width"], let h = bounds["Height"] else { continue }
             let rect = CGRect(x: x, y: y, width: w, height: h)
-            let matching = NSScreen.screens.filter { covers(rect, display: CGDisplayBounds($0.displayID)) }
+            let matching = NSScreen.screens.filter { screen in
+                let display = CGDisplayBounds(screen.displayID)
+                let nativeState = nativeFullscreen(pid: window[kCGWindowOwnerPID as String] as? pid_t ?? 0, display: display)
+                return isFullscreenCandidate(rect, display: display, nativeState: nativeState)
+            }
             guard !matching.isEmpty else { continue }
-            let pid = window[kCGWindowOwnerPID as String] as? pid_t ?? 0
-            // A tiled/maximized window can have exactly the display's bounds.
-            // When Accessibility supplies an explicit fullscreen state, honor it.
-            if nativeFullscreen(pid: pid, bounds: rect) == false { continue }
             matching.forEach { covered.insert($0.displayID) }
         }
         return covered

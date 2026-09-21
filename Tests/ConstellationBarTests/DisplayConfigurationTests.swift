@@ -96,6 +96,40 @@ final class DisplayConfigurationTests: XCTestCase {
         XCTAssertEqual(decoded.forDisplay("studio").widgetLayout.right, [.currentApp, .widget(.dateTime)])
     }
 
+    func testGlobalWidgetMutationsKeepLayoutLegacyFieldsAndPersistenceInSync() throws {
+        var config = BarConfig.default
+        config.setWidgetLayout(WidgetZoneLayout(
+            left: [.workspaces, .widget(.weather)],
+            center: [.widget(.nowPlaying)],
+            right: [.currentApp, .widget(.battery), .widget(.dateTime)],
+            alignment: .spread
+        ))
+        config.displayOverrides["studio"] = DisplayOverride(widgetLayout: WidgetZoneLayout(right: [.widget(.vpn)]))
+
+        config.toggleGlobalWidget(.nowPlaying)
+        XCTAssertFalse(config.widgetLayout.allWidgetKinds.contains(.nowPlaying))
+        XCTAssertEqual(config.centerWidgets, [])
+        config.toggleGlobalWidget(.audio)
+        XCTAssertEqual(config.widgetLayout.right.last, .widget(.audio))
+        XCTAssertEqual(config.rightWidgets, [.weather, .battery, .dateTime, .audio])
+
+        config.moveGlobalEdgeWidget(from: 0, to: 1)
+        XCTAssertEqual(config.widgetLayout.left.compactMap(\.widgetKind), [.battery])
+        XCTAssertEqual(config.widgetLayout.right.compactMap(\.widgetKind), [.weather, .dateTime, .audio])
+        XCTAssertEqual(config.rightWidgets, [.battery, .weather, .dateTime, .audio])
+
+        let decoded = try BarConfig.decode(config.encoded())
+        XCTAssertEqual(decoded.widgetLayout, config.widgetLayout)
+        XCTAssertEqual(decoded.rightWidgets, config.rightWidgets)
+        XCTAssertEqual(decoded.forDisplay("studio").widgetLayout.right, [.widget(.vpn)])
+
+        config.setGlobalWidgets([.vpn, .network, .dateTime])
+        XCTAssertEqual(config.widgetLayout.left, [.workspaces])
+        XCTAssertEqual(config.widgetLayout.center, [])
+        XCTAssertEqual(config.widgetLayout.right, [.currentApp, .widget(.vpn), .widget(.network), .widget(.dateTime)])
+        XCTAssertEqual(config.rightWidgets, [.vpn, .network, .dateTime])
+    }
+
     func testZoneGeometryKeepsSpreadZonesApart() {
         for width: CGFloat in [320, 640, 1440, 3440] {
             let layout = BarZoneLayoutGeometry.resolve(width: width, height: 46, margin: 16,

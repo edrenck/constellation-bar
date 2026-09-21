@@ -1,6 +1,6 @@
 # Install, update and remove
 
-[Download the 0.5.0 alpha](https://github.com/edrenck/constellation-bar/releases/tag/v0.5.0). The release includes a Developer ID-signed, notarized and stapled universal ZIP and a `SHA256SUMS` file.
+[Download the 0.7.1 alpha](https://github.com/edrenck/constellation-bar/releases/tag/v0.7.1). The release includes a Developer ID-signed, notarized and stapled universal ZIP and a `SHA256SUMS` file.
 
 ## Install
 
