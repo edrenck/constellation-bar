@@ -23,6 +23,7 @@ final class SystemVPNIntegration: VPNIntegrating {
     private let runner: CommandRunning
     init(runner: CommandRunning = CommandRunner()) { self.runner = runner }
     func connections(config: BarConfig) -> (connections: [VPNConnection], status: String) {
+        guard config.providerPreferences.includes(id) else { return ([], "Disabled") }
         let result = runner.run("/usr/sbin/scutil", ["--nc", "list"], timeout: 1)
         let connections = Self.parseServices(result.output).filter { config.providerPreferences.includes($0.provider == "system" ? "systemVPN" : $0.provider) }.map { connection -> VPNConnection in
             var value = connection

@@ -46,6 +46,22 @@ final class ProviderTests: XCTestCase {
         XCTAssertEqual(try name(#"{"DNSName":"single-name"}"#), "single-name")
         XCTAssertEqual(try name(#"{}"#), "Unnamed device")
     }
+    func testDisabledSystemVPNDoesNotInvokeScutil() {
+        final class RecordingRunner: CommandRunning {
+            var calls: [(String, [String])] = []
+            func run(_ executable: String, _ arguments: [String], timeout: TimeInterval) -> CommandResult {
+                calls.append((executable, arguments))
+                return CommandResult(status: 0)
+            }
+        }
+        let runner = RecordingRunner()
+        var config = BarConfig.default
+        config.providerPreferences.disabled = ["systemVPN"]
+        let result = SystemVPNIntegration(runner: runner).connections(config: config)
+        XCTAssertTrue(result.connections.isEmpty)
+        XCTAssertEqual(result.status, "Disabled")
+        XCTAssertTrue(runner.calls.isEmpty)
+    }
     func testExplicitMissingExecutableDoesNotSilentlyUseAnother() {
         XCTAssertNil(ExecutableDiscovery.find("sh", override: "/nonexistent/explicit/path"))
         XCTAssertEqual(ExecutableDiscovery.find("sh", environment: ["PATH": "/bin"]), "/bin/sh")

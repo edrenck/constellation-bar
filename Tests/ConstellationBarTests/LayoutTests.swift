@@ -111,6 +111,9 @@ final class LayoutTests: XCTestCase {
         XCTAssertTrue(FullscreenDetector.covers(display, display: display))
         XCTAssertFalse(FullscreenDetector.covers(CGRect(x: 0, y: 0, width: 1920, height: 1080), display: display))
         XCTAssertFalse(FullscreenDetector.covers(CGRect(x: 1920, y: -176, width: 1920, height: 1056), display: display))
+        XCTAssertTrue(FullscreenDetector.isFullscreenCandidate(display.insetBy(dx: 1, dy: 1), display: display, nativeState: nil))
+        XCTAssertFalse(FullscreenDetector.isFullscreenCandidate(CGRect(x: 1920, y: -176, width: 1920, height: 1056), display: display, nativeState: nil))
+        XCTAssertFalse(FullscreenDetector.isFullscreenCandidate(display, display: display, nativeState: false))
     }
 }
 

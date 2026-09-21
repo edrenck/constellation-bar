@@ -120,7 +120,9 @@ final class ConfigurationWindowController: NSWindowController, NSTextFieldDelega
         coveBorderButton.toolTip = "Cove Rail only: extend to both screen edges with downward-curving corners."
         densityPopup.selectItem(at: BarDensity.allCases.firstIndex(of: config.visualPreferences.density) ?? 1)
         workspaceAppsButton.state = config.visualPreferences.showsWorkspaceAppIcons ? .on : .off
-        for (kind, button) in widgetButtons { button.state = config.widgetLayout.allWidgetKinds.contains(kind) ? .on : .off }
+        for (kind, button) in widgetButtons {
+            button.state = config.widgetLayout.allWidgetKinds.contains { $0.canonical == kind } ? .on : .off
+        }
         if let index = DateTimePresentation.allCases.firstIndex(of: config.widgetPreferences.dateTimePresentation) { datePopup.selectItem(at: index) }
         artistButton.state = config.widgetPreferences.nowPlayingShowsArtist ? .on : .off
         hideIdlePlayerButton.state = config.widgetPreferences.nowPlayingHidesWhenIdle ? .on : .off
@@ -448,7 +450,7 @@ final class ConfigurationWindowController: NSWindowController, NSTextFieldDelega
     @objc func moveModule(_ sender: NSButton) {
         let index = sender.tag / 2, destination = sender.tag / 2 + (sender.tag % 2 == 0 ? -1 : 1)
         guard config.rightWidgets.indices.contains(destination) else { return }
-        config.rightWidgets.swapAt(index, destination)
+        config.moveGlobalEdgeWidget(from: index, to: destination)
         commit()
     }
     @objc func importConfiguration() {

@@ -1,10 +1,10 @@
 # Configuration reference
 
-Version 3 uses JSON. Versions 1 and 2 are accepted and migrated when saved. Missing top-level settings use defaults. Settings edited in the app save atomically. Reload external edits through the Configuration menu. Import validates a file before applying it. Export includes the location and paths you configured; review them before sharing a preset.
+Version 4 uses JSON. Versions 1 through 3 are accepted and migrated when saved. Missing top-level settings use defaults. Settings edited in the app save atomically. Reload external edits through the Configuration menu. Import validates a file before applying it. Export includes the location and paths you configured; review them before sharing a preset.
 
 | Setting | Default | Behavior |
 | --- | --- | --- |
-| `schemaVersion` | 3 | Future versions are rejected with a visible error. |
+| `schemaVersion` | 4 | Future versions are rejected with a visible error. |
 | `layout` | `rail` | `rail`, `islands`, `compact` |
 | `widgetPlacement` | `trailing` | `trailing` = right; `leading` = left |
 | `integration` | `automatic` | `automatic`, `aerospace`, `standalone` |
@@ -29,7 +29,7 @@ Example with aliases and a display override:
 
 ```json
 {
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "appearance": "cove",
   "layout": "rail",
   "workspaceNames": ["dev", "chat"],
@@ -87,7 +87,7 @@ Legacy `cpu` and `memory` widget identifiers migrate to one `system` entry at th
 
 ```json
 {
-  "schemaVersion": 3,
+  "schemaVersion": 4,
   "displayOverrides": {
     "YOUR-WIDE-DISPLAY-UUID": {
       "layout": "islands",

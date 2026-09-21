@@ -61,7 +61,8 @@ final class StatusMenuController: NSObject {
         let widgets = NSMenuItem(title: "Widgets", action: nil, keyEquivalent: "")
         let widgetsMenu = NSMenu()
         for kind in WidgetKind.selectableCases {
-            let item = actionItem(kind.menuTitle, action: #selector(toggleWidget(_:)), representedObject: kind, state: config.rightWidgets.contains(kind))
+            let item = actionItem(kind.menuTitle, action: #selector(toggleWidget(_:)), representedObject: kind,
+                                  state: config.widgetLayout.allWidgetKinds.contains { $0.canonical == kind })
             item.image = NSImage(systemSymbolName: kind.symbolName, accessibilityDescription: nil)
             widgetsMenu.addItem(item)
         }
@@ -158,20 +159,14 @@ final class StatusMenuController: NSObject {
         guard let choice = sender.representedObject as? BarAppearance else { return }
         apply { $0.appearance = choice }
     }
-    @objc private func essentialsWidgetPreset() { apply { $0.rightWidgets = [.battery, .vpn, .network, .dateTime, .system] } }
-    @objc private func minimalWidgetPreset() { apply { $0.rightWidgets = [.vpn, .network, .dateTime] } }
-    @objc private func dailyWidgetPreset() { apply { $0.rightWidgets = [.weather, .nowPlaying, .dateTime, .battery] } }
-    @objc private func performanceWidgetPreset() { apply { $0.rightWidgets = [.network, .system, .thermal, .disk] } }
+    @objc private func essentialsWidgetPreset() { apply { $0.setGlobalWidgets([.battery, .vpn, .network, .dateTime, .system]) } }
+    @objc private func minimalWidgetPreset() { apply { $0.setGlobalWidgets([.vpn, .network, .dateTime]) } }
+    @objc private func dailyWidgetPreset() { apply { $0.setGlobalWidgets([.weather, .nowPlaying, .dateTime, .battery]) } }
+    @objc private func performanceWidgetPreset() { apply { $0.setGlobalWidgets([.network, .system, .thermal, .disk]) } }
 
     @objc private func toggleWidget(_ sender: NSMenuItem) {
         guard let kind = sender.representedObject as? WidgetKind else { return }
-        apply { config in
-            if config.rightWidgets.contains(kind) {
-                config.rightWidgets.removeAll { $0 == kind }
-            } else {
-                config.rightWidgets.append(kind)
-            }
-        }
+        apply { $0.toggleGlobalWidget(kind) }
     }
 
     @objc private func openConfigFile() {

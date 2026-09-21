@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.1 — Alpha (2026-09-20)
+
+- Combine controls within each floating zone into a single island while preserving clear spacing between the left, center, and right areas.
+- Keep the bar below macOS notification banners and improve fullscreen hiding across display transitions.
+- Keep widget menu state, persisted widget layouts, legacy identifiers, disabled providers, and per-display configuration synchronized.
+
 ## 0.7.0 — Alpha (2026-09-14)
 
 - Calibrate each display independently instead of sizing external monitors from a connected MacBook notch.
