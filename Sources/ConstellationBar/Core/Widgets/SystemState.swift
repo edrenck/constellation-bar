@@ -3,6 +3,10 @@ import AppKit
 
 
 struct SystemState: Equatable {
+    var timer = CountdownState()
+    var keepAwake = KeepAwakeState()
+    var reminders = RemindersState()
+    var keyboard = KeyboardState()
     var agents = AgentStatusState()
     var battery: BatteryState = BatteryState(percent: nil, isCharging: false)
     var vpn: VPNState = VPNState()

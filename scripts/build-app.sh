@@ -19,6 +19,8 @@ mkdir -p "$STAGED_APP/Contents/MacOS" "$STAGED_APP/Contents/Resources" "$STAGED_
 cp "$BINARY_DIR/libNativeMediaHelper.dylib" "$STAGED_APP/Contents/Frameworks/"
 cp "$BINARY_DIR/ConstellationBar" "$STAGED_APP/Contents/MacOS/ConstellationBar"
 cp LICENSE "$STAGED_APP/Contents/Resources/LICENSE.txt"
+cp THIRD_PARTY_NOTICES.md "$STAGED_APP/Contents/Resources/THIRD_PARTY_NOTICES.md"
+cp -R Resources/ThemeLicenses "$STAGED_APP/Contents/Resources/ThemeLicenses"
 cp Resources/Info.plist "$STAGED_APP/Contents/Info.plist"
 xcrun swift scripts/render-icon.swift "$STAGING_DIR/ConstellationBar.iconset"
 iconutil -c icns "$STAGING_DIR/ConstellationBar.iconset" -o "$STAGED_APP/Contents/Resources/ConstellationBar.icns"

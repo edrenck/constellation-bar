@@ -126,8 +126,11 @@ final class DisplayConfigurationTests: XCTestCase {
         config.setGlobalWidgets([.vpn, .network, .dateTime])
         XCTAssertEqual(config.widgetLayout.left, [.workspaces])
         XCTAssertEqual(config.widgetLayout.center, [])
-        XCTAssertEqual(config.widgetLayout.right, [.currentApp, .widget(.vpn), .widget(.network), .widget(.dateTime)])
-        XCTAssertEqual(config.rightWidgets, [.vpn, .network, .dateTime])
+        XCTAssertEqual(config.widgetLayout.right, [.currentApp, .widget(.vpn), .widget(.system), .widget(.dateTime)])
+        XCTAssertEqual(config.rightWidgets, [.vpn, .system, .dateTime])
+        let canonical = try BarConfig.decode(config.encoded())
+        XCTAssertEqual(canonical.widgetLayout, config.widgetLayout)
+        XCTAssertEqual(canonical.rightWidgets, config.rightWidgets)
     }
 
     func testZoneGeometryKeepsSpreadZonesApart() {

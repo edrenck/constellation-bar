@@ -11,10 +11,10 @@
     dispatch_once(&once, ^{
         framework = dlopen("/System/Library/PrivateFrameworks/MediaRemote.framework/MediaRemote", RTLD_LAZY);
     });
-    if (!framework) return nil;
+    if (!framework) { fputs("MediaRemote framework could not load\n", stderr); return nil; }
     typedef void (*GetInfo)(dispatch_queue_t, void (^)(NSDictionary *));
     GetInfo getInfo = (GetInfo)dlsym(framework, "MRMediaRemoteGetNowPlayingInfo");
-    if (!getInfo) return nil;
+    if (!getInfo) { fputs("MediaRemote metadata callback is unavailable on this macOS version\n", stderr); return nil; }
     dispatch_semaphore_t ready = dispatch_semaphore_create(0);
     __block NSDictionary *snapshot;
     getInfo(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^(NSDictionary *info) {
@@ -23,7 +23,9 @@
     });
     // The caller also bounds the helper process. A late callback owns its captured
     // state until completion, even when we return on timeout.
-    if (dispatch_semaphore_wait(ready, dispatch_time(DISPATCH_TIME_NOW, 800 * NSEC_PER_MSEC))) return nil;
+    if (dispatch_semaphore_wait(ready, dispatch_time(DISPATCH_TIME_NOW, 800 * NSEC_PER_MSEC))) {
+        fputs("MediaRemote metadata callback timed out\n", stderr); return nil;
+    }
     return snapshot;
 }
 @end
@@ -78,6 +80,35 @@ void constellation_media_snapshot(void) {
                 result[@"source"] = [NSRunningApplication runningApplicationWithProcessIdentifier:playerPID].localizedName ?: @"macOS";
             }
         }
+        NSData *json = [NSJSONSerialization dataWithJSONObject:result options:0 error:nil];
+        if (!json) exit(1);
+        fwrite(json.bytes, 1, json.length, stdout);
+        fputc('\n', stdout);
+        exit(0);
+    }
+}
+
+// Versioned control result; a private ABI failure can only terminate this helper.
+void constellation_media_command(void) {
+    @autoreleasepool {
+        const char *raw = getenv("CONSTELLATION_MEDIA_COMMAND");
+        int command = raw ? atoi(raw) : -1;
+        BOOL success = NO;
+        NSString *message = nil;
+        if (command != 2 && command != 4 && command != 5) {
+            message = @"Unsupported playback command.";
+        } else {
+            void *framework = dlopen("/System/Library/PrivateFrameworks/MediaRemote.framework/MediaRemote", RTLD_LAZY);
+            typedef Boolean (*SendCommand)(int, CFDictionaryRef);
+            SendCommand sendCommand = framework ? (SendCommand)dlsym(framework, "MRMediaRemoteSendCommand") : NULL;
+            if (!sendCommand) message = @"macOS playback controls are unavailable on this version. Use your player’s controls; Apple Music supports Automation controls.";
+            else {
+                success = sendCommand(command, NULL);
+                if (!success) message = @"macOS could not deliver that playback command. Use your player’s controls.";
+            }
+        }
+        NSMutableDictionary *result = [@{@"version": @1, @"success": @(success)} mutableCopy];
+        if (message) result[@"message"] = message;
         NSData *json = [NSJSONSerialization dataWithJSONObject:result options:0 error:nil];
         if (!json) exit(1);
         fwrite(json.bytes, 1, json.length, stdout);

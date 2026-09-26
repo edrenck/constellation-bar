@@ -47,7 +47,9 @@ final class WorkspaceStripView: NSView {
         super.layout()
         guard bounds.width > 12, bounds.height > 6 else { return }
         backdrop.frame = bounds
-        stack.frame = bounds.insetBy(dx: 6, dy: 3)
+        // A collapsed strip keeps its fixed-width children intact for expansion.
+        // Its hidden stack must retain enough width to satisfy those constraints.
+        stack.frame = NSRect(x: 6, y: 3, width: max(bounds.width - 12, preferredWidth - 12), height: bounds.height - 6)
         overflow.frame = bounds.insetBy(dx: 6, dy: 3)
         stack.layoutSubtreeIfNeeded()
         updateSelectionFrame()
@@ -125,6 +127,9 @@ final class WorkspaceStripView: NSView {
             }
         }
         for workspace in displayWorkspaces { controls[workspace.name]?.update(workspace: workspace, theme: theme) }
+        if stack.frame.width == 0 {
+            stack.frame = NSRect(x: 6, y: 3, width: max(1, preferredWidth - 12), height: 34)
+        }
         apply(theme: theme)
         needsLayout = true
     }
@@ -213,7 +218,7 @@ final class WorkspaceControlView: ModernControlView {
         if visualPreferences.showsWorkspaceAppIcons, !displayedApps.isEmpty {
             let labelWidth = max(20, min(106, label.intrinsicContentSize.width))
             label.frame = NSRect(x: 6, y: bounds.midY - 8, width: labelWidth, height: 16)
-            appIconStack.frame = NSRect(x: labelWidth + 12, y: bounds.midY - 7, width: max(0, bounds.width - labelWidth - 18), height: 14)
+            appIconStack.frame = NSRect(x: labelWidth + 12, y: bounds.midY - 7, width: CGFloat(displayedApps.count) * 14 + CGFloat(max(0, displayedApps.count - 1)) * 3, height: 14)
         } else {
             label.frame = NSRect(x: 2, y: bounds.midY - 8, width: bounds.width - 4, height: 16)
             appIconStack.frame = .zero
@@ -242,7 +247,10 @@ final class WorkspaceControlView: ModernControlView {
 
     func installWidthConstraint() {
         widthConstraint?.isActive = false
-        widthConstraint = widthAnchor.constraint(equalToConstant: preferredWidth)
+        widthConstraint = widthAnchor.constraint(equalToConstant: preferredWidth).identified("workspace.\(workspace.name).width")
+        // Width is a presentation preference. During theme/icon changes the
+        // parent still has its previous frame until the next layout pass.
+        widthConstraint?.priority = .defaultHigh
         widthConstraint?.isActive = true
     }
 
@@ -251,6 +259,8 @@ final class WorkspaceControlView: ModernControlView {
         guard apps != displayedApps else { return }
         displayedApps = apps
         appIconStack.arrangedSubviews.forEach { appIconStack.removeArrangedSubview($0); $0.removeFromSuperview() }
+        // Reserve fixed icon dimensions before inserting the first arranged view.
+        appIconStack.frame.size = NSSize(width: CGFloat(apps.count) * 14 + CGFloat(max(0, apps.count - 1)) * 3, height: 14)
         for app in apps {
             let icon = NSImageView(image: AppIconProvider.icon(for: app))
             icon.imageScaling = .scaleProportionallyUpOrDown
@@ -271,6 +281,7 @@ final class WorkspaceControlView: ModernControlView {
         let title = workspace.displayName ?? workspace.name
         label.stringValue = style == .typeset && focused ? "[\(title)]" : title
         label.font = style.font(size: 12, weight: focused ? .semibold : .regular)
+        widthConstraint?.constant = preferredWidth
         label.textColor = focused ? theme.selectionText : workspace.windows.isEmpty ? theme.muted : theme.foreground
         setFillColor(focused ? (selectionInStrip ? .clear : theme.selectionFill) : isHovered ? theme.surfaceStrong : .clear)
         // Hover and selection geometry should feel like one control family.
@@ -286,6 +297,14 @@ final class WorkspaceControlView: ModernControlView {
 
     override func mouseDown(with event: NSEvent) {
         onClick?(workspace.name)
+    }
+
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        // Labels and app images are decorative parts of this single button.
+        // NSImageView can track a click itself (until mouse-up), delaying the
+        // responder-chain delivery that switches the workspace on mouse-down.
+        guard super.hitTest(point) != nil else { return nil }
+        return self
     }
 }
 

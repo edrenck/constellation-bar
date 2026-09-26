@@ -11,7 +11,6 @@ final class BarController {
     private var focusPending = false
     private var focusRevision = 0
     private let workspaceActionQueue = DispatchQueue(label: "dev.constellation.workspace-actions", qos: .userInitiated)
-    private let sampleQueue = DispatchQueue(label: "dev.constellation.sampling", qos: .utility)
     private var timer: Timer?
     private var systemTimer: Timer?
     private var signalSource: DispatchSourceSignal?
@@ -19,7 +18,6 @@ final class BarController {
     private var latestWorkspace = WorkspaceSnapshot()
     private var refreshInFlight = false
     private var refreshPending = false
-    private var sampleInFlight = false
     private var stopped = false
     private var generation = 0
     private var appearanceObservation: NSKeyValueObservation?
@@ -51,6 +49,7 @@ final class BarController {
         sampleSystem()
         requestRefresh()
         installTimers()
+        NotificationCenter.default.addObserver(self, selector: #selector(refreshDiagnostics), name: IntegrationDiagnostics.refreshRequested, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(screenParametersChanged), name: NSApplication.didChangeScreenParametersNotification, object: nil)
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(workspaceChanged), name: NSWorkspace.didActivateApplicationNotification, object: nil)
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(workspaceChanged), name: NSWorkspace.didWakeNotification, object: nil)
@@ -71,6 +70,7 @@ final class BarController {
         signalSource?.cancel()
         NotificationCenter.default.removeObserver(self)
         NSWorkspace.shared.notificationCenter.removeObserver(self)
+        systemMonitor.stop()
         screenController.closeBars()
     }
     @objc private func refreshAppearance() { screenController.apply(config: config); renderCurrentState(); onConfigChange?(config) }
@@ -136,23 +136,18 @@ final class BarController {
             }
         }
     }
+    @objc private func refreshDiagnostics() { sampleSystem(); requestRefresh() }
+
     private func sampleSystem() {
-        guard !sampleInFlight, !stopped else { return }
-        sampleInFlight = true
+        guard !stopped else { return }
         var config = self.config
-        // A display override can enable modules that are absent from the global layout.
         config.rightWidgets = config.widgetsForSampling
         let generation = self.generation
-        sampleQueue.async { [weak self] in
-            guard let self else { return }
-            let system = self.systemMonitor.sample(config: config)
-            DispatchQueue.main.async {
-                self.sampleInFlight = false
-                guard !self.stopped else { return }
-                if generation == self.generation { self.latestSystem = system }
-                else { self.sampleSystem() }
-                self.renderCurrentState()
-            }
+        systemMonitor.refresh(config: config, generation: generation) { [weak self] system in
+            guard let self, !self.stopped, generation == self.generation else { return }
+            self.latestSystem = system
+            IntegrationDiagnostics.publish(system, config: config, sampledKinds: self.systemMonitor.sampledKinds)
+            self.renderCurrentState()
         }
     }
     private func renderCurrentState() {
@@ -175,14 +170,16 @@ extension BarController: BarInteractionDelegate {
         workspaceActionQueue.async { [weak self] in
             if workspace.isEmpty { StandaloneWorkspaceProvider().focusWindow(id) }
             else {
-                let provider = AeroSpaceClient(binaryPath: config.aerospacePath)
-                provider.switchToWorkspace(workspace)
-                provider.focusWindow(id)
+                // AeroSpace focuses the window's workspace as part of focusing
+                // its ID. A separate workspace switch focuses an intermediate
+                // window and doubles the CLI round trips for one selection.
+                AeroSpaceClient(binaryPath: config.aerospacePath).focusWindow(id)
             }
             DispatchQueue.main.async { self?.requestFocusRefresh() }
         }
     }
     func reorderWidgets(_ kinds: [WidgetKind], displayID: String?, zone: BarZone) {
+        var config = self.config
         if let displayID {
             var override = config.displayOverrides[displayID] ?? DisplayOverride()
             var layout = override.widgetLayout ?? config.forDisplay(displayID).widgetLayout
@@ -204,28 +201,35 @@ extension BarController: BarInteractionDelegate {
             layout.setItems(replacement, in: zone)
             config.setWidgetLayout(layout)
         }
-        ConfigurationStore.save(config)
+        guard ConfigurationStore.save(config) else { return }
+        self.config = config
         screenController.apply(config: config)
         onConfigChange?(config)
     }
     func performWidgetAction(_ action: WidgetAction, completion: @escaping (String?) -> Void) {
+        if case .authorizeMusic = action {
+            AppleMusicIntegration.requestAccess { [weak self] error in completion(error); self?.sampleSystem() }
+            return
+        }
+        if case .authorizeReminders = action {
+            let done: (String?) -> Void = { [weak self] error in completion(error); self?.sampleSystem() }
+            systemMonitor.perform(kind: .reminders, operation: {
+                WidgetServices.shared.reminders.requestAccess(completion: done)
+            }) { error in if let error { completion(error) } }
+            return
+        }
         if case .authorizeCalendar = action {
             let selected = config.providerPreferences.calendarProvider
             guard config.providerPreferences.includes(selected.rawValue) else { completion("Enable the provider in Customize Bar → Widgets → Calendar first."); return }
             let done: (String?) -> Void = { [weak self] error in completion(error); self?.sampleSystem() }
-            if selected == .outlook { WidgetServices.shared.outlook.requestAccess(completion: done) }
-            else { WidgetServices.shared.calendar.requestAccess(completion: done) }
+            systemMonitor.perform(kind: .calendar, operation: {
+                if selected == .outlook { WidgetServices.shared.outlook.requestAccess(completion: done) }
+                else { WidgetServices.shared.calendar.requestAccess(completion: done) }
+            }) { error in if let error { completion(error) } }
             return
         }
-        sampleQueue.async { [weak self] in
-            var message: String?
-            do { try WidgetServices.shared.perform(action) } catch { message = error.localizedDescription }
-            DispatchQueue.main.async { completion(message); self?.sampleSystem() }
+        systemMonitor.perform(kind: action.providerKind, operation: { try WidgetServices.shared.perform(action) }) { [weak self] message in
+            completion(message); self?.sampleSystem()
         }
     }
-}
-
-enum IntegrationDiagnostics {
-    static let changed = Notification.Name("ConstellationIntegrationsChanged")
-    static var workspace = "Checking integrations…" { didSet { NotificationCenter.default.post(name: changed, object: nil) } }
 }

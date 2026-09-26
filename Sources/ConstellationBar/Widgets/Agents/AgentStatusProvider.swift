@@ -52,8 +52,26 @@ struct AgentProviderSnapshot: Equatable {
 struct AgentStatusState: Equatable {
     var providers: [AgentProviderSnapshot] = []
     var activeCount: Int { providers.filter(\.available).reduce(0) { $0 + $1.activeCount } }
+    var unknownCount: Int { providers.filter(\.available).reduce(0) { $0 + $1.unknownCount } }
+    var readableProviderCount: Int { providers.filter(\.available).count }
     var hasReadableProvider: Bool { providers.contains(where: \.available) }
     var isComplete: Bool { !providers.isEmpty && providers.allSatisfy { $0.available && $0.unknownCount == 0 } }
+    /// Saved SSH hosts can be offline by design. Keep their connectivity separate from
+    /// readable task lifecycles so one sleeping computer does not obscure every count.
+    var coverageDetail: String {
+        guard !providers.isEmpty else { return "Monitoring disabled" }
+        guard readableProviderCount < providers.count else { return "All configured hosts checked" }
+        return "Counts from \(readableProviderCount) of \(providers.count) configured hosts"
+    }
+    var taskSummary: String {
+        guard hasReadableProvider else { return "Status unavailable" }
+        let active = "\(activeCount) active \(activeCount == 1 ? "task" : "tasks")"
+        if unknownCount > 0 { return active + " · \(unknownCount) unknown" }
+        if activeCount == 0 {
+            return readableProviderCount < providers.count ? "No tasks running on checked hosts" : "No tasks running"
+        }
+        return active
+    }
 }
 final class AgentStatusProvider: SystemProviding {
     let kinds: Set<WidgetKind> = [.agentStatus]
@@ -99,27 +117,41 @@ final class CodexAgentStatusIntegration: AgentStatusIntegrating {
             let metadata = try AgentStatusDatabase(url: Self.databaseURL(in: home, prefix: "state", fallback: "state_5.sqlite"))
             let columns = try metadata.rows("PRAGMA table_info(threads)").compactMap { $0.count > 1 ? $0[1] : nil }
             let historyColumn = columns.contains("history_mode") ? "history_mode" : "'legacy'"
-            var history: AgentStatusDatabase?
+            var histories: [URL: AgentStatusDatabase] = [:]
+            let sourceColumn = columns.contains("source") ? "source" : "''"
+            let agentPathColumn = columns.contains("agent_path") ? "agent_path" : "''"
             var retainedPaths = Set<String>()
             for lock in held.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
                 let threadID = lock.deletingPathExtension().lastPathComponent
-                let rows = try metadata.rows("SELECT \(historyColumn), rollout_path FROM threads WHERE id = ? AND archived = 0", argument: threadID)
-                // Internal/ephemeral workers have no persisted task record and are outside this adapter's scope.
-                guard let row = rows.first, row.count == 2 else { continue }
+                let rows = try metadata.rows("SELECT \(historyColumn), rollout_path, \(sourceColumn), \(agentPathColumn) FROM threads WHERE id = ? AND archived = 0", argument: threadID)
+                // Ignore ephemeral records and persisted internal workers outside the user task list.
+                guard let row = rows.first, row.count == 4, Self.isUserTask(source: row[2], agentPath: row[3]) else { continue }
+                let rolloutURL = Self.rolloutURL(row[1], home: home)
                 var activity: AgentTaskActivity = .unknown
                 var statusDetail = "Unrecognized lifecycle format"
                 if row[0] == "paginated" {
                     do {
-                        if history == nil { history = try AgentStatusDatabase(url: Self.databaseURL(in: home, prefix: "thread_history", fallback: "thread_history_1.sqlite")) }
-                        let turns = try history?.rows("SELECT status FROM thread_turns WHERE thread_id = ? ORDER BY rollout_ordinal DESC LIMIT 1", argument: threadID)
-                        activity = Self.activity(turnStatus: turns?.first?.first)
+                        let historyURL = Self.historyDatabaseURL(in: home, rollout: rolloutURL)
+                        if histories[historyURL] == nil { histories[historyURL] = try AgentStatusDatabase(url: historyURL) }
+                        let turns = try histories[historyURL]?.rows("SELECT status FROM thread_turns WHERE thread_id = ? ORDER BY rollout_ordinal DESC LIMIT 1", argument: threadID)
+                        // A freshly created, readable task may not have a first turn yet.
+                        // That is idle, while an unfamiliar persisted value remains unknown.
+                        activity = turns?.isEmpty == true ? .idle : Self.activity(turnStatus: turns?.first?.first)
                         statusDetail = "No recognized turn status yet"
-                    } catch { statusDetail = error.localizedDescription }
-                } else if row[0] == "legacy" {
-                    let path = row[1]
-                    retainedPaths.insert(path)
+                    } catch {
+                        // A paginated history database can be temporarily inaccessible during
+                        // migration or WAL setup. Rollouts also carry the same lifecycle events.
+                        // Only use a recognized complete marker; never infer idle from a read error.
+                        statusDetail = error.localizedDescription
+                        if let rolloutURL {
+                            retainedPaths.insert(rolloutURL.path)
+                            if let fallback = try? legacyActivity(at: rolloutURL), fallback != .unknown { activity = fallback }
+                        }
+                    }
+                } else if row[0] == "legacy", let rolloutURL {
+                    retainedPaths.insert(rolloutURL.path)
                     do {
-                        activity = try legacyActivity(at: URL(fileURLWithPath: path))
+                        activity = try legacyActivity(at: rolloutURL)
                         statusDetail = "No lifecycle marker in the recent task record"
                     } catch { statusDetail = "Local task record could not be read" }
                 }
@@ -148,7 +180,44 @@ final class CodexAgentStatusIntegration: AgentStatusIntegrating {
                   let version = Int(name.dropFirst(prefix.count + 1)) else { return nil }
             return (url, version)
         }
-        return versioned.max { $0.1 < $1.1 }?.0 ?? home.appendingPathComponent(fallback)
+        if let latest = versioned.max(by: { $0.1 < $1.1 })?.0 { return latest }
+        for name in [prefix + ".sqlite", prefix + ".db"] {
+            let url = home.appendingPathComponent(name)
+            if FileManager.default.fileExists(atPath: url.path) { return url }
+        }
+        return home.appendingPathComponent(fallback)
+    }
+    /// Internal workers are persisted too, but do not appear as user tasks in Codex.
+    static func isUserTask(source: String, agentPath: String) -> Bool {
+        if source == "subagent" { return false }
+        if let data = source.data(using: .utf8),
+           let value = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           value["subagent"] != nil { return false }
+        // Some versions retain worker ancestry only in agent_path.
+        return agentPath.isEmpty || agentPath == "/root"
+    }
+    static func rolloutURL(_ path: String, home: URL) -> URL? {
+        guard !path.isEmpty else { return nil }
+        let expanded = (path as NSString).expandingTildeInPath
+        return expanded.hasPrefix("/") ? URL(fileURLWithPath: expanded) : home.appendingPathComponent(expanded)
+    }
+    static func historyDatabaseURL(in home: URL, rollout: URL?) -> URL {
+        let local = databaseURL(in: home, prefix: "thread_history", fallback: "thread_history_1.sqlite")
+        if FileManager.default.fileExists(atPath: local.path) { return local }
+        // Persisted rollout paths survive CODEX_HOME moves. Recognize only the
+        // standard sessions/YYYY/MM/DD layout, without recursively scanning files.
+        if let rollout {
+            var ancestor = rollout.deletingLastPathComponent()
+            for _ in 0..<4 {
+                if ancestor.lastPathComponent == "sessions" || ancestor.lastPathComponent == "archived_sessions" {
+                    let sibling = databaseURL(in: ancestor.deletingLastPathComponent(), prefix: "thread_history", fallback: "thread_history_1.sqlite")
+                    if FileManager.default.fileExists(atPath: sibling.path) { return sibling }
+                    break
+                }
+                ancestor.deleteLastPathComponent()
+            }
+        }
+        return local
     }
     static func activity(turnStatus: String?) -> AgentTaskActivity {
         switch turnStatus {

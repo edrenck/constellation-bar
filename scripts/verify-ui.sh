@@ -25,3 +25,10 @@ export CONSTELLATION_UI_TEST_BINARY="$JOURNEY_BINARY"
 export CONSTELLATION_UI_TEST_ARTIFACT_DIR="$JOURNEY_ARTIFACTS"
 echo "Verifying native UI journeys and app startup. Results: $JOURNEY_ARTIFACTS"
 xcrun swift test 2>&1 | tee "$JOURNEY_ARTIFACTS/tests.log"
+
+# AppKit recovers these layouts by discarding constraints even when assertions pass.
+# Keep the original test log so the triggering journey remains reviewable.
+if grep -Ei 'Conflicting constraints detected|Unable to simultaneously satisfy constraints|Will attempt to recover by breaking' "$JOURNEY_ARTIFACTS/tests.log" >/dev/null; then
+  echo "Native UI verification failed: Auto Layout discarded conflicting constraints. See $JOURNEY_ARTIFACTS/tests.log" >&2
+  exit 1
+fi

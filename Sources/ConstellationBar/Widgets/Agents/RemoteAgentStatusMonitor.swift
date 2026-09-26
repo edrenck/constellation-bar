@@ -126,7 +126,7 @@ final class RemoteAgentStatusMonitor {
     }
     static func decode(_ result: CommandResult, host: CodexSSHHost, at date: Date) -> AgentProviderSnapshot {
         guard result.succeeded else {
-            return unavailable(host, message: result.timedOut ? "SSH timed out · host may be offline" : "SSH unavailable · check connection, authentication and Python 3", at: date)
+            return unavailable(host, message: failureMessage(result), at: date)
         }
         struct Payload: Decodable { let version: Int; let available: Bool; let tasks: [AgentTaskStatus]; let message: String }
         guard let payload = try? JSONDecoder().decode(Payload.self, from: Data(result.output.utf8)),
@@ -137,5 +137,25 @@ final class RemoteAgentStatusMonitor {
         }
         return AgentProviderSnapshot(id: "codex:" + host.hostId, name: "Codex", tasks: payload.available ? payload.tasks : [], available: payload.available,
             message: payload.available ? "Connected over SSH" : "Remote Codex data is missing, busy, or unsupported", sampledAt: date, hostName: host.displayName)
+    }
+    private static func failureMessage(_ result: CommandResult) -> String {
+        if result.timedOut { return "SSH timed out · host may be offline" }
+        let error = result.error.lowercased()
+        if error.contains("host key verification failed") || error.contains("remote host identification has changed") {
+            return "SSH host key needs verification · reconnect this host in Codex"
+        }
+        if error.contains("permission denied") || error.contains("authentication failed") {
+            return "SSH authentication failed · reconnect this host in Codex"
+        }
+        if error.contains("could not resolve hostname") {
+            return "SSH hostname could not be resolved · check the host address or network"
+        }
+        if error.contains("connection refused") || error.contains("no route to host") || error.contains("operation timed out") || error.contains("connection timed out") {
+            return "SSH host is unreachable · check its network and Remote Login"
+        }
+        if error.contains("python3") && (error.contains("not found") || error.contains("no such file")) {
+            return "Python 3 is missing on this host · install it to read agent status"
+        }
+        return "SSH unavailable · check connection, authentication and Python 3"
     }
 }

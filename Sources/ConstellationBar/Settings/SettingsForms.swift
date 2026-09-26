@@ -19,13 +19,13 @@ extension ConfigurationWindowController {
         heading.font = .systemFont(ofSize: 13, weight: .semibold)
         stack.addArrangedSubview(heading)
         rows.forEach { stack.addArrangedSubview($0) }
-        NSLayoutConstraint.activate([
+        NSLayoutConstraint.activateOwned([
             container.widthAnchor.constraint(greaterThanOrEqualToConstant: 560),
             stack.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 16),
             stack.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -16),
             stack.topAnchor.constraint(equalTo: container.topAnchor, constant: 14),
             stack.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -14)
-        ])
+        ], owner: "settings.section.\(title)")
         sections[buildingSection, default: []].append(container)
         return container
     }
@@ -50,8 +50,8 @@ extension ConfigurationWindowController {
         fields.spacing = 8
         latitudeField.placeholderString = "Latitude"
         longitudeField.placeholderString = "Longitude"
-        latitudeField.widthAnchor.constraint(equalToConstant: 108).isActive = true
-        longitudeField.widthAnchor.constraint(equalToConstant: 108).isActive = true
+        latitudeField.widthAnchor.constraint(equalToConstant: 108).identified("settings.latitude.width").isActive = true
+        longitudeField.widthAnchor.constraint(equalToConstant: 108).identified("settings.longitude.width").isActive = true
         fields.addArrangedSubview(latitudeField)
         fields.addArrangedSubview(longitudeField)
         return formRow("Coordinates", fields)

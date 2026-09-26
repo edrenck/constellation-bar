@@ -9,6 +9,25 @@ struct WeatherState: Equatable {
     var apparentTemperature: Double? = nil
     var humidity: Int? = nil
     var windSpeed: Double? = nil
+    var fetchedAt: Date? = nil
+    var age: TimeInterval? = nil
+    var isStale = false
+    var failure: String? = nil
+    var nextAttemptAt: Date? = nil
+
+    var freshnessDescription: String {
+        if let age {
+            let minutes = Int(age / 60)
+            if temperature == nil { return "Forecast expired · last received \(minutes) minutes ago." }
+            if isStale { return "Saved forecast · \(minutes) minutes old." }
+            return "Forecast received \(minutes) minutes ago."
+        }
+        return "No forecast has been received."
+    }
+    var statusDescription: String {
+        let problem = failure.map { " \($0) Automatic retry is scheduled." } ?? ""
+        return freshnessDescription + problem
+    }
 
     static let unavailable = WeatherState(temperature: nil, weatherCode: -1, isDay: true)
 

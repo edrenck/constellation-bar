@@ -55,6 +55,7 @@ final class WidgetInspectorView: OverlayContentView {
         rowsStack.orientation = .vertical
         rowsStack.alignment = .leading
         rowsStack.spacing = 4
+        rowsStack.frame = NSRect(x: 16, y: 14, width: 268, height: CGFloat(inspectorRows.count) * 27)
         update(state: state, history: history)
         addSubview(rowsStack)
 
@@ -101,8 +102,8 @@ final class WidgetInspectorView: OverlayContentView {
     private func makeRow(_ title: String, _ value: String) -> NSView {
         let row = NSView()
         row.translatesAutoresizingMaskIntoConstraints = false
-        row.widthAnchor.constraint(equalToConstant: 268).isActive = true
-        row.heightAnchor.constraint(equalToConstant: 23).isActive = true
+        row.widthAnchor.constraint(equalToConstant: 268).identified("inspector.row.width").isActive = true
+        row.heightAnchor.constraint(equalToConstant: 23).identified("inspector.row.height").isActive = true
         let left = NSTextField(labelWithString: title)
         left.font = config.appearance.font(size: 11)
         left.textColor = config.theme.muted

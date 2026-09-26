@@ -197,7 +197,7 @@ final class BarWindow: NSPanel {
         let physical = CGDisplayScreenSize(screen.displayID)
         let target = DisplaySizing.notchTarget(notchPoints: screen.safeAreaInsets.top,
             screenPointHeight: screen.frame.height, screenMillimeterHeight: physical.height)
-        return DisplaySizing.readableScale(logicalHeight: config.height + config.coveEdgeDepth,
+        return DisplaySizing.readableScale(logicalHeight: config.height,
             physicalHeight: target ?? config.physicalHeightMillimeters,
             screenPoints: screen.frame.size, screenMillimeters: physical,
             isBuiltIn: CGDisplayIsBuiltin(screen.displayID) != 0, multiplier: config.sizeMultiplier)
@@ -206,7 +206,7 @@ final class BarWindow: NSPanel {
     private static func frame(for screen: NSScreen, config: BarConfig, avoidingMenuBar: Bool, menuBarHeight: CGFloat) -> NSRect {
         let frame = screen.frame
         let scale = contentScale(for: screen, config: config)
-        let totalHeight = (config.height + config.coveEdgeDepth) * scale
+        let totalHeight = config.height * scale + config.coveEdgeDepth
         // Keep notch-aware layout at the physical edge while the menu is hidden.
         // When macOS reveals its menu, make room below it in screen points;
         // the system menu height does not scale with the user's bar size.

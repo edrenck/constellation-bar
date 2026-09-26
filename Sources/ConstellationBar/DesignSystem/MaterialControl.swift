@@ -75,20 +75,11 @@ class ModernControlView: NSView {
         // Cove's concave shoulders join the upper screen edge; content still avoids the camera.
         if screenBorderDepth > 0 && theme.appearanceID == .cove {
             layer?.cornerRadius = 0
-            let path = CGMutablePath()
-            let w = bounds.width, h = bounds.height, r = min(screenBorderDepth, h / 2, w / 2)
-            // The transparent desktop below has rounded upper corners; black runs to both edges.
-            path.move(to: CGPoint(x: 0, y: h))
-            path.addLine(to: CGPoint(x: w, y: h))
-            path.addLine(to: CGPoint(x: w, y: 0))
-            path.addCurve(to: CGPoint(x: w-r, y: r), control1: CGPoint(x: w, y: r * 0.5522848), control2: CGPoint(x: w-r * 0.4477152, y: r))
-            path.addLine(to: CGPoint(x: r, y: r))
-            path.addCurve(to: CGPoint(x: 0, y: 0), control1: CGPoint(x: r * 0.4477152, y: r), control2: CGPoint(x: 0, y: r * 0.5522848))
-            path.closeSubpath()
-            let mask = CAShapeLayer(); mask.path = path
+            let path = CoveBorderGeometry.mask(in: bounds, depth: screenBorderDepth)
+            let mask = CAShapeLayer(); mask.path = path; mask.fillRule = .evenOdd
             tintView.layer?.cornerRadius = 0
             tintView.layer?.mask = mask
-            layer?.shadowPath = path
+            layer?.shadowPath = nil
         } else if attachesToTop && theme.appearanceID == .cove {
             let path = CGMutablePath()
             let w = bounds.width, h = bounds.height, r = min(14, h / 2)

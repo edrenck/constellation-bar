@@ -17,9 +17,11 @@ extension ConfigurationWindowController {
             (.widget(.weather), coordinateRow()),
             (.widget(.weather), formRow("Temperature", weatherUnitPopup)),
             (.widget(.weather), NSTextField(wrappingLabelWithString: "Weather uses Open-Meteo and refreshes every 10 minutes. Enter latitude and longitude for your location.")),
-            (.widget(.agentStatus), NSTextField(wrappingLabelWithString: "Codex tasks on this Mac and saved SSH hosts. Active includes waiting for input or approval."))
+            (.widget(.agentStatus), NSTextField(wrappingLabelWithString: "Coding-agent tasks on this Mac and connected hosts. Active includes waiting for input or approval.\n* Codex is the currently supported provider."))
         ]
+        moduleRows += dailyWidgetSettingsRows()
         moduleRows += calendarSettingsRows().map { (.widget(.calendar), $0) }
+        moduleRows += systemSettingsRows().map { (.widget(.system), $0) }
         for kind in WidgetKind.selectableCases {
             moduleRows += providerSettingsRows(for: kind).map { (.widget(kind), $0) }
         }

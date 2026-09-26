@@ -38,10 +38,8 @@ extension ConfigurationWindowController {
         refreshPopup.addItems(withTitles: ["1 second", "2 seconds", "5 seconds", "10 seconds"])
         refreshPopup.target = self
         refreshPopup.action = #selector(applicationOptionChanged)
-        for label in [aerospaceStatus, tailscaleStatus, mediaStatus, weatherStatus, configPathStatus] {
-            label.textColor = .secondaryLabelColor
-            label.lineBreakMode = .byTruncatingMiddle
-        }
+        configPathStatus.textColor = .secondaryLabelColor
+        configPathStatus.lineBreakMode = .byTruncatingMiddle
     }
 
 }

@@ -64,19 +64,22 @@ final class BarRootView: NSView {
     override func layout() {
         super.layout()
         var exclusion = previewExclusion
-        let contentScale = max(0.01, (window?.frame.width ?? bounds.width) / max(1, bounds.width))
+        // Size conversion preserves the exact transform; rectangle conversion
+        // rounds its edges and subtly changes the desktop corner radius.
+        let contentScale = max(0.01, convert(bounds.size, to: nil).width / max(1, bounds.width))
         if let screen = window?.screen, screen.safeAreaInsets.top > 0,
            (window?.frame.maxY ?? 0) > screen.frame.maxY - screen.safeAreaInsets.top,
            let left = screen.auxiliaryTopLeftArea, let right = screen.auxiliaryTopRightArea {
             exclusion = ((left.maxX - screen.frame.minX) / contentScale)...((right.minX - screen.frame.minX) / contentScale)
         }
-        let edgeDepth = min(config.coveEdgeDepth, max(0, bounds.height - config.height))
+        let borderDepth = CoveBorderGeometry.logicalDepth(screenRadius: config.coveEdgeDepth, contentScale: contentScale)
+        let edgeDepth = min(borderDepth, max(0, bounds.height - config.height))
         let contentHeight = bounds.height - edgeDepth
         let contentMidY = edgeDepth + contentHeight / 2
         let presentation = config.barPresentation
         let margin = presentation == .fullWidth ? 0 : config.sideMargin
         for strip in widgetStrips {
-            strip.prefersCompact = false
+            strip.prefersCompact = config.layout == .compact
             strip.fit(to: 100_000)
         }
         workspaceStrip.fit(to: .greatestFiniteMagnitude)
@@ -95,10 +98,11 @@ final class BarRootView: NSView {
         railBackground.isHidden = presentation != .fullWidth
         railBackgroundRight.isHidden = true
         let touchesTop = previewTopAttached || (window?.screen.map { abs((window?.frame.maxY ?? 0) - $0.frame.maxY) < 0.5 } ?? false)
-        railBackground.attachesToTop = config.appearance == .cove && presentation == .fullWidth && config.topInset == 0 && touchesTop
-        railBackground.screenBorderDepth = config.coveEdgeDepth
-        if config.coveEdgeDepth > 0 {
-            railBackground.frame = NSRect(x: -1, y: max(0, edgeDepth - config.coveEdgeDepth), width: bounds.width + 2, height: bounds.height)
+        railBackground.attachesToTop = !config.usesCoveScreenBorder && config.appearance == .cove && presentation == .fullWidth && config.topInset == 0 && touchesTop
+        railBackground.screenBorderDepth = borderDepth
+        railBackground.cornerRadiusOverride = config.usesCoveScreenBorder ? 0 : nil
+        if borderDepth > 0 {
+            railBackground.frame = NSRect(x: 0, y: 0, width: bounds.width, height: bounds.height)
             railBackgroundRight.isHidden = true
         } else if railBackground.attachesToTop {
             railBackground.frame = NSRect(x: 0, y: contentMidY - 18, width: bounds.width, height: bounds.height - (contentMidY - 18))
@@ -243,8 +247,8 @@ final class BarRootView: NSView {
         railBackground.apply(visuals: config.visualPreferences)
         railBackgroundRight.theme = config.theme
         railBackgroundRight.apply(visuals: config.visualPreferences)
-        workspaceStrip.composition = .rail
-        activeWindow.composition = .rail
+        workspaceStrip.composition = config.layout == .compact ? .compact : .rail
+        activeWindow.composition = config.layout == .compact ? .compact : .rail
         workspaceStrip.apply(theme: config.theme)
         workspaceStrip.apply(visuals: config.visualPreferences)
         activeWindow.apply(theme: config.theme)

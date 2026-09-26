@@ -14,17 +14,17 @@ A native macOS workspace and status bar. Keep workspaces, music, calendar and sy
 
 The download is Developer ID signed, Apple-notarized and stapled. It targets **macOS 14+** and contains **Apple Silicon and Intel** binaries. Runtime testing so far covers macOS 27 on Apple Silicon; Intel, older macOS versions and physical multi-monitor setups need alpha feedback. AeroSpace is optional; Standalone mode provides the active app and widgets without it.
 
-See [installation, updates and removal](docs/INSTALLATION.md) for checksum verification and troubleshooting. Updates are manual in this alpha.
+See [installation, updates and removal](docs/INSTALLATION.md) for checksum verification and troubleshooting. Check for Updates in the menu or Application settings to download, verify, install and relaunch signed updates.
 
 ## Make it yours
 
 - **Three layouts:** Rail, Islands and Compact, with overflow menus and widget reordering.
-- **Five appearances:** Cove, Typeset, Porcelain, Native Glass and Native Studio. Native materials follow system light/dark mode, with fallbacks on older macOS versions.
+- **Two themes:** Native with macOS, Cove and Porcelain colors; Typeset with terminal palettes including Ayu, Tokyo Night, Catppuccin, Rosé Pine, Gruvbox, Nord and Everforest. Scheme variations have their own selector. macOS materials follow system light/dark mode, with fallbacks on older macOS versions.
 - **Independent displays:** choose each monitor’s widgets, order, edge position and workspace buttons. Put widgets in the center of a wide screen while keeping others at its edge.
 - **Interactive panels:** hover to look and click to pin Music, Calendar, Audio, VPN or System details.
 - **Workspaces:** connect AeroSpace to switch workspaces and preview their application cards without Screen Recording access.
 
-Built-in widgets include battery, clock, network, CPU and memory, disk, uptime, thermal pressure, weather, media and experimental Codex activity. Provider availability depends on your Mac and enabled integrations. See [widget capabilities and setup](docs/WIDGETS.md).
+Built-in widgets include configurable System readings (CPU, memory, network and thermal pressure), Battery, Clock with world clocks, Timer, Keep Awake, Reminders, Keyboard, Weather, Now Playing, Calendar, Audio, VPN, Disk, Uptime and experimental coding-agent activity. *Codex is the only currently supported coding-agent provider.* Provider availability depends on your Mac and enabled integrations. See [widget capabilities and setup](docs/WIDGETS.md).
 
 ![System widget panel with sample data](docs/images/mini-apps/mini-app-system.png)
 
@@ -69,7 +69,7 @@ The configuration window uses a sidebar and applies changes immediately to the n
 - **Widgets:** add, hide, and arrange widgets on the selected display. Each configurable widget owns its general settings and providers, including Workspaces.
 - **Appearance:** theme for the selected display, color mode, density, and appearance reset.
 - **Application:** launch at login, refresh interval, and configuration import/export.
-- **Diagnostics:** integration status and configuration file location.
+- **Diagnostics:** live provider health, sampling freshness, setup shortcuts, configuration errors, and a copyable diagnostic report.
 
 The display picker and preview stay consistent across Layout, Widgets, and Appearance. Use “Use shared settings for this display” to restore inheritance. Undo remains available in the sidebar for configuration edits made during this session.
 
@@ -81,4 +81,4 @@ In **Widgets → General settings → Calendar → Provider**, choose **Apple Ca
 
 The calendar widget reads events without editing them, including recurring occurrences, locations, attendees, and recognized meeting links. Both calendar provider choices use native macOS Calendar access.
 
-Music uses macOS Now Playing with an optional Apple Music Automation fallback. If the system player is unavailable, open the Music widget and choose **Allow Apple Music access**. This grants the macOS Automation permission for Music playback and controls.
+Music uses macOS Now Playing with an optional Apple Music Automation fallback. When enabled, Apple Music requests Automation permission once while Music is running. **Allow Apple Music access** opens Music when needed and requests that permission; if access was denied, it opens Automation settings. macOS Now Playing itself requires no permission.

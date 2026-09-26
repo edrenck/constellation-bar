@@ -9,7 +9,8 @@ final class MediaProvider: SystemProviding {
         for integration in integrations where config.providerPreferences.includes(integration.id) {
             let result = integration.sessions()
             state.mediaSessions += result.sessions
-            state.providerStatuses.append(ProviderStatus(id: integration.id, message: result.status, needsAttention: result.sessions.isEmpty && (integration.id == "nativeMedia" && result.status != "Nothing playing on this Mac." || integration.id == "appleMusic" && NSWorkspace.shared.runningApplications.contains { $0.bundleIdentifier == "com.apple.Music" } && result.status != "Nothing playing in Apple Music.")))
+            let needsAttention = result.sessions.isEmpty && (integration.id == "nativeMedia" && result.status != "Nothing playing on this Mac." || integration.id == "appleMusic" && !["Nothing playing in Apple Music.", "Open Apple Music to start playback.", "Requesting Apple Music access…"].contains(result.status))
+            state.providerStatuses.append(ProviderStatus(id: integration.id, message: result.status, needsAttention: needsAttention))
         }
         // Music's public scripting interface supplies richer controls when both
         // adapters report the same track. Preserve unrelated system players.
@@ -23,13 +24,49 @@ final class AppleMusicIntegration: MediaIntegrating {
     let id = "appleMusic"
     private var artworkKey = ""
     private var artwork: Data?
+    private let access: MusicAutomationAccess
+    private let isRunning: () -> Bool
+    private let automaticallyRequestsAccess: Bool
+    init(access: MusicAutomationAccess = MusicAutomationAccess(),
+         automaticallyRequestsAccess: Bool = true,
+         isRunning: @escaping () -> Bool = { NSWorkspace.shared.runningApplications.contains { $0.bundleIdentifier == "com.apple.Music" } }) {
+        self.access = access; self.isRunning = isRunning; self.automaticallyRequestsAccess = automaticallyRequestsAccess
+    }
     static func authorized(ask: Bool = false) -> Bool {
-        let target = NSAppleEventDescriptor(bundleIdentifier: "com.apple.Music")
-        return AEDeterminePermissionToAutomateTarget(target.aeDesc, typeWildCard, typeWildCard, ask) == noErr
+        MusicAutomationAccess.check(ask: ask) == .allowed
+    }
+    static func requestAccess(completion: @escaping (String?) -> Void) {
+        let request = {
+            DispatchQueue.global(qos: .userInitiated).async {
+                let permission = MusicAutomationAccess.check(ask: true)
+                DispatchQueue.main.async {
+                    if permission == .allowed { completion(nil) }
+                    else if permission == .denied {
+                        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation") { NSWorkspace.shared.open(url) }
+                        completion("Enable Music under Constellation Bar in Privacy & Security → Automation.")
+                    } else { completion("Apple Music access could not be requested. Open Music and try again.") }
+                }
+            }
+        }
+        DispatchQueue.main.async {
+            if NSWorkspace.shared.runningApplications.contains(where: { $0.bundleIdentifier == "com.apple.Music" }) { request() }
+            else if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Music") {
+                NSWorkspace.shared.openApplication(at: url, configuration: NSWorkspace.OpenConfiguration()) { _, error in
+                    if let error { DispatchQueue.main.async { completion(error.localizedDescription) } }
+                    else { request() }
+                }
+            } else { completion("Apple Music is not installed on this Mac.") }
+        }
     }
     func sessions() -> (sessions: [MediaSession], status: String) {
-        guard NSWorkspace.shared.runningApplications.contains(where: { $0.bundleIdentifier == "com.apple.Music" }) else { return ([], "Open Apple Music to start playback.") }
-        guard Self.authorized() else { return ([], "Allow Apple Music automation to read and control playback.") }
+        guard isRunning() else { return ([], "Open Apple Music to start playback.") }
+        switch access.state(requestIfNeeded: automaticallyRequestsAccess) {
+        case .allowed: break
+        case .requesting: return ([], "Requesting Apple Music access…")
+        case .requiresConsent: return ([], "Allow Apple Music automation to read and control playback.")
+        case .denied: return ([], "Apple Music access was denied. Enable Music in Privacy & Security → Automation.")
+        case let .unavailable(status): return ([], "Apple Music automation is unavailable (\(status)). Open Music and retry access.")
+        }
         do {
             let result = try script("""
             if player state is stopped then return {"stopped"}

@@ -18,12 +18,14 @@ extension ConfigurationWindowController {
             self.commit()
         }
         barPresentationPopup.addItems(withTitles: BarPresentation.allCases.map(\.title))
+        compositionPopup.addItems(withTitles: BarLayout.allCases.map(\.title))
+        compositionPopup.target = self; compositionPopup.action = #selector(compositionChanged)
         widgetAlignmentPopup.addItems(withTitles: WidgetAlignment.allCases.map(\.title))
         for popup in [barPresentationPopup, widgetAlignmentPopup] {
             popup.target = self; popup.action = #selector(layoutChanged)
         }
         stack.addArrangedSubview(makeSection(title: "Bar layout", rows: [
-            formRow("Bar shape", barPresentationPopup),
+            formRow("Composition", compositionPopup),
             formRow("Alignment", widgetAlignmentPopup)
         ]))
         stack.addArrangedSubview(makeSection(title: "Display behavior", rows: [displayEditor]))

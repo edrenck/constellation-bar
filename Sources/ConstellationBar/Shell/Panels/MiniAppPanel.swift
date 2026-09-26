@@ -14,7 +14,7 @@ final class PanelDocument: NSView { override var isFlipped: Bool { true } }
 
 /// Layouts follow the approved mini-app boards, while adapters own data and capabilities.
 final class MiniAppPanel: OverlayContentView, NSSearchFieldDelegate {
-    static let kinds: Set<WidgetKind> = [.nowPlaying, .calendar, .vpn, .audio, .system, .cpu, .memory, .agentStatus, .battery, .weather]
+    static let kinds: Set<WidgetKind> = [.timer, .keepAwake, .reminders, .keyboard, .dateTime, .nowPlaying, .calendar, .vpn, .audio, .system, .cpu, .memory, .agentStatus, .battery, .weather]
     let kind: WidgetKind
     let config: BarConfig
     var state: SystemState
@@ -50,6 +50,8 @@ final class MiniAppPanel: OverlayContentView, NSSearchFieldDelegate {
     var onPinChange: ((Bool) -> Void)?
     var preferredSize: NSSize {
         switch kind {
+        case .timer, .keepAwake, .keyboard, .dateTime: return NSSize(width: 420, height: 430)
+        case .reminders: return NSSize(width: 460, height: 520)
         case .agentStatus: return NSSize(width: 440, height: 480)
         case .calendar: return NSSize(width: 620, height: 530)
         case .nowPlaying: return NSSize(width: 440, height: 550)
@@ -64,7 +66,7 @@ final class MiniAppPanel: OverlayContentView, NSSearchFieldDelegate {
         super.init(frame: .zero)
         if kind == .memory { selectedTab = 1 }
         applyAppearance(theme: config.theme)
-        heading.stringValue = kind == .nowPlaying ? "Music" : kind == .vpn ? "VPN & tunnels" : [.cpu, .memory, .system].contains(kind) ? "System" : kind.menuTitle
+        heading.stringValue = kind == .agentStatus ? "Agent Status*" : kind == .nowPlaying ? "Music" : kind == .vpn ? "VPN & tunnels" : [.cpu, .memory, .system].contains(kind) ? "System" : kind.menuTitle
         heading.font = config.appearance.font(size: 14, weight: .semibold); heading.textColor = config.theme.foreground
         addSubview(heading)
         headerIcon.image = NSImage(systemSymbolName: kind.symbolName, accessibilityDescription: nil)
@@ -82,7 +84,7 @@ final class MiniAppPanel: OverlayContentView, NSSearchFieldDelegate {
         scroll.documentView = document; addSubview(scroll)
         stack.orientation = .vertical; stack.alignment = .leading; stack.spacing = [.system, .cpu, .memory].contains(kind) ? 8 : 14
         stack.translatesAutoresizingMaskIntoConstraints = false; document.addSubview(stack)
-        NSLayoutConstraint.activate([stack.leadingAnchor.constraint(equalTo: document.leadingAnchor), stack.topAnchor.constraint(equalTo: document.topAnchor), stack.widthAnchor.constraint(equalToConstant: bodyWidth)])
+        NSLayoutConstraint.activateOwned([stack.leadingAnchor.constraint(equalTo: document.leadingAnchor), stack.topAnchor.constraint(equalTo: document.topAnchor), stack.widthAnchor.constraint(equalToConstant: bodyWidth)], owner: "panel.\(kind.rawValue).body")
         status.font = config.appearance.font(size: 10); status.textColor = config.theme.muted; addSubview(status)
         rebuild()
     }
@@ -114,6 +116,11 @@ final class MiniAppPanel: OverlayContentView, NSSearchFieldDelegate {
         case .audio: return state.audio.devices.map { "\($0.id)|\($0.name)|\($0.isInput)|\($0.canSetVolume)|\($0.canMute)" }.joined() + "\(state.audio.outputID):\(state.audio.inputID)"
         case .battery: return "\(state.battery)"
         case .weather: return "\(state.weather)"
+        case .timer: return "\(state.timer.running):\(state.timer.finished):\(state.timer.duration)"
+        case .keepAwake: return "\(state.keepAwake.active):\(state.keepAwake.displayAwake)"
+        case .reminders: return "\(state.reminders)"
+        case .keyboard: return "\(state.keyboard)"
+        case .dateTime: return "worldClock"
         case .calendar: return "\(state.agenda)"
         case .vpn: return "\(state.vpn)"
         case .agentStatus: return state.agents.providers.map { "\($0.id)|\($0.name)|\($0.hostName)|\($0.available)|\($0.message)|\($0.tasks)" }.joined()
@@ -124,6 +131,11 @@ final class MiniAppPanel: OverlayContentView, NSSearchFieldDelegate {
         signature = structuralSignature; refreshers = []; peerContainer = nil
         stack.arrangedSubviews.forEach { stack.removeArrangedSubview($0); $0.removeFromSuperview() }
         switch kind {
+        case .timer: buildTimer()
+        case .keepAwake: buildKeepAwake()
+        case .reminders: buildReminders()
+        case .keyboard: buildKeyboard()
+        case .dateTime: buildClock()
         case .nowPlaying: buildMedia()
         case .audio: buildAudio()
         case .calendar: buildCalendar()
@@ -142,8 +154,8 @@ final class MiniAppPanel: OverlayContentView, NSSearchFieldDelegate {
         return field
     }
     func add(_ view: NSView, width: CGFloat? = nil, height: CGFloat? = nil, to target: NSStackView? = nil) {
-        if let width { view.widthAnchor.constraint(equalToConstant: width).isActive = true }
-        if let height { view.heightAnchor.constraint(equalToConstant: height).isActive = true }
+        if let width { view.widthAnchor.constraint(equalToConstant: width).identified("panel.\(kind.rawValue).item.width").isActive = true }
+        if let height { view.heightAnchor.constraint(equalToConstant: height).identified("panel.\(kind.rawValue).item.height").isActive = true }
         (target ?? stack).addArrangedSubview(view)
     }
     @discardableResult func label(_ value: String, size: CGFloat = 12, muted: Bool = false) -> NSTextField {

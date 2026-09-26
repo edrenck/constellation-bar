@@ -7,7 +7,7 @@ final class StatusMenuController: NSObject {
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private var config: BarConfig
     private let onChange: (BarConfig) -> Void
-    private lazy var configurationWindow = ConfigurationWindowController(config: config) { [weak self] updated in
+    private lazy var configurationWindow = ConfigurationWindowController(config: config, persist: { ConfigurationStore.saveResult($0) }) { [weak self] updated in
         self?.replaceConfig(updated)
     }
 
@@ -18,6 +18,7 @@ final class StatusMenuController: NSObject {
         statusItem.button?.image = NSImage(systemSymbolName: "sparkles.rectangle.stack", accessibilityDescription: "ConstellationBar")
         statusItem.button?.image?.isTemplate = true
         NotificationCenter.default.addObserver(self, selector: #selector(applicationDidBecomeActive), name: NSApplication.didBecomeActiveNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(updaterChanged), name: AppUpdater.changed, object: nil)
         rebuildMenu()
     }
 
@@ -31,6 +32,10 @@ final class StatusMenuController: NSObject {
         heading.isEnabled = false
         menu.addItem(heading)
         menu.addItem(actionItem("About ConstellationBar…", action: #selector(showAbout)))
+        let update = actionItem(AppUpdater.shared.isBusy ? "Checking or Preparing Update…" : (AppUpdater.shared.statusText.hasPrefix("Update available:") ? "Install Available Update…" : "Check for Updates…"), action: #selector(checkForUpdates))
+        update.isEnabled = !AppUpdater.shared.isBusy
+        update.toolTip = AppUpdater.shared.statusText
+        menu.addItem(update)
         menu.addItem(.separator())
 
         let customize = actionItem("Customize Bar…", action: #selector(openCustomizer))
@@ -79,7 +84,6 @@ final class StatusMenuController: NSObject {
 
     private func replaceConfig(_ updated: BarConfig) {
         config = updated
-        persistConfig()
         onChange(config)
         rebuildMenu()
     }
@@ -91,6 +95,9 @@ final class StatusMenuController: NSObject {
     @objc private func applicationDidBecomeActive() {
         rebuildMenu()
     }
+
+    @objc private func checkForUpdates() { AppUpdater.shared.checkForUpdates() }
+    @objc private func updaterChanged() { rebuildMenu() }
 
     @objc private func toggleLaunchAtLogin() {
         if LaunchAtLogin.status == .requiresApproval {
@@ -152,7 +159,4 @@ final class StatusMenuController: NSObject {
         NSApp.terminate(nil)
     }
 
-    private func persistConfig() {
-        ConfigurationStore.save(config)
-    }
 }

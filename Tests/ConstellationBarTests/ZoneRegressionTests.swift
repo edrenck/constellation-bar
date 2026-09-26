@@ -3,6 +3,36 @@ import XCTest
 @testable import ConstellationBar
 
 final class ZoneRegressionTests: XCTestCase {
+    func testRailIslandsAndCompactHaveDistinctRenderedComposition() throws {
+        try requireGraphicalTests()
+        _ = NSApplication.shared
+        var widths: [BarLayout: CGFloat] = [:]
+        for layout in BarLayout.allCases {
+            var config = BarConfig.default
+            config.appearance = .cove; config.layout = layout
+            config.barPresentation = layout == .rail ? .fullWidth : .floating
+            config.widgetPreferences.systemMetrics = [.cpu, .memory, .network, .thermal]
+            config.setWidgetLayout(.init(left: [.workspaces], center: [], right: [.widget(.system), .widget(.dateTime)]))
+            let root = BarRootView(frame: NSRect(x: 0, y: 0, width: 1440, height: 46), config: config)
+            let window = NSWindow(contentRect: root.frame, styleMask: .borderless, backing: .buffered, defer: false)
+            window.contentView = root; window.setFrameOrigin(NSPoint(x: -10000, y: -10000)); window.orderFront(nil)
+            defer { window.orderOut(nil) }
+            var state = BarState(workspaces: [], focusedWindow: nil, system: SystemState())
+            state.workspaces = [WorkspaceState(name: "1", isFocused: true, windows: [])]
+            root.render(state: state); root.layoutSubtreeIfNeeded()
+            let surfaces = root.subviews.compactMap { $0 as? ModernControlView }.filter { !$0.isHidden }
+            if layout == .rail {
+                XCTAssertEqual(surfaces.count, 1)
+                XCTAssertEqual(try XCTUnwrap(surfaces.first).frame.width, 1440, accuracy: 0.1)
+            } else {
+                XCTAssertGreaterThanOrEqual(surfaces.count, 2)
+                XCTAssertTrue(surfaces.allSatisfy { $0.frame.width < 1440 })
+            }
+            widths[layout] = root.subviews.compactMap { $0 as? WidgetStripView }.reduce(0) { $0 + $1.preferredWidth }
+        }
+        XCTAssertLessThan(try XCTUnwrap(widths[.compact]), try XCTUnwrap(widths[.islands]))
+    }
+
     func testThemeOnlyOverridePreservesAllGlobalZones() throws {
         var config = BarConfig.default
         config.setWidgetLayout(.init(left: [.widget(.audio)], center: [.workspaces], right: [.currentApp], alignment: .centerAll))
@@ -32,10 +62,10 @@ final class ZoneRegressionTests: XCTestCase {
             let target = try XCTUnwrap(DisplaySizing.notchTarget(notchPoints: notch,
                 screenPointHeight: points.height, screenMillimeterHeight: physical.height))
             XCTAssertEqual(target, 38 / 1329 * physical.height + 1, accuracy: 0.001)
-            let logicalHeight = cove.height + cove.coveEdgeDepth
+            let logicalHeight = cove.height
             let scale = DisplaySizing.scale(logicalHeight: logicalHeight, physicalHeight: target,
                 screenPoints: points, screenMillimeters: physical)
-            XCTAssertEqual(logicalHeight * scale, notch + points.height / physical.height, accuracy: 0.001)
+            XCTAssertEqual(logicalHeight * scale + cove.coveEdgeDepth, notch + points.height / physical.height + 12, accuracy: 0.001)
         }
         XCTAssertNil(DisplaySizing.notchTarget(notchPoints: 0, screenPointHeight: 1329, screenMillimeterHeight: 222.8))
     }

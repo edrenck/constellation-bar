@@ -9,8 +9,8 @@ enum BarAppearance: String, Codable, CaseIterable {
         case .cove: return "Cove"
         case .typeset: return "Typeset"
         case .porcelain: return "Porcelain"
-        case .nativeGlass: return "Native Glass"
-        case .nativeStudio: return "Native Studio"
+        case .nativeGlass: return "macOS"
+        case .nativeStudio: return "macOS"
         }
     }
     var subtitle: String {
@@ -22,6 +22,8 @@ enum BarAppearance: String, Codable, CaseIterable {
         case .nativeStudio: return "Tinted system panels with a clear accent selection."
         }
     }
+    var family: AppearanceFamily { self == .typeset ? .typeset : .native }
+    static let nativeColors: [BarAppearance] = [.nativeGlass, .cove, .porcelain]
     var isNative: Bool { self == .nativeGlass || self == .nativeStudio }
     var barRadius: CGFloat {
         switch self { case .cove: return 16; case .typeset: return 3; case .porcelain: return 7; case .nativeGlass: return 20; case .nativeStudio: return 10 }
@@ -38,7 +40,7 @@ enum BarAppearance: String, Codable, CaseIterable {
         self == .typeset ? .monospacedSystemFont(ofSize: size, weight: weight) : .systemFont(ofSize: size, weight: weight)
     }
 
-    func theme(mode: String) -> BarTheme {
+    func theme(mode: String, scheme: TypesetScheme = .graphite, variant: String = "default") -> BarTheme {
         let dark = mode == "dark" || (mode == "system" && NSApp?.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua)
         var t = dark ? BarTheme.dark : BarTheme.light
         t.appearanceID = self
@@ -49,12 +51,9 @@ enum BarAppearance: String, Codable, CaseIterable {
             t.background = .black; t.backgroundStrong = .black
             t.foreground = NSColor(hex: 0xF6F5F0); t.muted = NSColor(hex: 0xAAAAAD)
             t.surface = NSColor(white: 1, alpha: 0.10); t.surfaceStrong = NSColor(white: 1, alpha: 0.17)
-            t.border = .clear; t.blue = NSColor(hex: 0xA4DBC7)
+            t.border = .clear; t.blue = .systemBlue
         case .typeset:
-            t.background = NSColor(hex: 0x222321); t.backgroundStrong = t.background
-            t.foreground = NSColor(hex: 0xF1EADB); t.muted = NSColor(hex: 0xACA79D)
-            t.surface = NSColor(white: 1, alpha: 0.06); t.surfaceStrong = NSColor(white: 1, alpha: 0.10)
-            t.border = NSColor(hex: 0x69665E); t.blue = NSColor(hex: 0xF58A60)
+            scheme.palette(variant: variant).apply(to: &t)
         case .porcelain:
             t.background = NSColor(hex: 0xF1EEE5); t.backgroundStrong = t.background
             t.foreground = NSColor(hex: 0x29251F); t.muted = NSColor(hex: 0x716B60)
@@ -92,4 +91,14 @@ extension BarTheme {
         case .nativeStudio: return .white
         }
     }
+}
+
+/// The two selectable visual languages. Persisted appearances also retain legacy color choices.
+enum AppearanceFamily: String, CaseIterable {
+    case native, typeset
+    var title: String { self == .native ? "Native" : "Typeset" }
+    var subtitle: String {
+        self == .native ? "System typography, soft surfaces and macOS, Cove or Porcelain colors." : "Monospaced typography, square edges and terminal color schemes."
+    }
+    var representative: BarAppearance { self == .native ? .nativeGlass : .typeset }
 }

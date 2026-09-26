@@ -1,3 +1,4 @@
+import AppKit
 import XCTest
 @testable import ConstellationBar
 
@@ -43,7 +44,7 @@ final class AppearanceTests: XCTestCase {
         for appearance in BarAppearance.allCases {
             for layout in BarLayout.allCases {
                 config.appearance = appearance; config.layout = layout
-                XCTAssertEqual(config.coveEdgeDepth, appearance == .cove && layout == .rail ? 6 : 0)
+                XCTAssertEqual(config.coveEdgeDepth, appearance == .cove && layout == .rail ? 12 : 0)
             }
         }
     }
@@ -59,4 +60,51 @@ final class AppearanceTests: XCTestCase {
             XCTAssertNotEqual(style.theme(mode: "light").foreground, style.theme(mode: "dark").foreground)
         }
     }
+    func testTypesetSchemesAndVariationsRoundTripPerDisplay() throws {
+        for scheme in TypesetScheme.allCases {
+            for variant in scheme.variants {
+                var config = BarConfig.default
+                config.appearance = .typeset
+                config.typesetScheme = scheme
+                config.typesetVariant = variant
+                config.displayOverrides["other"] = DisplayOverride(appearance: .typeset, typesetScheme: scheme, typesetVariant: variant)
+                let decoded = try BarConfig.decode(config.encoded())
+                XCTAssertEqual(decoded.typesetScheme, scheme)
+                XCTAssertEqual(decoded.typesetVariant, variant)
+                XCTAssertEqual(decoded.forDisplay("other").typesetScheme, scheme)
+                XCTAssertEqual(decoded.resolvedOverride(for: "other").typesetVariant, variant)
+                let theme = decoded.theme
+                XCTAssertEqual(theme.background.alphaComponent, 1)
+                XCTAssertNotEqual(theme.background, theme.foreground)
+                XCTAssertEqual(theme.appearanceID, .typeset)
+            }
+        }
+    }
+    func testLegacyTypesetRetainsGraphiteAndDisplaySchemeDefaultsResolve() throws {
+        let legacy = try BarConfig.decode(Data(#"{"schemaVersion":4,"appearance":"typeset"}"#.utf8))
+        XCTAssertEqual(legacy.typesetScheme, .graphite)
+        XCTAssertEqual(legacy.typesetVariant, "default")
+        var config = BarConfig.default
+        config.typesetScheme = .ayu; config.typesetVariant = "mirage"
+        config.displayOverrides["other"] = DisplayOverride(typesetScheme: .catppuccin)
+        XCTAssertEqual(config.forDisplay("other").typesetVariant, "mocha")
+        XCTAssertNoThrow(try config.validate())
+        XCTAssertThrowsError(try BarConfig.decode(Data(#"{"typesetScheme":"ayu","typesetVariant":"mocha"}"#.utf8)))
+        XCTAssertThrowsError(try BarConfig.decode(Data(#"{"displayOverrides":{"other":{"typesetScheme":"ayu","typesetVariant":"mocha"}}}"#.utf8)))
+    }
+    func testTypesetSelectedTextHasReadableContrastInEveryVariation() {
+        func luminance(_ color: NSColor) -> CGFloat {
+            let rgb = color.usingColorSpace(.sRGB)!
+            func linear(_ value: CGFloat) -> CGFloat { value <= 0.04045 ? value / 12.92 : pow((value + 0.055) / 1.055, 2.4) }
+            return 0.2126 * linear(rgb.redComponent) + 0.7152 * linear(rgb.greenComponent) + 0.0722 * linear(rgb.blueComponent)
+        }
+        for scheme in TypesetScheme.allCases {
+            for variant in scheme.variants {
+                let theme = BarAppearance.typeset.theme(mode: "system", scheme: scheme, variant: variant)
+                let a = luminance(theme.selectionText), b = luminance(theme.background)
+                XCTAssertGreaterThanOrEqual((max(a, b) + 0.05) / (min(a, b) + 0.05), 4.5, "\(scheme) > \(variant)")
+            }
+        }
+    }
+
 }

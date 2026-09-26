@@ -99,6 +99,60 @@ final class AgentStatusTests: XCTestCase {
         try database(home, "state_5.sqlite", sql: "ALTER TABLE threads DROP COLUMN name")
         XCTAssertEqual(integration.snapshot().tasks.first?.displayTitle, "Updated title")
     }
+    func testInternalWorkersAreExcludedEvenWhenPersistedAndLocked() throws {
+        let home = try fixture()
+        for id in [activeID, idleID, staleID] { _ = try lockFile(home, id) }
+        try database(home, "state_5.sqlite", sql: """
+        CREATE TABLE threads(id TEXT, history_mode TEXT, rollout_path TEXT, archived INT, source TEXT, agent_path TEXT);
+        INSERT INTO threads VALUES
+        ('\(activeID)', 'paginated', '', 0, 'vscode', NULL),
+        ('\(idleID)', 'paginated', '', 0, '{"subagent":{"thread_spawn":{"parent_thread_id":"parent"}}}', '/root/worker'),
+        ('\(staleID)', 'paginated', '', 0, '{"subagent":{"other":"guardian"}}', NULL);
+        """)
+        try database(home, "thread_history_1.sqlite", sql: """
+        CREATE TABLE thread_turns(thread_id TEXT, status TEXT, rollout_ordinal INT);
+        INSERT INTO thread_turns VALUES ('\(activeID)', 'inProgress', 1), ('\(idleID)', 'inProgress', 1), ('\(staleID)', 'inProgress', 1);
+        """)
+        let snapshot = CodexAgentStatusIntegration(home: home, lockIsHeld: { _ in true }).snapshot()
+        XCTAssertEqual(snapshot.tasks.map(\.id), [activeID])
+        XCTAssertEqual(snapshot.activeCount, 1)
+        XCTAssertFalse(CodexAgentStatusIntegration.isUserTask(source: "vscode", agentPath: "/root/worker"))
+        XCTAssertTrue(CodexAgentStatusIntegration.isUserTask(source: "vscode", agentPath: "/root"))
+    }
+    func testPaginatedHistoryFailureFallsBackOnlyToRecognizedCompleteLifecycle() throws {
+        let home = try fixture()
+        _ = try lockFile(home, activeID)
+        let rollout = home.appendingPathComponent("rollout.jsonl")
+        try database(home, "state_5.sqlite", sql: """
+        CREATE TABLE threads(id TEXT, history_mode TEXT, rollout_path TEXT, archived INT);
+        INSERT INTO threads VALUES ('\(activeID)', 'paginated', 'rollout.jsonl', 0);
+        """)
+        let integration = CodexAgentStatusIntegration(home: home, lockIsHeld: { _ in true })
+        try Data("{\"type\":\"event_msg\",\"payload\":{\"type\":\"task_started\"}}\n".utf8).write(to: rollout)
+        XCTAssertEqual(integration.snapshot().activeCount, 1)
+        try Data("{\"type\":\"event_msg\",\"payload\":{\"type\":\"task_complete\"}}\n".utf8).write(to: rollout)
+        XCTAssertEqual(integration.snapshot().idleCount, 1)
+        try Data("{\"type\":\"event_msg\",\"payload\":{\"type\":\"future_marker\"}}\n".utf8).write(to: rollout)
+        XCTAssertEqual(integration.snapshot().unknownCount, 1)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: home.appendingPathComponent("thread_history_1.sqlite").path))
+    }
+    func testMovedHomeResolvesHistoryBesidePersistedRolloutAndUnversionedDatabases() throws {
+        let home = try fixture(), previousHome = try fixture()
+        _ = try lockFile(home, activeID)
+        let rollout = previousHome.appendingPathComponent("sessions/2026/09/26/rollout.jsonl")
+        try database(home, "state.sqlite", sql: """
+        CREATE TABLE threads(id TEXT, history_mode TEXT, rollout_path TEXT, archived INT);
+        INSERT INTO threads VALUES ('\(activeID)', 'paginated', '\(rollout.path)', 0);
+        """)
+        try database(previousHome, "thread_history.db", sql: """
+        CREATE TABLE thread_turns(thread_id TEXT, status TEXT, rollout_ordinal INT);
+        INSERT INTO thread_turns VALUES ('\(activeID)', 'inProgress', 1);
+        """)
+        let snapshot = CodexAgentStatusIntegration(home: home, lockIsHeld: { _ in true }).snapshot()
+        XCTAssertTrue(snapshot.available)
+        XCTAssertEqual(snapshot.activeCount, 1)
+        XCTAssertEqual(snapshot.unknownCount, 0)
+    }
     func testTaskOrderingFallbackAndWhitespace() {
         let provider = AgentProviderSnapshot(id: "test", name: "Test", tasks: [
             .init(id: "idle", activity: .idle, title: "A"),
@@ -119,6 +173,18 @@ final class AgentStatusTests: XCTestCase {
         XCTAssertTrue(integration.snapshot().tasks[0].statusDetail.contains("thread_history_1.sqlite"))
         XCTAssertEqual(CodexAgentStatusIntegration.activity(turnStatus: "futureStatus"), .unknown)
         XCTAssertEqual(CodexAgentStatusIntegration.activity(turnStatus: "failed"), .idle)
+    }
+    func testReadableTaskWithNoTurnsIsIdleButUnknownPersistedStatusIsNot() throws {
+        let home = try fixture()
+        _ = try lockFile(home, activeID)
+        try database(home, "state_5.sqlite", sql: "CREATE TABLE threads(id TEXT, history_mode TEXT, rollout_path TEXT, archived INT); INSERT INTO threads VALUES ('\(activeID)', 'paginated', '', 0)")
+        try database(home, "thread_history_1.sqlite", sql: "CREATE TABLE thread_turns(thread_id TEXT, status TEXT, rollout_ordinal INT)")
+        let integration = CodexAgentStatusIntegration(home: home, lockIsHeld: { _ in true })
+        XCTAssertEqual(integration.snapshot().idleCount, 1)
+        XCTAssertEqual(integration.snapshot().unknownCount, 0)
+        try database(home, "thread_history_1.sqlite", sql: "INSERT INTO thread_turns VALUES ('\(activeID)', 'futureStatus', 1)")
+        XCTAssertEqual(integration.snapshot().idleCount, 0)
+        XCTAssertEqual(integration.snapshot().unknownCount, 1)
     }
     func testLegacyLifecycleIgnoresContentAndPartialWrites() {
         func event(_ type: String) -> String { "{\"type\":\"event_msg\",\"payload\":{\"type\":\"\(type)\"}}\n" }
@@ -171,7 +237,7 @@ final class AgentStatusTests: XCTestCase {
         XCTAssertTrue(state.agents.isComplete)
         state.agents.providers[0].available = false
         XCTAssertFalse(state.agents.isComplete)
-        XCTAssertTrue(WidgetCatalog.module(for: .agentStatus).presentation(state, config, WidgetHistory()).text.contains("incomplete"))
+        XCTAssertEqual(WidgetCatalog.module(for: .agentStatus).presentation(state, config, WidgetHistory()).text, "Agents 1 active")
     }
     func testPartialStatusKeepsKnownActiveCountVisible() {
         var state = SystemState()
@@ -179,12 +245,34 @@ final class AgentStatusTests: XCTestCase {
             .init(id: "active", activity: .active), .init(id: "unknown", activity: .unknown)
         ], available: true)]
         let partial = WidgetCatalog.presentation(for: .agentStatus, system: state, config: .default, history: WidgetHistory())
-        XCTAssertEqual(partial.text, "Codex 1 active · incomplete")
+        XCTAssertEqual(partial.text, "Agents 1 active · 1 unknown")
         XCTAssertEqual(partial.compactText, "1+?")
         state.agents.providers[0].available = false
         let unavailable = WidgetCatalog.presentation(for: .agentStatus, system: state, config: .default, history: WidgetHistory())
-        XCTAssertEqual(unavailable.text, "Codex status unavailable")
+        XCTAssertEqual(unavailable.text, "Agents status unavailable")
         XCTAssertEqual(unavailable.compactText, "—")
+    }
+    func testOfflineSavedHostsDoNotObscureReadableTaskActivity() {
+        var state = SystemState()
+        state.agents.providers = [
+            .init(id: "codex", name: "Codex", tasks: [.init(id: "active", activity: .active)], available: true),
+            .init(id: "codex:ssh-work", name: "Codex", message: "SSH timed out · host may be offline", sampledAt: Date(), hostName: "Work Mac"),
+            .init(id: "codex:ssh-new", name: "Codex", message: "Connecting over SSH…", hostName: "Build Mac")
+        ]
+        let config = BarConfig.default
+        let display = WidgetCatalog.presentation(for: .agentStatus, system: state, config: config, history: WidgetHistory())
+        XCTAssertFalse(state.agents.isComplete, "Diagnostics must still identify incomplete host coverage")
+        XCTAssertEqual(display.text, "Agents 1 active")
+        XCTAssertEqual(display.compactText, "1")
+        XCTAssertEqual(display.accent, config.theme.green)
+        XCTAssertTrue(display.detail?.contains("Counts from 1 of 3 configured hosts") == true)
+        XCTAssertTrue(display.detail?.contains("Work Mac: SSH timed out") == true)
+        XCTAssertTrue(display.detail?.contains("Build Mac: Connecting") == true)
+        XCTAssertEqual(state.agents.taskSummary, "1 active task")
+        state.agents.providers[0].tasks = []
+        XCTAssertEqual(state.agents.taskSummary, "No tasks running on checked hosts")
+        state.agents.providers[0].available = false
+        XCTAssertEqual(state.agents.taskSummary, "Status unavailable")
     }
     func testCompactWidgetKeepsCountAndUpdatesWithoutLosingTooltip() throws {
         _ = NSApplication.shared
@@ -203,11 +291,14 @@ final class AgentStatusTests: XCTestCase {
     }
     func testSystemMigrationPreservesOrderAndPerDisplayOverrides() throws {
         let config = try BarConfig.decode(Data(#"{"schemaVersion":3,"rightWidgets":["battery","memory","cpu","system","network","agentStatus"],"displayOverrides":{"external":{"widgets":["cpu","dateTime","memory"]}}}"#.utf8))
-        XCTAssertEqual(config.rightWidgets, [.battery, .system, .network, .agentStatus])
+        XCTAssertEqual(config.rightWidgets, [.battery, .system, .agentStatus])
         XCTAssertEqual(config.forDisplay("external").rightWidgets, [.system, .dateTime])
+        XCTAssertEqual(config.widgetPreferences.systemMetrics, [.cpu, .memory, .network])
         XCTAssertEqual(try BarConfig.decode(config.encoded()).rightWidgets, config.rightWidgets)
         XCTAssertFalse(WidgetKind.selectableCases.contains(.cpu))
         XCTAssertFalse(WidgetKind.selectableCases.contains(.memory))
+        XCTAssertFalse(WidgetKind.selectableCases.contains(.network))
+        XCTAssertFalse(WidgetKind.selectableCases.contains(.thermal))
         XCTAssertEqual(WidgetKind.selectableCases.filter { $0 == .system }.count, 1)
     }
 }

@@ -22,6 +22,7 @@ if name == 'xcrun':
         sys.exit(int(os.environ.get('MOCK_BUILD_EXIT', '0')))
     if args[:2] == ['swift', 'test']:
         print('Fixture UI journey output')
+        print(os.environ.get('MOCK_UI_DIAGNOSTIC', ''))
         sys.exit(int(os.environ.get('MOCK_UI_EXIT', '0')))
     if args[:2] == ['swift', 'scripts/render-icon.swift']:
         pathlib.Path(args[-1]).mkdir(parents=True)
@@ -58,6 +59,9 @@ class BuildGates(unittest.TestCase):
         (root / 'Resources/Info.plist').write_bytes(plistlib.dumps({'CFBundleShortVersionString': '0.0.0'}))
         (root / 'VERSION').write_text('0.7.1\n')
         (root / 'LICENSE').write_text('fixture')
+        (root / 'THIRD_PARTY_NOTICES.md').write_text('fixture notices')
+        (root / 'Resources/ThemeLicenses').mkdir()
+        (root / 'Resources/ThemeLicenses/palette.txt').write_text('fixture palette license')
         (root / '.build/ConstellationBar.app').mkdir(parents=True)
         (root / '.build/ConstellationBar.app/last-good').write_text('preserve me')
         return root
@@ -105,6 +109,9 @@ class BuildGates(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertTrue((root / '.build/ConstellationBar.app/Contents/MacOS/ConstellationBar').exists())
         self.assertTrue((root / '.build/ConstellationBar.previous.app/last-good').exists())
+        resources = root / '.build/ConstellationBar.app/Contents/Resources'
+        self.assertEqual((resources / 'THIRD_PARTY_NOTICES.md').read_text(), 'fixture notices')
+        self.assertEqual((resources / 'ThemeLicenses/palette.txt').read_text(), 'fixture palette license')
 
     def test_verifier_propagates_failures_and_requires_ui_instead_of_skipping(self):
         root = self.fixture(real_verifier=True)
@@ -117,6 +124,24 @@ class BuildGates(unittest.TestCase):
         logs = list((root / '.build/ui-journeys').glob('run.*/tests.log'))
         self.assertEqual(len(logs), 1)
         self.assertIn('Fixture UI journey output', logs[0].read_text())
+
+    def test_verifier_rejects_layout_recovery_even_when_tests_pass(self):
+        for diagnostic in ['Conflicting constraints detected: fixture',
+                           'Unable to simultaneously satisfy constraints.',
+                           'Will attempt to recover by breaking fixture']:
+            with self.subTest(diagnostic=diagnostic):
+                root = self.fixture(real_verifier=True)
+                result = self.run_script(root, 'verify-ui.sh', str(root / 'products/ConstellationBar'),
+                                         MOCK_UI_DIAGNOSTIC=diagnostic)
+                self.assertEqual(result.returncode, 1)
+                self.assertIn('Auto Layout discarded conflicting constraints', result.stderr)
+                self.assertIn(diagnostic, next((root / '.build/ui-journeys').glob('run.*/tests.log')).read_text())
+
+    def test_verifier_accepts_unrelated_system_warnings(self):
+        root = self.fixture(real_verifier=True)
+        result = self.run_script(root, 'verify-ui.sh', str(root / 'products/ConstellationBar'),
+                                 MOCK_UI_DIAGNOSTIC='AppKit system warning: fixture')
+        self.assertEqual(result.returncode, 0, result.stderr)
 
 
 if __name__ == '__main__':

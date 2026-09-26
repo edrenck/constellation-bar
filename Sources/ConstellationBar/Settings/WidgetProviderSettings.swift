@@ -79,10 +79,9 @@ extension ConfigurationWindowController {
     }
 
     @objc func allowMusicAccess() {
-        do { try WidgetServices.shared.perform(.authorizeMusic) }
-        catch {
-            guard let window else { return }
-            let alert = NSAlert(); alert.messageText = "Apple Music access"; alert.informativeText = error.localizedDescription
+        AppleMusicIntegration.requestAccess { [weak self] error in
+            guard let error, let window = self?.window else { return }
+            let alert = NSAlert(); alert.messageText = "Apple Music access"; alert.informativeText = error
             alert.beginSheetModal(for: window)
         }
     }

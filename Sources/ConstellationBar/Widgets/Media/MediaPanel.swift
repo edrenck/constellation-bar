@@ -17,7 +17,8 @@ extension MiniAppPanel {
             label(state.mediaNeedsAttention ? "Music needs attention" : "Nothing playing", size: 23)
             for provider in state.providerStatuses where ["nativeMedia", "appleMusic"].contains(provider.id) { label(provider.message, muted: true) }
             if config.providerPreferences.includes("appleMusic") {
-                add(button("Allow Apple Music access…") { [weak self] in self?.perform(.authorizeMusic) }, width: bodyWidth, height: 34)
+                let denied = state.providerStatuses.contains { $0.id == "appleMusic" && $0.message.contains("access was denied") }
+                add(button(denied ? "Open Automation settings…" : "Allow Apple Music access…") { [weak self] in self?.perform(.authorizeMusic) }, width: bodyWidth, height: 34)
                 add(button("Open Music") { [weak self] in self?.openApp("com.apple.Music") }, width: bodyWidth, height: 30)
             }
             label("Start playback in any app that appears in macOS Now Playing.", muted: true)
@@ -56,6 +57,9 @@ extension MiniAppPanel {
             repeatButton?.setAccessibilityLabel("Repeat " + (current.repeatMode?.rawValue ?? "unavailable"))
         }
         rule()
+        if state.providerStatuses.contains(where: { $0.id == "appleMusic" && $0.needsAttention }) {
+            add(button("Enable Apple Music controls…") { [weak self] in self?.perform(.authorizeMusic) }, width: bodyWidth, height: 30)
+        }
         add(choices(["Playing", "Up next"], selected: mediaTab, width: bodyWidth) { [weak self] index in self?.mediaTab = index; self?.rebuild() })
         if mediaTab == 0 {
             let now = actionRow(session.playback.title, symbol: "music.note") { [weak self] in if session.providerID == "appleMusic" { self?.openApp("com.apple.Music") } }

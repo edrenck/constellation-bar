@@ -74,7 +74,8 @@ final class UIJourneyTests: XCTestCase {
                 waitFor(window, matching: attached)
                 XCTAssertEqual(window.frame, attached)
                 window.barView.layoutSubtreeIfNeeded()
-                XCTAssertEqual(window.barView.bounds.height, config.height + config.coveEdgeDepth, accuracy: 0.5)
+                let contentScale = window.frame.width / window.barView.bounds.width
+                XCTAssertEqual(window.barView.bounds.height, config.height + config.coveEdgeDepth / contentScale, accuracy: 0.5)
                 saveSnapshot(window.barView, named: "menu-return-\(appearance.rawValue)-\(multiplier)")
             }
         }
@@ -124,8 +125,9 @@ final class UIJourneyTests: XCTestCase {
         settings.showWindow(nil)
         settings.editingDisplayID = id; settings.sync(config: config)
         settings.sidebarButtons[2].performClick(nil)
-        let cove = try XCTUnwrap(settings.appearanceButtons.first { $0.choice == .cove })
-        cove.performClick(nil)
+        let native = try XCTUnwrap(settings.appearanceButtons.first { $0.choice.family == .native })
+        settings.nativeColorPopup.selectItem(at: 1)
+        XCTAssertTrue(NSApp.sendAction(try XCTUnwrap(settings.nativeColorPopup.action), to: settings.nativeColorPopup.target, from: settings.nativeColorPopup))
         XCTAssertEqual(settings.displayConfig.appearance, .cove)
         XCTAssertTrue(bar.barView.currentTheme.foreground.isEqual(BarAppearance.cove.theme(mode: "system").foreground))
         XCTAssertEqual(settings.config.displayOverrides["fixture-other"]?.appearance, .porcelain)
@@ -139,11 +141,39 @@ final class UIJourneyTests: XCTestCase {
         XCTAssertFalse(descendants(bar.barView).compactMap { $0 as? ModernWidgetView }.contains { $0.accessibilityLabel() == WidgetKind.system.menuTitle && !$0.isHiddenOrHasHiddenAncestor })
         settings.sidebarButtons[2].performClick(nil)
         XCTAssertEqual(settings.editingDisplayID, id)
-        XCTAssertEqual(cove.state, .on)
+        XCTAssertEqual(native.state, .on)
         settings.undoButton.performClick(nil)
         XCTAssertEqual(settings.displayConfig.appearance, config.appearance)
         XCTAssertTrue(bar.barView.currentTheme.foreground.isEqual(config.theme.foreground))
         XCTAssertEqual(settings.config.displayOverrides["fixture-other"]?.appearance, .porcelain)
+    }
+
+    func testTypesetSchemeHierarchyUpdatesPreviewAndSurvivesUndo() throws {
+        var config = BarConfig.default
+        config.displayOverrides["other"] = DisplayOverride(appearance: .porcelain)
+        let settings = ConfigurationWindowController(config: config) { _ in }
+        defer { settings.close() }
+        settings.showWindow(nil)
+        settings.editingDisplayID = "fixture"; settings.sync(config: config)
+        settings.sidebarButtons[2].performClick(nil)
+        XCTAssertEqual(settings.appearanceButtons.count, 2)
+        let typeset = try XCTUnwrap(settings.appearanceButtons.first { $0.choice == .typeset })
+        typeset.performClick(nil)
+        settings.typesetSchemePopup.selectItem(at: TypesetScheme.allCases.firstIndex(of: .ayu)!)
+        settings.typesetSchemeChanged()
+        XCTAssertEqual(settings.typesetVariantPopup.itemTitles, ["Dark", "Mirage", "Light"])
+        settings.typesetVariantPopup.selectItem(at: 1)
+        settings.typesetVariantChanged()
+        XCTAssertEqual(settings.displayConfig.typesetVariant, "mirage")
+        XCTAssertTrue(settings.appearanceDetail.stringValue.contains("Typeset › Ayu › Mirage"))
+        XCTAssertEqual(settings.config.displayOverrides["other"]?.appearance, .porcelain)
+        XCTAssertEqual(settings.displayConfig.theme.background, NSColor(hex: 0x1F2430))
+        let content = try XCTUnwrap(settings.window?.contentView)
+        content.layoutSubtreeIfNeeded()
+        saveSnapshot(content, named: "customization-typeset-ayu-mirage")
+        settings.undoButton.performClick(nil)
+        XCTAssertEqual(settings.displayConfig.typesetVariant, "dark")
+        XCTAssertEqual(settings.typesetVariantPopup.indexOfSelectedItem, 0)
     }
 
     func testWidgetHoverClickPinUnpinAndDismissThroughRenderedControl() throws {
@@ -188,9 +218,10 @@ final class UIJourneyTests: XCTestCase {
         settings.showWindow(nil)
         settings.selectSection(1)
         XCTAssertFalse(settings.sidebarButtons.contains { ["Connections", "Workspaces"].contains($0.title) })
-        for item in [BarItem.currentApp, .widget(.uptime), .widget(.system), .widget(.audio), .widget(.battery)] {
+        for item in [BarItem.currentApp, .widget(.uptime), .widget(.audio), .widget(.battery)] {
             XCTAssertFalse(settings.modulePopup.itemTitles.contains(item.title))
         }
+        XCTAssertTrue(settings.modulePopup.itemTitles.contains(WidgetKind.system.menuTitle))
         let controls = descendants(settings.widgetEditor).compactMap { $0 as? NSButton }
         XCTAssertFalse(controls.contains { $0.toolTip == "Configure Uptime" })
         let music = try XCTUnwrap(controls.first { $0.toolTip == "Configure \(WidgetKind.nowPlaying.menuTitle)" })

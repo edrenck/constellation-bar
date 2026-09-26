@@ -40,6 +40,9 @@ final class WidgetStripView: NSView {
         stack.orientation = .horizontal
         stack.alignment = .centerY
         stack.spacing = 4
+        // NSStackView's required spacing must fit before its first hosted frame.
+        // A zero-width stack with two visible widgets is already inconsistent.
+        stack.frame = NSRect(x: 5, y: 2, width: 100, height: 34)
         addSubview(stack)
         overflowControl.isHidden = true
         overflowControl.onSelect = { [weak self] kind in
@@ -96,6 +99,7 @@ final class WidgetStripView: NSView {
         stack.addArrangedSubview(overflowControl)
         overflowControl.isHidden = true
         fit(to: widthLimit)
+        if bounds.width <= 12 { stack.frame.size.width = max(1, preferredWidth - 10) }
     }
 
     func refreshAppearance() {

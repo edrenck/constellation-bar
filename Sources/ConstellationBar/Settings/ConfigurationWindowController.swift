@@ -9,6 +9,12 @@ final class FlippedSettingsView: NSView {
 final class ConfigurationWindowController: NSWindowController, NSTextFieldDelegate {
     var config: BarConfig
     let onChange: (BarConfig) -> Void
+    let persist: (BarConfig) -> ConfigurationSaveResult
+    private(set) var unsavedError: String?
+    private var pendingUndo = false
+    let saveStatus = NSTextField(wrappingLabelWithString: "Changes save automatically.")
+    let retrySaveButton = NSButton(title: "Retry Save", target: nil, action: nil)
+    let revertSaveButton = NSButton(title: "Revert Unsaved Changes", target: nil, action: nil)
     var undoStack: [BarConfig] = []
     var lastCommittedConfig: BarConfig
     let undoButton = NSButton(title: "Undo", target: nil, action: nil)
@@ -20,7 +26,7 @@ final class ConfigurationWindowController: NSWindowController, NSTextFieldDelega
         "Arrange widgets on the selected display and configure each widget’s behavior and providers.",
         "Choose the appearance of the bar on the selected display.",
         "Manage startup, refresh frequency, and configuration files.",
-        "Check integration availability and the configuration file location."
+        "See live provider health, resolve setup issues, and copy a diagnostic report."
     ]
     var selectedSection = 0
     var buildingSection = 0
@@ -86,12 +92,25 @@ final class ConfigurationWindowController: NSWindowController, NSTextFieldDelega
         sync(config: config)
     }
     var appearanceButtons: [AppearanceChoiceButton] = []
+    let nativeColorPopup = NSPopUpButton()
+    let typesetSchemePopup = NSPopUpButton()
+    let typesetVariantPopup = NSPopUpButton()
     let appearanceDetail = NSTextField(wrappingLabelWithString: "")
     let modePopup = NSPopUpButton()
     let coveBorderButton = NSButton(checkboxWithTitle: "Full-width screen border", target: nil, action: nil)
+    let coveCornerRadiusSlider = NSSlider(value: 12, minValue: 0, maxValue: 40, target: nil, action: nil)
+    let coveCornerRadiusLabel = NSTextField(labelWithString: "12 pt")
     let densityPopup = NSPopUpButton()
     let workspaceAppsButton = NSButton(checkboxWithTitle: "Show open application icons", target: nil, action: nil)
+    let worldClocksField = NSTextField()
+    let timerPresetsField = NSTextField()
+    var reminderListButtons: [String: NSButton] = [:]
+    let reminderListChoices = NSStackView()
+    let reminderAccessReader = AppleRemindersReader()
     let datePopup = NSPopUpButton()
+    var systemMetricButtons: [SystemMetric: NSButton] = [:]
+    let systemGraphButton = NSButton(checkboxWithTitle: "Show CPU graph", target: nil, action: nil)
+    let compositionPopup = NSPopUpButton()
     let artistButton = NSButton(checkboxWithTitle: "Include artist", target: nil, action: nil)
     let hideIdlePlayerButton = NSButton(checkboxWithTitle: "Hide when nothing is playing", target: nil, action: nil)
     let weatherLocationButton = NSButton(checkboxWithTitle: "Show location in bar", target: nil, action: nil)
@@ -102,16 +121,20 @@ final class ConfigurationWindowController: NSWindowController, NSTextFieldDelega
     let displayPopup = NSPopUpButton()
     let refreshPopup = NSPopUpButton()
     let launchAtLoginButton = NSButton(checkboxWithTitle: "Launch ConstellationBar at login", target: nil, action: nil)
-    let aerospaceStatus = NSTextField(labelWithString: "")
-    let tailscaleStatus = NSTextField(labelWithString: "")
-    let mediaStatus = NSTextField(labelWithString: "")
-    let weatherStatus = NSTextField(labelWithString: "")
+    let launchAtLoginStatus = NSTextField(wrappingLabelWithString: "")
+    let updateStatus = NSTextField(wrappingLabelWithString: "")
+    let checkUpdatesButton = NSButton(title: "Check for Updates…", target: nil, action: nil)
+    let diagnosticsFreshness = NSTextField(labelWithString: "Waiting for the first sample…")
+    let configErrorStatus = NSTextField(wrappingLabelWithString: "")
+    var diagnosticRows: [WidgetKind: DiagnosticRow] = [:]
+    var workspaceDiagnosticRow: DiagnosticRow?
     let configPathStatus = NSTextField(labelWithString: "")
 
-    init(config: BarConfig, onChange: @escaping (BarConfig) -> Void) {
+    init(config: BarConfig, persist: @escaping (BarConfig) -> ConfigurationSaveResult = { _ in .saved(URL(fileURLWithPath: "/dev/null")) }, onChange: @escaping (BarConfig) -> Void) {
         self.config = config
         self.lastCommittedConfig = config
         self.onChange = onChange
+        self.persist = persist
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 1080, height: 800),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
@@ -123,6 +146,7 @@ final class ConfigurationWindowController: NSWindowController, NSTextFieldDelega
         window.collectionBehavior = [.moveToActiveSpace]
         super.init(window: window)
         NotificationCenter.default.addObserver(self, selector: #selector(applicationDidBecomeActive), name: NSApplication.didBecomeActiveNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(syncUpdater), name: AppUpdater.changed, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(updateDiagnostics), name: IntegrationDiagnostics.changed, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(displaysChanged), name: NSApplication.didChangeScreenParametersNotification, object: nil)
         buildInterface()
@@ -136,7 +160,7 @@ final class ConfigurationWindowController: NSWindowController, NSTextFieldDelega
     }
 
     func present(config: BarConfig) {
-        if let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) }) { editingDisplayID = screen.configurationID }
+        if unsavedError == nil, let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) }) { editingDisplayID = screen.configurationID }
         sync(config: config)
         showWindow(nil)
         window?.center()
@@ -145,22 +169,27 @@ final class ConfigurationWindowController: NSWindowController, NSTextFieldDelega
     }
 
     func sync(config: BarConfig) {
+        // External refreshes must not erase a failed-save draft.
+        if unsavedError != nil, config.jsonString() != self.config.jsonString() { return }
         self.config = config
         syncEditingDisplay()
         let local = displayConfig
+        syncSystemOptions()
+        compositionPopup.selectItem(at: BarLayout.allCases.firstIndex(of: local.layout) ?? 0)
         calendarProviderPopup.selectItem(at: CalendarProviderChoice.allCases.firstIndex(of: config.providerPreferences.calendarProvider) ?? 0)
         for (id, button) in providerButtons { button.state = config.providerPreferences.includes(id) ? .on : .off }
-        lastCommittedConfig = config
+        if unsavedError == nil { lastCommittedConfig = config }
         modePopup.selectItem(at: ["system", "light", "dark"].firstIndex(of: local.themeMode) ?? 0)
-        modePopup.isEnabled = local.appearance.isNative
-        for button in appearanceButtons { button.state = button.choice == local.appearance ? .on : .off; button.mode = local.themeMode; button.needsDisplay = true }
-        appearanceDetail.stringValue = local.appearance.subtitle + (local.appearance.isNative ? " Follows your chosen light or dark appearance." : " Uses its own coordinated palette.")
+        syncAppearanceControls(local)
         coveBorderButton.state = local.visualPreferences.coveScreenBorder ? .on : .off
+        coveCornerRadiusSlider.doubleValue = local.visualPreferences.coveCornerRadius
+        coveCornerRadiusLabel.stringValue = "\(Int(local.visualPreferences.coveCornerRadius)) pt"
         coveBorderButton.isEnabled = local.appearance == .cove && local.layout == .rail
         coveBorderButton.toolTip = "Cove Rail only: extend to both screen edges with downward-curving corners."
         densityPopup.selectItem(at: BarDensity.allCases.firstIndex(of: local.visualPreferences.density) ?? 1)
         workspaceAppsButton.state = local.visualPreferences.showsWorkspaceAppIcons ? .on : .off
         if let index = DateTimePresentation.allCases.firstIndex(of: config.widgetPreferences.dateTimePresentation) { datePopup.selectItem(at: index) }
+        syncDailyWidgetSettings()
         artistButton.state = config.widgetPreferences.nowPlayingShowsArtist ? .on : .off
         hideIdlePlayerButton.state = config.widgetPreferences.nowPlayingHidesWhenIdle ? .on : .off
         weatherLocationButton.state = config.widgetPreferences.weatherShowsLocation ? .on : .off
@@ -240,6 +269,15 @@ final class ConfigurationWindowController: NSWindowController, NSTextFieldDelega
         undoButton.target = self
         undoButton.action = #selector(undoLastChange)
         sidebar.addArrangedSubview(undoButton)
+        saveStatus.font = .systemFont(ofSize: 11)
+        saveStatus.maximumNumberOfLines = 5
+        sidebar.addArrangedSubview(saveStatus)
+        saveStatus.widthAnchor.constraint(equalTo: sidebar.widthAnchor).isActive = true
+        retrySaveButton.target = self; retrySaveButton.action = #selector(retrySave)
+        revertSaveButton.target = self; revertSaveButton.action = #selector(revertUnsaved)
+        sidebar.addArrangedSubview(retrySaveButton)
+        sidebar.addArrangedSubview(revertSaveButton)
+        updateSaveStatus()
 
         let scroll = settingsScroll
         scroll.translatesAutoresizingMaskIntoConstraints = false
@@ -314,15 +352,27 @@ final class ConfigurationWindowController: NSWindowController, NSTextFieldDelega
         launchAtLoginButton.state = LaunchAtLogin.controlState
         launchAtLoginButton.isEnabled = LaunchAtLogin.isRunningFromAppBundle
         launchAtLoginButton.toolTip = LaunchAtLogin.statusDescription
+        launchAtLoginStatus.stringValue = LaunchAtLogin.statusDescription
+        launchAtLoginStatus.textColor = LaunchAtLogin.status == .requiresApproval || LaunchAtLogin.lastError != nil ? .systemOrange : .secondaryLabelColor
     }
 
     @objc func updateDiagnostics() {
-        aerospaceStatus.stringValue = IntegrationDiagnostics.workspace
-        let tailscale = ExecutableDiscovery.find("tailscale")
-        tailscaleStatus.stringValue = tailscale.map { "Available · \($0)" } ?? "CLI unavailable · system VPN status available"
-        mediaStatus.stringValue = config.providerPreferences.includes("nativeMedia") ? "macOS Now Playing · system player" : "macOS Now Playing disabled"
-        weatherStatus.stringValue = config.weather.isConfigured ? "Configured · \(config.weather.locationLabel)" : "Optional · choose a location to enable"
-        configPathStatus.stringValue = ConfigurationStore.lastError ?? ConfigFile.writableURL().path
+        if let date = IntegrationDiagnostics.sampledAt {
+            let age = max(0, Int(Date().timeIntervalSince(date)))
+            let stale = Double(age) > max(10, config.systemUpdateInterval * 3)
+            diagnosticsFreshness.stringValue = "\(stale ? "Sample is stale" : "Last provider sample"): \(date.formatted(date: .omitted, time: .standard)) · \(age)s ago · refresh interval \(Int(config.systemUpdateInterval))s"
+            diagnosticsFreshness.textColor = stale ? .systemOrange : .secondaryLabelColor
+        } else { diagnosticsFreshness.stringValue = "Waiting for the first provider sample. Hidden widgets are not sampled." }
+        let workspaceHealth: DiagnosticEntry.Health = config.integration == .standalone ? .ready
+            : IntegrationDiagnostics.workspace == "Checking integrations…" ? .pending
+            : IntegrationDiagnostics.workspace == "AeroSpace connected" ? .ready : .attention
+        workspaceDiagnosticRow?.apply(DiagnosticEntry(title: "Workspaces", health: workspaceHealth,
+            detail: config.integration == .standalone ? "Standalone mode · uses the active application." : IntegrationDiagnostics.workspace, widget: nil))
+        for entry in diagnosticEntries() { if let kind = entry.widget { diagnosticRows[kind]?.apply(entry) } }
+        configPathStatus.stringValue = ConfigFile.writableURL().path
+        configPathStatus.toolTip = configPathStatus.stringValue
+        configErrorStatus.stringValue = ConfigurationStore.diagnosticError ?? "No configuration errors reported. Changes save automatically; Undo is available in the sidebar."
+        configErrorStatus.textColor = ConfigurationStore.diagnosticError == nil ? .secondaryLabelColor : .systemOrange
     }
 
     @objc func modeChanged() {
@@ -334,13 +384,15 @@ final class ConfigurationWindowController: NSWindowController, NSTextFieldDelega
     @objc func visualChanged() {
         var visuals = displayConfig.visualPreferences
         visuals.coveScreenBorder = coveBorderButton.state == .on
+        visuals.coveCornerRadius = coveCornerRadiusSlider.doubleValue.rounded()
         visuals.density = BarDensity.allCases[max(0, densityPopup.indexOfSelectedItem)]
         editDisplay({ $0.visualPreferences = visuals }, shared: { $0.visualPreferences = visuals })
         commit()
     }
 
     @objc func appearanceChanged(_ sender: AppearanceChoiceButton) {
-        editDisplay({ $0.appearance = sender.choice }, shared: { $0.appearance = sender.choice })
+        let appearance = sender.choice.family == .native && displayConfig.appearance.family == .native ? displayConfig.appearance : sender.choice
+        editDisplay({ $0.appearance = appearance }, shared: { $0.appearance = appearance })
         commit()
     }
 
@@ -362,11 +414,6 @@ final class ConfigurationWindowController: NSWindowController, NSTextFieldDelega
     }
 
     @objc func launchAtLoginChanged() {
-        if LaunchAtLogin.status == .requiresApproval {
-            SMAppService.openSystemSettingsLoginItems()
-            syncLaunchAtLogin()
-            return
-        }
         do {
             try LaunchAtLogin.setEnabled(launchAtLoginButton.state == .on)
         } catch {
@@ -384,6 +431,7 @@ final class ConfigurationWindowController: NSWindowController, NSTextFieldDelega
     }
 
     func controlTextDidEndEditing(_ obj: Notification) {
+        if let field = obj.object as? NSTextField, field === worldClocksField || field === timerPresetsField { dailyWidgetFieldsChanged(); return }
         if let field = obj.object as? NSTextField, field === aerospacePathField || field === workspaceOrderField {
             config.aerospacePath = aerospacePathField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
             config.workspaceNames = workspaceOrderField.stringValue.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
@@ -397,29 +445,50 @@ final class ConfigurationWindowController: NSWindowController, NSTextFieldDelega
     }
 
     @objc func undoLastChange() {
-        guard let previous = undoStack.popLast() else { return }
-        config = previous
-        lastCommittedConfig = previous
-        sync(config: previous)
-        onChange(previous)
+        guard unsavedError == nil, let previous = undoStack.last else { return }
+        config = previous; pendingUndo = true
+        commit()
+    }
+    @objc func retrySave() { commit() }
+    @objc func revertUnsaved() {
+        unsavedError = nil; pendingUndo = false
+        config = lastCommittedConfig; sync(config: config); updateSaveStatus()
+    }
+    private func updateSaveStatus() {
+        saveStatus.stringValue = unsavedError.map { "Not saved. The desktop still uses your saved settings. \($0)" } ?? "All changes saved."
+        saveStatus.textColor = unsavedError == nil ? .secondaryLabelColor : .systemRed
+        saveStatus.toolTip = unsavedError
+        retrySaveButton.isHidden = unsavedError == nil
+        revertSaveButton.isHidden = unsavedError == nil
+        undoButton.isEnabled = unsavedError == nil && !undoStack.isEmpty
     }
 
     @objc func resetAppearance() {
         let visuals = VisualPreferences(showsWorkspaceAppIcons: displayConfig.visualPreferences.showsWorkspaceAppIcons)
-        editDisplay({ $0.visualPreferences = visuals; $0.appearance = .nativeGlass; $0.themeMode = "system" },
-                    shared: { $0.visualPreferences = visuals; $0.appearance = .nativeGlass; $0.themeMode = "system" })
+        editDisplay({ $0.visualPreferences = visuals; $0.appearance = .nativeGlass; $0.typesetScheme = .graphite; $0.typesetVariant = "default"; $0.themeMode = "system" },
+                    shared: { $0.visualPreferences = visuals; $0.appearance = .nativeGlass; $0.typesetScheme = .graphite; $0.typesetVariant = "default"; $0.themeMode = "system" })
         commit()
     }
 
     func commit() {
-        do { try config.validate() } catch { ConfigurationStore.report(error.localizedDescription); config = lastCommittedConfig; sync(config: config); return }
-        if config.jsonString() != lastCommittedConfig.jsonString() {
+        if pendingUndo, config.jsonString() != undoStack.last?.jsonString() { pendingUndo = false }
+        do { try config.validate() } catch {
+            unsavedError = error.localizedDescription; updateSaveStatus(); return
+        }
+        let result = persist(config)
+        guard result.succeeded else {
+            unsavedError = result.error
+            // Refresh draft controls, but retain the saved baseline and undo history.
+            sync(config: config); updateSaveStatus(); return
+        }
+        if pendingUndo { _ = undoStack.popLast() }
+        else if config.jsonString() != lastCommittedConfig.jsonString() {
             undoStack.append(lastCommittedConfig)
             if undoStack.count > 30 { undoStack.removeFirst(undoStack.count - 30) }
-            lastCommittedConfig = config
         }
-        undoButton.isEnabled = !undoStack.isEmpty
-        sync(config: config)
+        pendingUndo = false; unsavedError = nil
+        lastCommittedConfig = config
+        sync(config: config); updateSaveStatus()
         onChange(config)
     }
 
@@ -453,15 +522,17 @@ final class ConfigurationWindowController: NSWindowController, NSTextFieldDelega
         sectionTitle.stringValue = Self.sectionTitles[selectedSection]
         sectionDescription.stringValue = Self.sectionDescriptions[selectedSection]
         window?.contentView?.layoutSubtreeIfNeeded()
+        if selectedSection == 4 { updateDiagnostics() }
         settingsScroll.contentView.scroll(to: .zero)
         settingsScroll.reflectScrolledClipView(settingsScroll.contentView)
     }
     @objc func layoutChanged() {
         let presentation = BarPresentation.allCases[max(0, barPresentationPopup.indexOfSelectedItem)]
+        let composition: BarLayout = presentation == .fullWidth ? .rail : (displayConfig.layout == .compact ? .compact : .islands)
         var zones = displayConfig.widgetLayout
         zones.alignment = WidgetAlignment.allCases[max(0, widgetAlignmentPopup.indexOfSelectedItem)]
-        editDisplay({ $0.barPresentation = presentation; $0.layout = presentation == .fullWidth ? .rail : .islands; $0.widgetLayout = zones },
-                    shared: { $0.barPresentation = presentation; $0.layout = presentation == .fullWidth ? .rail : .islands; $0.setWidgetLayout(zones) })
+        editDisplay({ $0.barPresentation = presentation; $0.layout = composition; $0.widgetLayout = zones },
+                    shared: { $0.barPresentation = presentation; $0.layout = composition; $0.setWidgetLayout(zones) })
         commit()
     }
 

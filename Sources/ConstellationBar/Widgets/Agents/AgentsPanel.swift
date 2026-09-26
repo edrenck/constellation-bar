@@ -7,10 +7,8 @@ extension MiniAppPanel {
         let summary: String
         if agents.providers.isEmpty {
             summary = "Monitoring disabled"
-        } else if !agents.isComplete {
-            summary = agents.hasReadableProvider ? "\(agents.activeCount) active · status incomplete" : "Status unavailable"
         } else {
-            summary = agents.activeCount == 0 ? "No tasks running" : "\(agents.activeCount) active \(agents.activeCount == 1 ? "task" : "tasks")"
+            summary = agents.taskSummary
         }
         let title = label(summary, size: 22)
         title.textColor = agents.activeCount > 0 ? config.theme.green : config.theme.foreground
@@ -18,10 +16,13 @@ extension MiniAppPanel {
             label("Enable an agent provider in Customize Bar → Widgets → Agent Status.", muted: true)
         } else {
             label("Active includes working and waiting for input or approval.", size: 11, muted: true)
+            if agents.readableProviderCount < agents.providers.count {
+                label(agents.coverageDetail + ". Unavailable hosts are excluded.", size: 11, muted: true)
+            }
         }
         for provider in agents.providers {
             rule()
-            let idle = provider.available ? " · \(provider.idleCount) idle" : " · Unavailable"
+            let idle = provider.available ? " · \(provider.activeCount) active · \(provider.idleCount) idle" + (provider.unknownCount > 0 ? " · \(provider.unknownCount) unknown" : "") : " · Unavailable"
             label(provider.name + " · " + provider.hostName + idle, size: 13)
             guard provider.available else {
                 label(provider.message, size: 12, muted: true)
@@ -52,8 +53,9 @@ extension MiniAppPanel {
         }
         if !agents.providers.isEmpty {
             rule()
-            label("Saved tasks on this Mac and Codex SSH hosts. Cloud tasks and untracked internal workers are not included.", size: 10, muted: true)
+            label("Coding-agent tasks on this Mac and connected hosts. Cloud tasks and untracked internal workers are not included.", size: 10, muted: true)
         }
+        label("* Codex is the currently supported coding-agent provider.", size: 10, muted: true)
         refreshers.append { [weak self] in
             guard let self else { return }
             if let date = self.state.agents.providers.compactMap(\.sampledAt).min() {

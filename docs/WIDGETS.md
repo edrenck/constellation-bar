@@ -1,6 +1,6 @@
 # Interactive widgets and providers
 
-Hover or click a widget to open the same panel. Media (Now Playing), Calendar, VPN, Audio, System and Agent Status use their full panels in both cases; simpler widgets share one inspector. Clicking a hovered widget pins the existing panel without resetting tabs, selections or scrolling. Hover panels stay open while the pointer is inside and dismiss after it leaves. The pin control pins or unpins interactive panels; Close dismisses either mode and Escape dismisses a pinned panel. A pinned panel is not replaced by hovering another item. Arrange widgets under Widgets. Use a widget’s configure button or the General settings picker for its options and providers. Only widgets with settings appear in that picker; Workspaces includes its source, ordering, visibility and application icons.
+Hover or click a widget to open the same panel. Media (Now Playing), Calendar, VPN, Audio, System, Agent Status, Timer, Keep Awake, Reminders, Clock and Keyboard use their full panels in both cases; simpler widgets share one inspector. Clicking a hovered widget pins the existing panel without resetting tabs, selections or scrolling. Hover panels stay open while the pointer is inside and dismiss after it leaves. The pin control pins or unpins interactive panels; Close dismisses either mode and Escape dismisses a pinned panel. A pinned panel is not replaced by hovering another item. Arrange widgets under Widgets. Use a widget’s configure button or the General settings picker for its options and providers. Only widgets with settings appear in that picker; Workspaces includes its source, ordering, visibility and application icons.
 
 ## Initial providers
 
@@ -10,15 +10,15 @@ Hover or click a widget to open the same panel. Media (Now Playing), Calendar, V
 | Calendar | Apple EventKit, including accounts already synced to Calendar on the Mac |
 | VPN | Configured macOS services, Surfshark service recognition, Tailscale CLI |
 | Audio | macOS Core Audio devices |
-| System | macOS CPU, memory, processes and network counters |
+| System | macOS CPU, memory, processes, network counters and thermal pressure |
 
 A listed adapter can still require local software or permission; it is not a guarantee that every vendor version exposes the same capabilities.
 
 ### Media
 
-Music follows the active macOS Now Playing session, including participating native players and browsers. No browser extension is required. Enable **macOS Now Playing** in Widgets → General settings → Now Playing. **Apple Music** provides a fallback and richer controls after granting Music Automation permission from the widget’s **Allow Apple Music access** button. The panel displays title, artist, album, playback progress and artwork when supplied by the system, with play/pause and previous/next commands routed to the system player. Audio devices and volume live in the Audio widget.
+Music follows the active macOS Now Playing session, including participating native players and browsers. No browser extension or macOS Now Playing permission is required. Enable **macOS Now Playing** in Widgets → General settings → Now Playing. **Apple Music** provides a fallback and richer controls and requests Automation permission once when enabled and Music is running. The widget’s **Allow Apple Music access** button also opens Music if needed; after a denial it opens Automation settings so you can enable access. Consent runs in the background so the bar stays responsive. The panel displays title, artist, album, playback progress and artwork when supplied by the system, with play/pause and previous/next commands routed to the system player. Brief system read failures preserve the last track for up to ten seconds while retrying. Audio devices and volume live in the Audio widget.
 
-The adapter reads Apple's private MediaRemote interface through a bundled callback helper loaded by the system Perl host, with a bounded timeout. Artwork is cached for the current track while macOS loads it; larger covers are resized to stay within the response limit. Compatibility can change with macOS updates. Apps that do not publish to macOS Now Playing cannot appear here. Artwork may be absent; seeking, shuffle, repeat and Up Next are not exposed by this initial adapter. Apple Music supplies seek, shuffle, and repeat controls when supported by its current queue. Duplicate reports of the same Music track are combined. Read failures remain visible as “Music needs attention” when neither enabled provider supplies playback; an empty session follows the hide-when-idle setting.
+The adapter reads and sends playback commands through Apple's private MediaRemote interface through a bundled callback helper loaded by the system Perl host, with a bounded timeout. Artwork is cached for the current track while macOS loads it; larger covers are resized to stay within the response limit. Compatibility can change with macOS updates. Apps that do not publish to macOS Now Playing cannot appear here. Artwork may be absent; seeking, shuffle, repeat and Up Next are not exposed by this initial adapter. Apple Music supplies seek, shuffle, and repeat controls when supported by its current queue. Duplicate reports of the same Music track are combined. Read failures remain visible as “Music needs attention” when neither enabled provider supplies playback; an empty session follows the hide-when-idle setting.
 
 ### Calendar
 
@@ -38,7 +38,7 @@ Device names containing AirPods, AirPods Pro, or AirPods Max use the correspondi
 
 ### System
 
-CPU, memory and network tabs show live samples and selectable 1-minute, 5-minute and 1-hour history windows. History is in memory, accumulates while enabled, and retains at most 1,800 samples. Percent charts use a 0–100 scale; network history scales to the visible peak. Memory includes measured active, wired and compressed bytes. Process CPU percentages are per-process and may exceed 100% on multicore systems. No process-termination action is exposed.
+Choose which CPU, memory, network and thermal metrics appear in the bar under System settings. Legacy separate metrics migrate into System. CPU, memory and network tabs show live samples and selectable 1-minute, 5-minute and 1-hour history windows. History is in memory, accumulates while enabled, and retains at most 1,800 samples. Percent charts use a 0–100 scale; network history scales to the visible peak. Memory includes measured active, wired and compressed bytes. Process CPU percentages are per-process and may exceed 100% on multicore systems. The Thermal tab explains macOS thermal pressure; it does not claim to measure temperatures. No process-termination action is exposed.
 
 ## Extending providers
 
@@ -46,11 +46,11 @@ CPU, memory and network tabs show live samples and selectable 1-minute, 5-minute
 
 1. Implement the relevant domain protocol, using stable provider/session identifiers.
 2. Register its descriptor in `IntegrationCatalog` and adapter in the sampling/action composition (`WidgetServices`, `MediaProvider`, `CalendarProvider`, or `VPNProvider`).
-3. Add explicit, user-triggered setup where permission is needed. Never request permission while polling.
+3. Provide explicit setup controls where permission is needed. An enabled provider may request required consent once when its target app is running; keep the prompt off sampling and UI queues, and never repeatedly prompt after denial.
 4. Route supported actions through `WidgetAction` and return failures to the panel.
 5. Test disabled-provider handling, identity, unavailable states and action failures. Reuse the shared panel unless the provider has a concrete extra interaction.
 
-This is a source-level extension interface, not an arbitrary dynamic-code plugin loader. New calendar account adapters should define deduplication against calendars already exposed through EventKit before enabling aggregation. Providers run on the controller's serial sampling/action queue; state snapshots are delivered to the main thread.
+This is a source-level extension interface, not an arbitrary dynamic-code plugin loader. New calendar account adapters should define deduplication against calendars already exposed through EventKit before enabling aggregation. Each provider owns a separate serial sampling/action queue. Snapshots publish independently on the main thread, so a slow provider cannot hold back unrelated widgets or their controls. New stateful providers must implement snapshot merging for their own fields.
 
 References: [Core Audio output device](https://developer.apple.com/documentation/coreaudio/kaudiohardwarepropertydefaultoutputdevice), [EventKit access](https://developer.apple.com/documentation/eventkit/accessing-the-event-store).
 
@@ -79,3 +79,23 @@ Customize Bar → Widgets → General settings → Agent Status → **Codex SSH 
 The helper reads task names, project directory names and lifecycle status over SSH. It does not read credentials or send conversation bodies. SSH uses batch authentication and strict host-key checks; the bar never asks for a password or accepts a new host key. Connect successfully using your normal SSH setup first. Missing Python or a failed SSH connection is shown in that host's panel. Cloud tasks remain unsupported.
 
 For local provider diagnostics without displaying task titles or playback metadata, run `swift run ConstellationBar --diagnose-providers`. This reports availability, task counts, and provider messages without asking for permissions or probing SSH hosts.
+
+## Diagnostics
+
+Customize Bar → Diagnostics reports the latest samples used by the bar, including when they were taken. Hidden widgets are marked disabled, and newly enabled widgets wait for their first sample. Provider errors include their actual status and a shortcut to the widget’s settings. Refresh status requests another sample; providers retain their normal cache and retry intervals. Copy diagnostic report includes provider health and configuration errors without track titles, calendar events, or task titles.
+
+Internal Codex subagents are excluded from the task list. Both versioned and unversioned history databases are supported; if history access fails, recognized lifecycle markers in the task’s rollout provide a fallback. Agent counts reflect readable hosts. Offline or connecting SSH hosts appear in the coverage details and host list, while unrecognized task lifecycles are shown separately as unknown. macOS Now Playing read failures retry automatically and require no permission. When Apple Music is running and its provider is enabled, the bar requests Automation access once if macOS requires consent; the access button can launch Music and open Automation settings after a denial.
+
+### Timer, Keep Awake and Clock
+
+Timer uses a monotonic, sleep-aware clock. Start a preset, pause, resume or reset it; completion is shown in the widget without a system notification. Keep Awake starts a bounded macOS power assertion for one of the panel’s durations. Choose idle-system sleep prevention or keep the display awake too; Stop releases it immediately and macOS releases it at expiry. It does not override closing a laptop’s lid. Clock adds selected world clocks with day offsets and daylight-saving labels.
+
+### Reminders and Keyboard
+
+Reminders reads overdue and today’s incomplete tasks from your chosen synced lists. **Allow Reminders access** explicitly requests EventKit access; background sampling does not prompt. The panel opens Reminders for editing and never changes tasks itself. Keyboard lists enabled, selectable macOS input sources and lets you switch them. It does not monitor or record keystrokes.
+
+### Coding agents
+
+Agent Status summarizes coding-agent tasks across this Mac and configured SSH hosts. *Codex is the only currently supported coding-agent provider.* Local and remote readers retain provider identity in the details, while the widget itself stays provider-neutral.
+
+See [daily widget settings and controls](DAILY_WIDGETS.md) for Timer, Keep Awake, Reminders, Clock and Keyboard details.

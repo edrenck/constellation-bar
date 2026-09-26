@@ -4,7 +4,21 @@ import CoreAudio
 /// Feature-specific content in the shared native widget panel.
 extension MiniAppPanel {
     func buildSystem() {
-        add(choices(["CPU", "MEMORY", "NETWORK"], selected: selectedTab, width: bodyWidth) { [weak self] index in self?.selectedTab = index; self?.rebuild() }); rule()
+        add(choices(["CPU", "MEMORY", "NETWORK", "THERMAL"], selected: selectedTab, width: bodyWidth) { [weak self] index in self?.selectedTab = index; self?.rebuild() }); rule()
+        if selectedTab == 3 {
+            let pressure = label(state.thermal.label, size: 32)
+            let explanation = label(WidgetCatalog.thermalExplanation(state.thermal), size: 14)
+            rule()
+            label("Thermal pressure is macOS’s assessment of cooling demand, rather than a temperature reading.", muted: true)
+            add(button("Open Activity Monitor") { [weak self] in self?.openApp("com.apple.ActivityMonitor") }, width: bodyWidth, height: 30)
+            refreshers.append { [weak self, weak pressure, weak explanation] in
+                guard let self else { return }
+                pressure?.stringValue = self.state.thermal.label
+                pressure?.textColor = WidgetCatalog.thermalColor(self.state.thermal, theme: self.config.theme)
+                explanation?.stringValue = WidgetCatalog.thermalExplanation(self.state.thermal)
+            }
+            return
+        }
         let metric = text("", size: 38, width: bodyWidth-160); metric.textColor = config.theme.blue
         let ranges = choices(["1m", "5m", "1h"], selected: rangeSeconds == 60 ? 0 : rangeSeconds == 300 ? 1 : 2, width: 150) { [weak self] index in self?.rangeSeconds = [60,300,3600][index]; self?.rebuild() }
         add(row([metric, ranges]), width: bodyWidth)

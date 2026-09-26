@@ -59,6 +59,21 @@ final class RemoteAgentStatusTests: XCTestCase {
         gate.signal()
         XCTAssertTrue(monitor.snapshots(enabled: false).isEmpty)
     }
+    func testSSHFailuresExplainTheSpecificRecovery() {
+        let cases = [
+            ("Host key verification failed.", "SSH host key needs verification"),
+            ("Permission denied (publickey).", "SSH authentication failed"),
+            ("Could not resolve hostname build", "SSH hostname could not be resolved"),
+            ("connect to host build port 22: Connection refused", "SSH host is unreachable"),
+            ("bash: python3: command not found", "Python 3 is missing")
+        ]
+        for (error, expected) in cases {
+            let result = RemoteAgentStatusMonitor.decode(CommandResult(error: error, status: 255), host: host, at: Date())
+            XCTAssertFalse(result.available)
+            XCTAssertTrue(result.tasks.isEmpty)
+            XCTAssertTrue(result.message.hasPrefix(expected), result.message)
+        }
+    }
     func testRemotePythonProbeReadsLivePersistedTasksOnly() throws {
         guard let python = ExecutableDiscovery.find("python3") else { throw XCTSkip("Python 3 required for helper integration test") }
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
@@ -68,11 +83,16 @@ import pathlib,sys,sqlite3,fcntl
 h=pathlib.Path(sys.argv[1]); (h/'thread-writer-locks').mkdir(parents=True)
 active='00000000-0000-4000-8000-000000000001'
 stale='00000000-0000-4000-8000-000000000002'
+idle='00000000-0000-4000-8000-000000000003'
+worker='00000000-0000-4000-8000-000000000004'
 held=(h/'thread-writer-locks'/(active+'.lock')).open('w'); fcntl.flock(held,fcntl.LOCK_EX)
+idle_held=(h/'thread-writer-locks'/(idle+'.lock')).open('w'); fcntl.flock(idle_held,fcntl.LOCK_EX)
 (h/'thread-writer-locks'/(stale+'.lock')).touch()
+worker_held=(h/'thread-writer-locks'/(worker+'.lock')).open('w'); fcntl.flock(worker_held,fcntl.LOCK_EX)
 with sqlite3.connect(h/'state_5.sqlite') as d:
- d.execute('CREATE TABLE threads(id, history_mode, rollout_path, archived, title, cwd)')
- for tid in [active,stale]: d.execute('INSERT INTO threads VALUES (?, ?, ?, ?, ?, ?)',(tid,'paginated','',0,'Remote task','/projects/App'))
+ d.execute('CREATE TABLE threads(id, history_mode, rollout_path, archived, title, cwd, source, agent_path)')
+ for tid in [active,stale,idle]: d.execute('INSERT INTO threads VALUES (?, ?, ?, ?, ?, ?, ?, ?)',(tid,'paginated','',0,'Remote task','/projects/App','vscode',None))
+ d.execute('INSERT INTO threads VALUES (?, ?, ?, ?, ?, ?, ?, ?)',(worker,'paginated','',0,'Worker','/projects/App','{"subagent":{"other":"guardian"}}','/root/worker'))
 with sqlite3.connect(h/'thread_history_1.sqlite') as d:
  d.execute('CREATE TABLE thread_turns(thread_id,status,rollout_ordinal)')
  d.execute('INSERT INTO thread_turns VALUES (?, ?, ?)',(active,'inProgress',1))
@@ -81,8 +101,10 @@ with sqlite3.connect(h/'thread_history_1.sqlite') as d:
         XCTAssertTrue(result.succeeded, result.error)
         let snapshot = RemoteAgentStatusMonitor.decode(result, host: host, at: Date())
         XCTAssertTrue(snapshot.available)
-        XCTAssertEqual(snapshot.tasks.count, 1)
+        XCTAssertEqual(snapshot.tasks.count, 2)
         XCTAssertEqual(snapshot.activeCount, 1)
+        XCTAssertEqual(snapshot.idleCount, 1, "A readable new task without turns is idle on SSH hosts too")
+        XCTAssertEqual(snapshot.unknownCount, 0)
         XCTAssertEqual(snapshot.tasks.first?.title, "Remote task")
         XCTAssertEqual(snapshot.tasks.first?.project, "App")
     }

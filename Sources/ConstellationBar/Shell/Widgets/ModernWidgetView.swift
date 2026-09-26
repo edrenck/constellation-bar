@@ -47,7 +47,11 @@ final class ModernWidgetView: ModernControlView, NSDraggingSource {
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     override var intrinsicContentSize: NSSize {
-        if compactPresentation { return NSSize(width: compactText == nil ? 32 : max(52, min(60, ceil(label.intrinsicContentSize.width)) + 39), height: 34) }
+        if compactPresentation {
+            // NSTextField's label cell needs the same four points of breathing
+            // room as the full presentation. Without it short values truncate.
+            return NSSize(width: compactText == nil ? 32 : max(52, min(60, ceil(label.intrinsicContentSize.width)) + 43), height: 34)
+        }
         let labelCap: CGFloat = kind == .nowPlaying ? 180 : (kind == .weather ? 125 : 145)
         let width = min(labelCap, ceil(label.intrinsicContentSize.width)) + 43 + (hasHistory ? 37 : 0)
         return NSSize(width: max(52, width), height: 34)

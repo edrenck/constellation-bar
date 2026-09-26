@@ -13,5 +13,6 @@
 <key>LSMultipleInstancesProhibited</key><true/>
 <key>NSHighResolutionCapable</key><true/>
 <key>NSAppleEventsUsageDescription</key><string>Read and control Apple Music playback when enabled.</string>
+<key>NSRemindersFullAccessUsageDescription</key><string>Show due and overdue tasks from your selected reminder lists when you enable Reminders access. ConstellationBar does not edit reminders.</string>
 <key>NSCalendarsFullAccessUsageDescription</key><string>Show your calendar agenda and meeting links when you enable Calendar access. ConstellationBar does not edit events.</string>
 </dict></plist>

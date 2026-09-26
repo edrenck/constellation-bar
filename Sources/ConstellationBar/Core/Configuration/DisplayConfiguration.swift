@@ -40,7 +40,7 @@ extension BarConfig {
             layout: local.layout, hideInFullscreen: local.hideInFullscreen,
             workspaceVisibility: displayOverrides[id]?.workspaceVisibility ?? (workspacesOnCurrentDisplay ? .local : .all),
             selectedWorkspaces: displayOverrides[id]?.selectedWorkspaces,
-            appearance: local.appearance, themeMode: local.themeMode,
+            appearance: local.appearance, typesetScheme: local.typesetScheme, typesetVariant: local.typesetVariant, themeMode: local.themeMode,
             barPresentation: local.barPresentation, widgetLayout: local.widgetLayout, visualPreferences: local.visualPreferences)
     }
 }
