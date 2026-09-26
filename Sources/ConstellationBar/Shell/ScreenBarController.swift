@@ -103,11 +103,12 @@ final class BarWindow: NSPanel {
     private var targetFrame: NSRect?
     private var movementTimer: Timer?
 
-    init(screen: NSScreen, config: BarConfig) {
-        let initialAvoidance = MenuBarVisibilityDetector.isVisible(on: screen)
+    init(screen: NSScreen, config: BarConfig, environment: MenuBarEnvironment? = nil) {
+        let environment = environment ?? MenuBarEnvironment.capture(on: screen)
+        let initialAvoidance = environment.visible
         self.avoidingMenuBar = initialAvoidance
         self.menuTransition = MenuBarTransition(avoiding: initialAvoidance)
-        let rect = BarWindow.frame(for: screen, config: config, avoidingMenuBar: initialAvoidance)
+        let rect = BarWindow.frame(for: screen, config: config, avoidingMenuBar: initialAvoidance, menuBarHeight: environment.height)
         self.barView = BarRootView(frame: NSRect(origin: .zero, size: rect.size), config: config)
 
         super.init(
@@ -120,12 +121,12 @@ final class BarWindow: NSPanel {
         isOpaque = false
         backgroundColor = .clear
         hasShadow = false
-        // Stay above ordinary app content while yielding to system surfaces
-        // such as Notification Center. A hand-tuned statusBar offset is not
-        // stable across macOS versions and can cover notification banners.
+        // Render in the system top region so a notched display can use the
+        // native left/right safe areas around the camera cutout. The bar's
+        // own fullscreen policy still controls whether it is shown there.
         // Do not opt into fullScreenAuxiliary: macOS should own a native
         // fullscreen display without a persistent bar above its video.
-        level = .floating
+        level = NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue - 1)
         collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
         isMovable = false
         ignoresMouseEvents = false
@@ -160,16 +161,17 @@ final class BarWindow: NSPanel {
         RunLoop.main.add(timer, forMode: .common)
     }
 
-    func updateFrame(screen: NSScreen, config: BarConfig) {
-        let mouse = NSEvent.mouseLocation
+    func updateFrame(screen: NSScreen, config: BarConfig, environment: MenuBarEnvironment? = nil) {
+        let environment = environment ?? MenuBarEnvironment.capture(on: screen)
+        let mouse = environment.pointer
         let distance = screen.frame.maxY - mouse.y
         let onDisplay = mouse.x >= screen.frame.minX && mouse.x < screen.frame.maxX && distance >= 0 && mouse.y >= screen.frame.minY
         let atEdge = onDisplay && distance <= 2
-        let inMenu = onDisplay && distance <= max(NSStatusBar.system.thickness, screen.frame.maxY - screen.visibleFrame.maxY)
+        let inMenu = onDisplay && distance <= environment.height
         // Let macOS receive the edge gesture instead of intercepting it with this panel.
         ignoresMouseEvents = atEdge
-        avoidingMenuBar = menuTransition.update(visible: MenuBarVisibilityDetector.isVisible(on: screen), now: ProcessInfo.processInfo.systemUptime, atEdge: atEdge, inMenuRegion: inMenu)
-        let rect = BarWindow.frame(for: screen, config: config, avoidingMenuBar: avoidingMenuBar)
+        avoidingMenuBar = menuTransition.update(visible: environment.visible, now: environment.uptime, atEdge: atEdge, inMenuRegion: inMenu)
+        let rect = BarWindow.frame(for: screen, config: config, avoidingMenuBar: avoidingMenuBar, menuBarHeight: environment.height)
         guard targetFrame != rect else { return }
         let oldTarget = targetFrame
         targetFrame = rect
@@ -201,14 +203,32 @@ final class BarWindow: NSPanel {
             isBuiltIn: CGDisplayIsBuiltin(screen.displayID) != 0, multiplier: config.sizeMultiplier)
     }
 
-    private static func frame(for screen: NSScreen, config: BarConfig, avoidingMenuBar: Bool) -> NSRect {
+    private static func frame(for screen: NSScreen, config: BarConfig, avoidingMenuBar: Bool, menuBarHeight: CGFloat) -> NSRect {
         let frame = screen.frame
-        let menuBarHeight = max(NSStatusBar.system.thickness, frame.maxY - screen.visibleFrame.maxY)
-        let clearance = avoidingMenuBar ? menuBarHeight : 0
         let scale = contentScale(for: screen, config: config)
         let totalHeight = (config.height + config.coveEdgeDepth) * scale
+        // Keep notch-aware layout at the physical edge while the menu is hidden.
+        // When macOS reveals its menu, make room below it in screen points;
+        // the system menu height does not scale with the user's bar size.
+        let clearance = avoidingMenuBar ? menuBarHeight : 0
         let y = frame.maxY - totalHeight - clearance - config.topInset * scale
         return NSRect(x: frame.minX, y: y, width: frame.width, height: totalHeight)
+    }
+}
+
+/// Capture OS inputs once per tick. Tests supply these inputs to the same
+/// window update path without moving the user's pointer or changing macOS settings.
+struct MenuBarEnvironment {
+    var pointer: NSPoint
+    var visible: Bool
+    var uptime: TimeInterval
+    var height: CGFloat
+
+    static func capture(on screen: NSScreen) -> MenuBarEnvironment {
+        MenuBarEnvironment(pointer: NSEvent.mouseLocation,
+            visible: MenuBarVisibilityDetector.isVisible(on: screen),
+            uptime: ProcessInfo.processInfo.systemUptime,
+            height: max(NSStatusBar.system.thickness, screen.safeAreaInsets.top, screen.frame.maxY - screen.visibleFrame.maxY))
     }
 }
 

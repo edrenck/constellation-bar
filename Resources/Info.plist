@@ -12,6 +12,6 @@
 <key>LSUIElement</key><true/>
 <key>LSMultipleInstancesProhibited</key><true/>
 <key>NSHighResolutionCapable</key><true/>
-<key>NSAppleEventsUsageDescription</key><string>Read calendars from the local Outlook app when you select Outlook, or control Apple Music playback when enabled. Calendar events are never edited.</string>
+<key>NSAppleEventsUsageDescription</key><string>Read and control Apple Music playback when enabled.</string>
 <key>NSCalendarsFullAccessUsageDescription</key><string>Show your calendar agenda and meeting links when you enable Calendar access. ConstellationBar does not edit events.</string>
 </dict></plist>

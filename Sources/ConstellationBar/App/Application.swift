@@ -74,10 +74,11 @@ enum LaunchAtLoginError: LocalizedError {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var controller: BarController?
     private var statusController: StatusMenuController?
+    private let startupSmokeTest = CommandLine.arguments.contains("--startup-smoke-test")
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
-        if let bundleID = Bundle.main.bundleIdentifier,
+        if !startupSmokeTest, let bundleID = Bundle.main.bundleIdentifier,
            let existing = NSRunningApplication.runningApplications(withBundleIdentifier: bundleID)
             .filter({ $0.processIdentifier != ProcessInfo.processInfo.processIdentifier && !$0.isTerminated })
             .min(by: { $0.processIdentifier < $1.processIdentifier }),
@@ -88,7 +89,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         DistributedNotificationCenter.default().addObserver(self, selector: #selector(openSettings), name: Self.reopenNotification, object: nil)
-        let loaded = BarConfig.load()
+        var loaded = startupSmokeTest ? BarConfig.default : BarConfig.load()
+        if startupSmokeTest {
+            loaded.integration = .standalone
+            loaded.displayMode = .primaryOnly
+        }
         controller = BarController(config: loaded)
         statusController = StatusMenuController(config: loaded) { [weak self] config in
             self?.controller?.apply(config: config)
@@ -108,6 +113,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         mainMenu.addItem(appItem)
         NSApp.mainMenu = mainMenu
         controller?.start()
+        if startupSmokeTest {
+            // Run the normal startup graph and event loop, then verify the real
+            // windows. Fixture config avoids reading or changing personal settings.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                self?.statusController?.showConfiguration()
+                let bars = NSApp.windows.compactMap { $0 as? BarWindow }.filter(\.isVisible)
+                let settings = NSApp.windows.first { $0.title == "Customize ConstellationBar" && $0.isVisible }
+                guard !bars.isEmpty, let settings, settings.contentView != nil else {
+                    fputs("STARTUP_UI_FAILED: bar or customization window missing\n", stderr)
+                    exit(1)
+                }
+                print("STARTUP_UI_OK")
+                NSApp.terminate(nil)
+            }
+            return
+        }
         if let error = ConfigurationStore.lastError { ConfigurationStore.report(error) }
         if CommandLine.arguments.contains("--configure") || ConfigurationStore.activeURL == nil {
             DispatchQueue.main.async { [weak self] in self?.statusController?.showConfiguration() }

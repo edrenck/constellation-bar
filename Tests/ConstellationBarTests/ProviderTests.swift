@@ -2,6 +2,16 @@ import XCTest
 @testable import ConstellationBar
 
 final class ProviderTests: XCTestCase {
+    func testDefaultProviderGraphInitializesWithoutReenteringSharedServices() {
+        // Startup constructs the default providers before sampling any widget.
+        // Reentering WidgetServices.shared here traps inside dispatch_once.
+        _ = SystemMonitor()
+        let services = WidgetServices.shared
+        XCTAssertEqual(services.calendar.id, "appleCalendar")
+        XCTAssertEqual(services.outlook.id, "outlook")
+        XCTAssertEqual(services.media.map(\.id), ["nativeMedia", "appleMusic"])
+    }
+
     func testWorkspaceDiscoveryDoesNotFilterNewOrNamedWorkspaces() {
         XCTAssertEqual(AeroSpaceClient.orderedNames(["10", "dev", "2", "chat", "dev"], preferred: ["dev", "absent"]), ["dev", "2", "10", "chat"])
     }

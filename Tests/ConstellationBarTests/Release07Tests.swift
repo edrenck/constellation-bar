@@ -82,34 +82,25 @@ final class Release07Tests: XCTestCase {
         XCTAssertTrue(state.agenda.events.isEmpty)
     }
 
-    func testLocalOutlookDecodesDatesMeetingLinksAndNamespacedCalendars() {
-        let json = #"{"start":100,"end":10000,"calendars":[{"id":"1","title":"Work","account":"Outlook"}],"events":[{"id":"2","calendarID":"1","title":"Review","start":200,"end":300,"allDay":false,"location":"Room","notes":"Join https://teams.microsoft.com/l/meetup-join/example","attendees":["Alex"]}]}"#
-        let state = OutlookCalendarIntegration.decode(CommandResult(output: json, status: 0))
-        XCTAssertTrue(state.authorized)
-        XCTAssertEqual(state.events.count, 1)
-        XCTAssertEqual(state.events.first?.start, Date(timeIntervalSince1970: 200))
-        XCTAssertEqual(state.events.first?.calendarID, "outlook:1")
-        XCTAssertEqual(state.events.first?.meetingURL?.host, "teams.microsoft.com")
-        XCTAssertEqual(state.events.first?.attendees, ["Alex"])
-        XCTAssertEqual(state.rangeEnd, Date(timeIntervalSince1970: 10000))
-    }
-
-    func testEmptyUnlinkedOutlookStoreIsNotReportedAsWorkingCalendarAccess() {
-        let json = #"{"start":100,"end":10000,"calendars":[{"id":"13","title":"Calendar","account":"Outlook","accountLinked":false}],"events":[]}"#
-        let state = OutlookCalendarIntegration.decode(CommandResult(output: json, status: 0))
-        XCTAssertFalse(state.authorized)
-        XCTAssertTrue(state.message.contains("Choose its local data folder"))
-        let linked = json.replacingOccurrences(of: "\"accountLinked\":false", with: "\"accountLinked\":true")
-        XCTAssertTrue(OutlookCalendarIntegration.decode(CommandResult(output: linked, status: 0)).authorized)
-    }
-
-    func testOutlookFailuresAreVisibleAndDoNotMasqueradeAsEmptyCalendars() {
-        for result in [CommandResult(output: "not json", status: 0), CommandResult(status: 1), CommandResult(timedOut: true)] {
-            let state = OutlookCalendarIntegration.decode(result)
-            XCTAssertFalse(state.authorized)
-            XCTAssertFalse(state.message.isEmpty)
-            XCTAssertTrue(state.events.isEmpty)
+    func testOutlookUsesNativeCalendarStateAndSharedPermissions() {
+        final class NativeCalendar: CalendarIntegrating {
+            let id = "appleCalendar"
+            var requests = 0
+            var state = AgendaState(authorized: true, message: "", calendars: [.init(id: "exchange", title: "Work", account: "Microsoft Exchange")],
+                events: [.init(id: "event", calendarID: "exchange", title: "Review", calendar: "Work", start: Date(), end: Date().addingTimeInterval(3600), allDay: false, location: "Room", meetingURL: URL(string: "https://teams.microsoft.com/example"), attendees: ["Alex"])])
+            func agenda() -> AgendaState { state }
+            func requestAccess(completion: @escaping (String?) -> Void) { requests += 1; completion(nil) }
         }
+        let native = NativeCalendar()
+        let outlook = OutlookCalendarIntegration(calendar: native)
+        XCTAssertEqual(outlook.agenda(), native.state)
+        outlook.requestAccess { XCTAssertNil($0) }
+        XCTAssertEqual(native.requests, 1)
+        native.state = AgendaState(authorized: true, calendars: [])
+        XCTAssertTrue(outlook.agenda().message.contains("Internet Accounts"))
+        native.state = AgendaState()
+        XCTAssertFalse(outlook.agenda().authorized)
+        XCTAssertTrue(outlook.agenda().message.contains("Allow Calendar access"))
     }
 
     private final class CountingCalendar: CalendarIntegrating {

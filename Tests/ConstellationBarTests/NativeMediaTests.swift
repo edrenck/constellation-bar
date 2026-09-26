@@ -49,9 +49,34 @@ final class NativeMediaTests: XCTestCase {
         XCTAssertTrue(state.mediaNeedsAttention)
         XCTAssertFalse(state.hidesNowPlaying(whenIdle: true))
     }
-    func testLegacyProviderTogglesDoNotDisableNativePlayer() {
+    func testMusicFallbackRemainsUsableWhenSystemPlayerFailsAndAvoidsDuplicates() {
+        final class SessionProvider: MediaIntegrating {
+            let id = "appleMusic"
+            func sessions() -> (sessions: [MediaSession], status: String) {
+                ([MediaSession(id: id, providerID: id, playback: .init(title: "Track", artist: "Artist", isPlaying: true, source: "Apple Music"), canSeek: true, canSkip: true)], "Connected")
+            }
+            func perform(session: String, command: PlaybackCommand?, position: Double?) throws {}
+        }
+        let failed = NativeMediaIntegration(runner: Runner(result: CommandResult(timedOut: true)))
+        var state = SystemState()
+        MediaProvider(integrations: [failed, SessionProvider()]).sample(config: .default, into: &state)
+        XCTAssertEqual(state.nowPlaying.source, "Apple Music")
+        XCTAssertEqual(state.mediaSessions.count, 1)
+        XCTAssertTrue(state.mediaSessions[0].canSeek)
+        let native = NativeMediaIntegration(runner: Runner(result: CommandResult(output: #"{"title":"Track","artist":"Artist","source":"Music","rate":1}"#, status: 0)))
+        state = SystemState()
+        MediaProvider(integrations: [native, SessionProvider()]).sample(config: .default, into: &state)
+        XCTAssertEqual(state.mediaSessions.map(\.id), ["appleMusic"])
         var config = BarConfig.default
-        config.providerPreferences.disabled = ["appleMusic", "browser"]
+        config.providerPreferences.disabled = ["appleMusic"]
+        state = SystemState()
+        MediaProvider(integrations: [native, SessionProvider()]).sample(config: config, into: &state)
+        XCTAssertEqual(state.mediaSessions.map(\.id), ["nativeMedia"])
+    }
+
+    func testOtherProviderTogglesDoNotDisableNativePlayer() {
+        var config = BarConfig.default
+        config.providerPreferences.disabled = ["appleMusic", "systemVPN"]
         var state = SystemState()
         let provider = NativeMediaIntegration(runner: Runner(result: CommandResult(output: #"{"title":"Video","source":"Safari","rate":0}"#, status: 0)))
         MediaProvider(integrations: [provider]).sample(config: config, into: &state)

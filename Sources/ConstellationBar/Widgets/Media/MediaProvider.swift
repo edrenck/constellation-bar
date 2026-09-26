@@ -11,6 +11,11 @@ final class MediaProvider: SystemProviding {
             state.mediaSessions += result.sessions
             state.providerStatuses.append(ProviderStatus(id: integration.id, message: result.status, needsAttention: result.sessions.isEmpty && (integration.id == "nativeMedia" && result.status != "Nothing playing on this Mac." || integration.id == "appleMusic" && NSWorkspace.shared.runningApplications.contains { $0.bundleIdentifier == "com.apple.Music" } && result.status != "Nothing playing in Apple Music.")))
         }
+        // Music's public scripting interface supplies richer controls when both
+        // adapters report the same track. Preserve unrelated system players.
+        if let music = state.mediaSessions.first(where: { $0.providerID == "appleMusic" }) {
+            state.mediaSessions.removeAll { $0.providerID == "nativeMedia" && ["Music", "Apple Music", "com.apple.Music"].contains($0.playback.source) && $0.playback.title == music.playback.title && $0.playback.artist == music.playback.artist }
+        }
         state.nowPlaying = state.mediaSessions.first(where: { $0.playback.isPlaying })?.playback ?? state.mediaSessions.first?.playback ?? .empty
     }
 }
@@ -27,6 +32,7 @@ final class AppleMusicIntegration: MediaIntegrating {
         guard Self.authorized() else { return ([], "Allow Apple Music automation to read and control playback.") }
         do {
             let result = try script("""
+            if player state is stopped then return {"stopped"}
             set albumValue to ""
             set shuffleValue to missing value
             set repeatValue to ""

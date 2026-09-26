@@ -1,12 +1,12 @@
 # Interactive widgets and providers
 
-Hover or click a widget to open the same panel. Media (Now Playing), Calendar, VPN, Audio, System and Agent Status use their full panels in both cases; simpler widgets share one inspector. Clicking a hovered widget pins the existing panel without resetting tabs, selections or scrolling. Hover panels stay open while the pointer is inside and dismiss after it leaves. The pin control pins or unpins interactive panels; Close dismisses either mode and Escape dismisses a pinned panel. A pinned panel is not replaced by hovering another item. Enable or disable widgets under Widgets and providers under Connections.
+Hover or click a widget to open the same panel. Media (Now Playing), Calendar, VPN, Audio, System and Agent Status use their full panels in both cases; simpler widgets share one inspector. Clicking a hovered widget pins the existing panel without resetting tabs, selections or scrolling. Hover panels stay open while the pointer is inside and dismiss after it leaves. The pin control pins or unpins interactive panels; Close dismisses either mode and Escape dismisses a pinned panel. A pinned panel is not replaced by hovering another item. Arrange widgets under Widgets. Use a widget’s configure button or the General settings picker for its options and providers. Only widgets with settings appear in that picker; Workspaces includes its source, ordering, visibility and application icons.
 
 ## Initial providers
 
 | Widget | Available implementation |
 | --- | --- |
-| Media | macOS Now Playing · apps and browsers that publish system media metadata |
+| Media | macOS Now Playing, with optional direct Apple Music playback |
 | Calendar | Apple EventKit, including accounts already synced to Calendar on the Mac |
 | VPN | Configured macOS services, Surfshark service recognition, Tailscale CLI |
 | Audio | macOS Core Audio devices |
@@ -16,11 +16,13 @@ A listed adapter can still require local software or permission; it is not a gua
 
 ### Media
 
-Music follows the active macOS Now Playing session, including participating native players and browsers. No browser extension or Apple Music Automation permission is required. Enable **macOS Now Playing** under Connections. The panel displays title, artist, album, playback progress and artwork when supplied by the system, with play/pause and previous/next commands routed to the system player. Audio devices and volume live in the Audio widget.
+Music follows the active macOS Now Playing session, including participating native players and browsers. No browser extension is required. Enable **macOS Now Playing** in Widgets → General settings → Now Playing. **Apple Music** provides a fallback and richer controls after granting Music Automation permission from the widget’s **Allow Apple Music access** button. The panel displays title, artist, album, playback progress and artwork when supplied by the system, with play/pause and previous/next commands routed to the system player. Audio devices and volume live in the Audio widget.
 
-The adapter reads Apple's private MediaRemote interface through a bundled callback helper loaded by the system Perl host, with a bounded timeout. Artwork is cached for the current track while macOS loads it; larger covers are resized to stay within the response limit. Compatibility can change with macOS updates. Apps that do not publish to macOS Now Playing cannot appear here. Artwork may be absent; seeking, shuffle, repeat and Up Next are not exposed by this initial adapter. Read failures remain visible as “Music needs attention”; an empty system session follows the hide-when-idle setting. The legacy browser companion source remains in the repository but is no longer used by the widget.
+The adapter reads Apple's private MediaRemote interface through a bundled callback helper loaded by the system Perl host, with a bounded timeout. Artwork is cached for the current track while macOS loads it; larger covers are resized to stay within the response limit. Compatibility can change with macOS updates. Apps that do not publish to macOS Now Playing cannot appear here. Artwork may be absent; seeking, shuffle, repeat and Up Next are not exposed by this initial adapter. Apple Music supplies seek, shuffle, and repeat controls when supported by its current queue. Duplicate reports of the same Music track are combined. Read failures remain visible as “Music needs attention” when neither enabled provider supplies playback; an empty session follows the hide-when-idle setting.
 
 ### Calendar
+
+Apple Calendar and Outlook both use EventKit. To include Microsoft calendars, add the account under **System Settings → Internet Accounts**, enable Calendars, then select the synced calendars in the widget. Accounts added only in Outlook need to be added to macOS separately. No private Outlook cache or Outlook Automation is used.
 
 The **Allow Calendar access** button requests EventKit full access because macOS requires it to read events. The widget itself is read-only: browse days, select calendars, inspect event details, open Calendar, and follow recognized HTTPS meeting links. It reads the previous week and approximately the next three weeks, refreshing every 15 seconds. Calendar filtering is stored locally in app preferences. No direct Google/Outlook login is requested, and synced calendars are not duplicated through another provider.
 
@@ -48,9 +50,9 @@ CPU, memory and network tabs show live samples and selectable 1-minute, 5-minute
 4. Route supported actions through `WidgetAction` and return failures to the panel.
 5. Test disabled-provider handling, identity, unavailable states and action failures. Reuse the shared panel unless the provider has a concrete extra interaction.
 
-This is a source-level extension interface, not an arbitrary dynamic-code plugin loader. New calendar account adapters should define deduplication against calendars already exposed through EventKit before enabling aggregation. Providers run on the controller's serial sampling/action queue; state snapshots are delivered to the main thread. Browser bridge writes are atomic and local, native messages are bounded, and commands expire and require acknowledgement.
+This is a source-level extension interface, not an arbitrary dynamic-code plugin loader. New calendar account adapters should define deduplication against calendars already exposed through EventKit before enabling aggregation. Providers run on the controller's serial sampling/action queue; state snapshots are delivered to the main thread.
 
-References: [Core Audio output device](https://developer.apple.com/documentation/coreaudio/kaudiohardwarepropertydefaultoutputdevice), [EventKit access](https://developer.apple.com/documentation/eventkit/accessing-the-event-store), [Chrome native messaging](https://developer.chrome.com/docs/extensions/develop/concepts/native-messaging).
+References: [Core Audio output device](https://developer.apple.com/documentation/coreaudio/kaudiohardwarepropertydefaultoutputdevice), [EventKit access](https://developer.apple.com/documentation/eventkit/accessing-the-event-store).
 
 ### Agent Status
 
@@ -72,6 +74,8 @@ The Agent Status panel lists live persisted tasks on this Mac and discovered Cod
 
 Agent Status discovers `codex-managed-remote-connections` in Codex's `.codex-global-state.json` under `CODEX_HOME` (or `~/.codex`). It samples the saved hosts using existing SSH authentication, without starting Codex sessions or installing anything remotely. Each host needs Python 3 and readable Codex metadata under its remote `CODEX_HOME` or `~/.codex`. This uses a versioned private Codex format and remains experimental.
 
-Customize Bar → Connections → **Codex SSH hosts (Experimental)** controls remote polling independently; the main Codex provider must also be enabled. Sampling runs off native provider queues with at most two concurrent connections, a 10-second deadline, 10-second successful refreshes, and 30–120-second failure backoff. An unreachable, unsupported or stale host contributes an unavailable state, never a successful zero. Cached data older than 30 seconds is not counted. Host discovery refreshes every 15 seconds; a metadata read failure is visible.
+Customize Bar → Widgets → General settings → Agent Status → **Codex SSH hosts (Experimental)** controls remote polling independently; the main Codex provider must also be enabled. Sampling runs off native provider queues with at most two concurrent connections, a 10-second deadline, 10-second successful refreshes, and 30–120-second failure backoff. An unreachable, unsupported or stale host contributes an unavailable state, never a successful zero. Cached data older than 30 seconds is not counted. Host discovery refreshes every 15 seconds; a metadata read failure is visible.
 
 The helper reads task names, project directory names and lifecycle status over SSH. It does not read credentials or send conversation bodies. SSH uses batch authentication and strict host-key checks; the bar never asks for a password or accepts a new host key. Connect successfully using your normal SSH setup first. Missing Python or a failed SSH connection is shown in that host's panel. Cloud tasks remain unsupported.
+
+For local provider diagnostics without displaying task titles or playback metadata, run `swift run ConstellationBar --diagnose-providers`. This reports availability, task counts, and provider messages without asking for permissions or probing SSH hosts.

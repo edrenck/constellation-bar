@@ -89,24 +89,28 @@ final class CodexAgentStatusIntegration: AgentStatusIntegrating {
             return result
         }
         do {
-            let locks = try fm.contentsOfDirectory(at: home.appendingPathComponent("thread-writer-locks"), includingPropertiesForKeys: nil)
-                .filter { $0.pathExtension == "lock" && UUID(uuidString: $0.deletingPathExtension().lastPathComponent) != nil }
+            let lockDirectory = home.appendingPathComponent("thread-writer-locks")
+            let lockFiles = fm.fileExists(atPath: lockDirectory.path)
+                ? try fm.contentsOfDirectory(at: lockDirectory, includingPropertiesForKeys: nil) : []
+            let locks = lockFiles.filter { $0.pathExtension == "lock" && UUID(uuidString: $0.deletingPathExtension().lastPathComponent) != nil }
             // Stale files are common. A live writer must hold the lock before a task is counted.
             let held = try locks.filter(lockIsHeld)
             guard held.count <= 256 else { throw StatusReadError.unavailable }
-            let metadata = try AgentStatusDatabase(url: home.appendingPathComponent("state_5.sqlite"))
+            let metadata = try AgentStatusDatabase(url: Self.databaseURL(in: home, prefix: "state", fallback: "state_5.sqlite"))
+            let columns = try metadata.rows("PRAGMA table_info(threads)").compactMap { $0.count > 1 ? $0[1] : nil }
+            let historyColumn = columns.contains("history_mode") ? "history_mode" : "'legacy'"
             var history: AgentStatusDatabase?
             var retainedPaths = Set<String>()
             for lock in held.sorted(by: { $0.lastPathComponent < $1.lastPathComponent }) {
                 let threadID = lock.deletingPathExtension().lastPathComponent
-                let rows = try metadata.rows("SELECT history_mode, rollout_path FROM threads WHERE id = ? AND archived = 0", argument: threadID)
+                let rows = try metadata.rows("SELECT \(historyColumn), rollout_path FROM threads WHERE id = ? AND archived = 0", argument: threadID)
                 // Internal/ephemeral workers have no persisted task record and are outside this adapter's scope.
                 guard let row = rows.first, row.count == 2 else { continue }
                 var activity: AgentTaskActivity = .unknown
                 var statusDetail = "Unrecognized lifecycle format"
                 if row[0] == "paginated" {
                     do {
-                        if history == nil { history = try AgentStatusDatabase(url: home.appendingPathComponent("thread_history_1.sqlite")) }
+                        if history == nil { history = try AgentStatusDatabase(url: Self.databaseURL(in: home, prefix: "thread_history", fallback: "thread_history_1.sqlite")) }
                         let turns = try history?.rows("SELECT status FROM thread_turns WHERE thread_id = ? ORDER BY rollout_ordinal DESC LIMIT 1", argument: threadID)
                         activity = Self.activity(turnStatus: turns?.first?.first)
                         statusDetail = "No recognized turn status yet"
@@ -135,6 +139,16 @@ final class CodexAgentStatusIntegration: AgentStatusIntegrating {
             result.message = (error as? StatusReadError)?.errorDescription ?? "Codex local files could not be read. Check access to the Codex data folder."
         }
         return result
+    }
+    static func databaseURL(in home: URL, prefix: String, fallback: String) -> URL {
+        let files = (try? FileManager.default.contentsOfDirectory(at: home, includingPropertiesForKeys: nil)) ?? []
+        let versioned = files.compactMap { url -> (URL, Int)? in
+            let name = url.deletingPathExtension().lastPathComponent
+            guard url.pathExtension == "sqlite", name.hasPrefix(prefix + "_"),
+                  let version = Int(name.dropFirst(prefix.count + 1)) else { return nil }
+            return (url, version)
+        }
+        return versioned.max { $0.1 < $1.1 }?.0 ?? home.appendingPathComponent(fallback)
     }
     static func activity(turnStatus: String?) -> AgentTaskActivity {
         switch turnStatus {
@@ -227,12 +241,14 @@ private final class AgentStatusDatabase {
         sqlite3_busy_timeout(connection, 100)
     }
     deinit { sqlite3_close(connection) }
-    func rows(_ sql: String, argument: String) throws -> [[String]] {
+    func rows(_ sql: String, argument: String? = nil) throws -> [[String]] {
         var statement: OpaquePointer?
         guard sqlite3_prepare_v2(connection, sql, -1, &statement, nil) == SQLITE_OK else { throw StatusReadError.database(filename, sqlite3_errcode(connection)) }
         defer { sqlite3_finalize(statement) }
         let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
-        guard sqlite3_bind_text(statement, 1, argument, -1, transient) == SQLITE_OK else { throw StatusReadError.unavailable }
+        if let argument {
+            guard sqlite3_bind_text(statement, 1, argument, -1, transient) == SQLITE_OK else { throw StatusReadError.unavailable }
+        }
         var result: [[String]] = []
         while true {
             let status = sqlite3_step(statement)

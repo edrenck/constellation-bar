@@ -132,7 +132,7 @@ enum WidgetCatalog {
     static func rows(for kind: WidgetKind, systemState: SystemState, config: BarConfig) -> [(String, String)] {
         switch kind {
         case .agentStatus:
-            guard !systemState.agents.providers.isEmpty else { return [("Providers", "Disabled in Connections")] }
+            guard !systemState.agents.providers.isEmpty else { return [("Providers", "Disabled in Agent Status settings")] }
             return systemState.agents.providers.flatMap { provider in
                 [(provider.name, provider.available ? "\(provider.activeCount) active · \(provider.idleCount) idle" : "Unavailable"),
                  ("Unknown", "\(provider.unknownCount) tasks"), ("Host", provider.hostName), ("Active includes", "Input / approval waits")]

@@ -51,7 +51,7 @@ cd constellation-bar
 open .build/ConstellationBar.app
 ```
 
-Use `./scripts/build-app.sh --universal` for both architectures. Local development builds are ad-hoc signed. Run `swift test` for the Swift tests; see [Contributing](CONTRIBUTING.md) and [Architecture](docs/ARCHITECTURE.md) for development guidance.
+Use `./scripts/build-app.sh --universal` for both architectures. Local development builds are ad-hoc signed. Development builds through `./scripts/build.sh`, `./scripts/run.sh`, and `./scripts/build-app.sh` automatically run native UI journeys and fail if they do not pass. A logged-in desktop is required. Plain `swift build` only compiles; use `./scripts/verify-ui.sh` to verify it. Run `swift test` for the Swift tests; see [Contributing](CONTRIBUTING.md) and [Architecture](docs/ARCHITECTURE.md) for development guidance.
 
 For immediate AeroSpace updates, merge the [example callbacks](examples/aerospace-callbacks.toml) into your existing AeroSpace configuration. Polling also works without callbacks.
 
@@ -65,22 +65,20 @@ The product website has its own repository: [constellation-bar-website](https://
 
 The configuration window uses a sidebar and applies changes immediately to the native bar.
 
-- **Displays:** shared bar shape and alignment, display selection, and per-display widget zones and overrides.
-- **Widgets:** default visibility and shared options such as date format, music behavior, and weather location.
-- **Appearance:** shared theme, color mode, density, and appearance reset.
-- **Workspaces:** workspace source, AeroSpace path, ordering, and app icons.
-- **Connections:** data providers for widgets.
+- **Layout:** bar shape, alignment, size, and fullscreen behavior for the selected display.
+- **Widgets:** add, hide, and arrange widgets on the selected display. Each configurable widget owns its general settings and providers, including Workspaces.
+- **Appearance:** theme for the selected display, color mode, density, and appearance reset.
 - **Application:** launch at login, refresh interval, and configuration import/export.
 - **Diagnostics:** integration status and configuration file location.
 
-Display overrides take precedence over shared defaults. Use “Reset this display to global settings” to restore inheritance. Undo remains available in the sidebar for configuration edits made during this session.
+The display picker and preview stay consistent across Layout, Widgets, and Appearance. Use “Use shared settings for this display” to restore inheritance. Undo remains available in the sidebar for configuration edits made during this session.
 
-### 0.7 display sizing and local Outlook calendars
+### Display customization and native calendars
 
-In **Layout → Per-display setup**, choose the monitor and set **Bar size**. Automatic retains the built-in display’s physical calibration and gives external displays a readable minimum logical size. For a large 4K monitor viewed farther away, try 125% or 150%. Changes are saved for that display, including when disconnected. Reset restores automatic sizing.
+Customization edits the selected display across **Layout**, **Widgets**, and **Appearance**. The live preview follows that display, including any existing overrides. Widgets are grouped by their actual Left, Center, and Right placement; use the zone menu to show or hide a widget and the arrows to reorder it. **Copy this setup to every display** copies the selected display’s complete setup. Use a widget’s configure button to open its general settings. Widgets without settings, such as Uptime, have no configure button or settings-picker entry. Playback, date, weather, and provider options apply to all displays; Workspaces visibility and application icons use the selected display.
 
-In **Connections → Calendar → Provider**, choose **Apple Calendar** or **Outlook for Mac**. Apple Calendar remains the default. For Outlook, open the Calendar widget and select **Choose Outlook data folder**. Select `~/Library/Group Containers/UBF8T346G9.Office/Outlook`. ConstellationBar stores a read-only, security-scoped folder bookmark; **Connections → Outlook local access → Disconnect Outlook folder** removes it.
+In **Widgets → General settings → Calendar → Provider**, choose **Apple Calendar** or **Outlook via macOS Calendar**. Both use native EventKit access to calendars synced to this Mac. Add your Microsoft account in **System Settings → Internet Accounts** and enable Calendars; accounts configured only in Outlook must also be added to macOS. Choose **Allow Calendar access** and use the widget’s calendar chooser to select which synced calendars appear. Outlook selection opens event details in the Outlook app.
 
-The Outlook provider reads local cached calendar records without Microsoft sign-in, credentials, event edits, or calendar-server requests. Outlook itself handles synchronization. Keep Outlook up to date and open it to refresh its cache. The bar rereads the cache approximately every 15 seconds, showing the past week and next three weeks. Choose which calendars appear using the calendar panel’s gear button. **Open in Outlook** opens the local app.
+The calendar widget reads events without editing them, including recurring occurrences, locations, attendees, and recognized meeting links. Both calendar provider choices use native macOS Calendar access.
 
-The cache adapter is verified with Outlook 16.112.4 and its Gmail calendars. It follows the checksummed active storage directory, excluding abandoned versions and deleted records. Cached recurring occurrences retain their individual dates. Only the supported Nostromo-i calendar schema is decoded; an incompatible or changing cache displays a status message instead of guessing. The current adapter displays titles, calendar names, times, and all-day events; locations, attendees, and meeting links are not yet decoded from this cache. A legacy Automation fallback remains available when that interface already exposes calendar events.
+Music uses macOS Now Playing with an optional Apple Music Automation fallback. If the system player is unavailable, open the Music widget and choose **Allow Apple Music access**. This grants the macOS Automation permission for Music playback and controls.

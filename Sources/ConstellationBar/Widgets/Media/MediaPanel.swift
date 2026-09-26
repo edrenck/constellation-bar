@@ -15,7 +15,11 @@ extension MiniAppPanel {
             let glyph = PanelGlyph(); glyph.image = NSImage(systemSymbolName: "music.note", accessibilityDescription: nil); glyph.color = config.theme.muted; glyph.tile = config.theme.surface
             add(row([NSView(), glyph, NSView()]), width: bodyWidth, height: 80); glyph.widthAnchor.constraint(equalToConstant: 80).isActive = true
             label(state.mediaNeedsAttention ? "Music needs attention" : "Nothing playing", size: 23)
-            for provider in state.providerStatuses where provider.id == "nativeMedia" { label(provider.message, muted: true) }
+            for provider in state.providerStatuses where ["nativeMedia", "appleMusic"].contains(provider.id) { label(provider.message, muted: true) }
+            if config.providerPreferences.includes("appleMusic") {
+                add(button("Allow Apple Music access…") { [weak self] in self?.perform(.authorizeMusic) }, width: bodyWidth, height: 34)
+                add(button("Open Music") { [weak self] in self?.openApp("com.apple.Music") }, width: bodyWidth, height: 30)
+            }
             label("Start playback in any app that appears in macOS Now Playing.", muted: true)
             return
         }
@@ -66,10 +70,6 @@ extension MiniAppPanel {
     @objc func mediaSourceChanged(_ sender: NSPopUpButton) {
         guard state.mediaSessions.indices.contains(sender.indexOfSelectedItem) else { return }
         selectedSession = state.mediaSessions[sender.indexOfSelectedItem].id; rebuild()
-    }
-    func openBrowserGuide() {
-        if let url = Bundle.main.url(forResource: "BrowserMedia-README", withExtension: "md") { NSWorkspace.shared.open(url) }
-        else { status.stringValue = "See extensions/browser-media/README.md in the project." }
     }
 
 }

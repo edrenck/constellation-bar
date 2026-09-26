@@ -4,7 +4,7 @@ import AppKit
 extension ConfigurationWindowController {
     func buildAppearanceSettings(in stack: NSStackView) {
         configureAppearanceControls()
-        resetAppearanceButton.title = "Reset shared appearance"
+        resetAppearanceButton.title = "Reset appearance"
         resetAppearanceButton.target = self
         resetAppearanceButton.action = #selector(resetAppearance)
         let gallery = NSStackView()
@@ -21,7 +21,7 @@ extension ConfigurationWindowController {
         gallery.heightAnchor.constraint(equalToConstant: 100).isActive = true
         appearanceDetail.font = .systemFont(ofSize: 12)
         appearanceDetail.textColor = .secondaryLabelColor
-        stack.addArrangedSubview(makeSection(title: "Default appearance", rows: [
+        stack.addArrangedSubview(makeSection(title: "Bar appearance", rows: [
             gallery, appearanceDetail,
             formRow("Native mode", modePopup),
             formRow("Cove Rail", coveBorderButton),

@@ -5,9 +5,9 @@ extension ConfigurationWindowController {
     func buildApplicationSettings(in stack: NSStackView) {
         configureApplicationControls()
         fullscreenButton.target = self; fullscreenButton.action = #selector(applicationOptionChanged)
-        localSpacesButton.target = self; localSpacesButton.action = #selector(applicationOptionChanged)
         stack.addArrangedSubview(makeSection(title: "Application", rows: [
             formRow("Startup", launchAtLoginButton),
+            formRow("Show bars on", displayPopup),
             formRow("System refresh", refreshPopup)
         ]))
 

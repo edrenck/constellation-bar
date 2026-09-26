@@ -11,8 +11,8 @@ extension MiniAppPanel {
         guard state.agenda.authorized else {
             label("Your day, at a glance", size: 28); label(state.agenda.message, muted: true)
             let provider = config.providerPreferences.calendarProvider
-            if config.providerPreferences.includes(provider.rawValue) { add(button(provider == .outlook ? "Choose Outlook data folder" : "Allow Calendar access") { [weak self] in self?.perform(.authorizeCalendar) }, width: bodyWidth, height: 34) }
-            label(provider == .outlook ? "Read-only local access. Open Outlook to keep its cached events up to date." : "Includes calendars already synced to this Mac.", size: 11, muted: true); return
+            if config.providerPreferences.includes(provider.rawValue) { add(button("Allow Calendar access") { [weak self] in self?.perform(.authorizeCalendar) }, width: bodyWidth, height: 34) }
+            label("Includes calendars synced through macOS Internet Accounts. Events are never edited.", size: 11, muted: true); return
         }
         if !state.agenda.message.isEmpty { label(state.agenda.message, size: 11, muted: true) }
         if calendarChooser {

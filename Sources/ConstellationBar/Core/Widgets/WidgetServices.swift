@@ -4,9 +4,13 @@ import AppKit
 final class WidgetServices {
     static let shared = WidgetServices()
     let calendar = AppleCalendarIntegration()
-    let outlook = OutlookCalendarIntegration()
+    let outlook: OutlookCalendarIntegration
     let audio = AudioProvider()
-    let media: [MediaIntegrating] = [NativeMediaIntegration()]
+    let media: [MediaIntegrating] = [NativeMediaIntegration(), AppleMusicIntegration()]
+    init() {
+        outlook = OutlookCalendarIntegration(calendar: calendar)
+    }
+
     func perform(_ action: WidgetAction) throws {
         switch action {
         case let .playback(session, command): try mediaProvider(session).perform(session: session, command: command, position: nil)
@@ -21,8 +25,7 @@ final class WidgetServices {
         }
     }
     private func mediaProvider(_ session: String) throws -> MediaIntegrating {
-        let id = session.hasPrefix("browser:") ? "browser" : session
-        guard let provider = media.first(where: { $0.id == id }) else { throw WidgetActionError(message: "This media provider is unavailable.") }
+        guard let provider = media.first(where: { $0.id == session }) else { throw WidgetActionError(message: "This media provider is unavailable.") }
         return provider
     }
 }

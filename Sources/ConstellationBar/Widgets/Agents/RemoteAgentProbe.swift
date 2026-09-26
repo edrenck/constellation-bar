@@ -17,6 +17,10 @@ def activity(value):
 def database(path):
     return sqlite3.connect(path.as_uri() + '?mode=ro', uri=True, timeout=0.1)
 
+def versioned(home, prefix, fallback):
+    candidates = [(int(p.stem[len(prefix)+1:]), p) for p in home.glob(prefix + '_*.sqlite') if p.stem[len(prefix)+1:].isdigit()]
+    return max(candidates)[1] if candidates else home / fallback
+
 def legacy(path):
     # Inspect only a bounded tail, accepting complete lifecycle lines only.
     fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK | os.O_NOFOLLOW)
@@ -52,17 +56,17 @@ def sample(home):
                 if not stat.S_ISREG(os.fstat(stream.fileno()).st_mode): continue
                 try: fcntl.flock(stream, fcntl.LOCK_SH | fcntl.LOCK_NB)
                 except BlockingIOError: locks.append(path.stem)
-        if not (home / 'thread-writer-locks').is_dir():
-            raise ValueError('Codex writer-lock directory is missing')
         if len(locks) > 256: raise ValueError('Too many live tasks to sample safely')
-        with database(home / 'state_5.sqlite') as metadata:
+        with database(versioned(home, 'state', 'state_5.sqlite')) as metadata:
+            columns = {row[1] for row in metadata.execute('PRAGMA table_info(threads)')}
+            history_column = 'history_mode' if 'history_mode' in columns else "'legacy'"
             for task_id in sorted(locks):
-                row = metadata.execute('SELECT history_mode, rollout_path FROM threads WHERE id = ? AND archived = 0', (task_id,)).fetchone()
+                row = metadata.execute('SELECT ' + history_column + ', rollout_path FROM threads WHERE id = ? AND archived = 0', (task_id,)).fetchone()
                 if row is None: continue
                 status, detail = 'unknown', 'No recognized turn status yet'
                 try:
                     if row[0] == 'paginated':
-                        with database(home / 'thread_history_1.sqlite') as history:
+                        with database(versioned(home, 'thread_history', 'thread_history_1.sqlite')) as history:
                             turn = history.execute('SELECT status FROM thread_turns WHERE thread_id = ? ORDER BY rollout_ordinal DESC LIMIT 1', (task_id,)).fetchone()
                             status = activity(turn[0] if turn else None)
                     elif row[0] == 'legacy': status = legacy(row[1])

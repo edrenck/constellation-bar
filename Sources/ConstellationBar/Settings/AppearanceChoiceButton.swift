@@ -1,6 +1,6 @@
 import AppKit
 
-/// Native, keyboard-accessible style swatches for the shared appearance.
+/// Native, keyboard-accessible style swatches for the selected display’s appearance.
 final class AppearanceChoiceButton: NSButton {
     let choice: BarAppearance
     var mode = "system"

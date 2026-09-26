@@ -23,4 +23,9 @@ struct AgendaState: Equatable {
 protocol CalendarIntegrating: AnyObject {
     var id: String { get }
     func agenda() -> AgendaState
+    func requestAccess(completion: @escaping (String?) -> Void)
+}
+
+extension CalendarIntegrating {
+    func requestAccess(completion: @escaping (String?) -> Void) { completion("Calendar access is unavailable for this provider.") }
 }

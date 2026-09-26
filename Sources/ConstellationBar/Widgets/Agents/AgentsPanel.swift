@@ -15,7 +15,7 @@ extension MiniAppPanel {
         let title = label(summary, size: 22)
         title.textColor = agents.activeCount > 0 ? config.theme.green : config.theme.foreground
         if agents.providers.isEmpty {
-            label("Enable an agent provider in Customize Bar → Connections.", muted: true)
+            label("Enable an agent provider in Customize Bar → Widgets → Agent Status.", muted: true)
         } else {
             label("Active includes working and waiting for input or approval.", size: 11, muted: true)
         }

@@ -4,7 +4,7 @@ import AppKit
 
 enum CalendarProviderChoice: String, Codable, CaseIterable {
     case appleCalendar, outlook
-    var title: String { self == .appleCalendar ? "Apple Calendar" : "Outlook for Mac" }
+    var title: String { self == .appleCalendar ? "Apple Calendar" : "Outlook via macOS Calendar" }
 }
 
 struct ProviderPreferences: Codable, Equatable {

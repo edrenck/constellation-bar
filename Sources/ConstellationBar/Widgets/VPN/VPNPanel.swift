@@ -7,7 +7,7 @@ extension MiniAppPanel {
         let active = state.vpn.connections.filter(\.connected).count
         label("\(active) active connection\(active == 1 ? "" : "s")", size: 13, muted: true)
         if selectedVPN.isEmpty { selectedVPN = state.vpn.connections.first(where: { !$0.peers.isEmpty })?.id ?? state.vpn.connections.first(where: \.connected)?.id ?? "" }
-        if state.vpn.connections.isEmpty { label("No VPN services found. Check provider setup in Connections.", muted: true) }
+        if state.vpn.connections.isEmpty { label("No VPN services found. Check providers in Customize Bar → Widgets → VPN.", muted: true) }
         for connection in state.vpn.connections {
             let expanded = connection.id == selectedVPN
             let card = PanelCard(width: bodyWidth, theme: config.theme, selected: expanded && connection.connected)

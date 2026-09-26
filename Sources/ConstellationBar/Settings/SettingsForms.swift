@@ -1,28 +1,6 @@
 import AppKit
 
 extension ConfigurationWindowController {
-    func widgetRows() -> [[NSView]] {
-        let kinds = WidgetKind.selectableCases
-        var rows: [[NSView]] = []
-        for start in stride(from: 0, to: kinds.count, by: 3) {
-            var row: [NSView] = []
-            for offset in 0..<3 {
-                let index = start + offset
-                if index < kinds.count {
-                    let kind = kinds[index]
-                    let button = NSButton(checkboxWithTitle: kind.menuTitle, target: self, action: #selector(widgetVisibilityChanged(_:)))
-                    button.identifier = NSUserInterfaceItemIdentifier(kind.rawValue)
-                    widgetButtons[kind] = button
-                    row.append(button)
-                } else {
-                    row.append(NSView())
-                }
-            }
-            rows.append(row)
-        }
-        return rows
-    }
-
     func makeSection(title: String, rows: [NSView]) -> NSView {
         let container = NSView()
         container.wantsLayer = true

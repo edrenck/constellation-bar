@@ -1,31 +1,35 @@
 import AppKit
 
-/// Builds the widgets section.
 extension ConfigurationWindowController {
     func buildWidgetsSettings(in stack: NSStackView) {
-        let widgetGrid = NSGridView(views: widgetRows())
-        widgetGrid.rowSpacing = 8
-        widgetGrid.columnSpacing = 20
-        widgetGrid.xPlacement = .fill
-        stack.addArrangedSubview(makeSection(title: "Default visible widgets", rows: [widgetGrid]))
-
+        stack.addArrangedSubview(makeSection(title: "Widget arrangement", rows: [widgetEditor]))
         configureWidgetOptionControls()
-        modulePopup.addItems(withTitles: WidgetKind.selectableCases.map(\.menuTitle))
-        modulePopup.target = self; modulePopup.action = #selector(selectModule)
-        moduleRows = [
-            ([.agentStatus], formRow("Monitoring", NSTextField(wrappingLabelWithString: "Codex tasks on this Mac. Active includes waiting for input or approval. Providers can be enabled in Connections."))),
-            ([.system], formRow("Metrics", NSTextField(labelWithString: "CPU, memory and network history in one panel."))),
-            ([.dateTime], formRow("Date & time", datePopup)),
-            ([.nowPlaying], formRow("Artist", artistButton)),
-            ([.nowPlaying], formRow("When idle", hideIdlePlayerButton)),
-            ([.weather], formRow("Location", weatherLocationButton)),
-            ([.weather], formRow("Location label", weatherLocationField)),
-            ([.weather], coordinateRow()),
-            ([.weather], formRow("Temperature", weatherUnitPopup)),
-            ([.weather], NSTextField(wrappingLabelWithString: "Weather uses Open-Meteo and refreshes every 10 minutes. Enter latitude and longitude for your location."))
-        ]
-        stack.addArrangedSubview(makeSection(title: "Widget Options", rows: [formRow("Configure", modulePopup)] + moduleRows.map { $0.1 } + [noModuleOptions]))
-        selectModule()
 
+        moduleRows = workspaceSettingsRows().map { (.workspaces, $0) }
+        moduleRows += [
+            (.widget(.dateTime), formRow("Date & time", datePopup)),
+            (.widget(.nowPlaying), formRow("Artist", artistButton)),
+            (.widget(.nowPlaying), formRow("When idle", hideIdlePlayerButton)),
+            (.widget(.nowPlaying), NSButton(title: "Allow Apple Music access…", target: self, action: #selector(allowMusicAccess))),
+            (.widget(.nowPlaying), NSTextField(wrappingLabelWithString: "Music uses macOS Now Playing, with Apple Music Automation for additional playback controls.")),
+            (.widget(.weather), formRow("Location", weatherLocationButton)),
+            (.widget(.weather), formRow("Location label", weatherLocationField)),
+            (.widget(.weather), coordinateRow()),
+            (.widget(.weather), formRow("Temperature", weatherUnitPopup)),
+            (.widget(.weather), NSTextField(wrappingLabelWithString: "Weather uses Open-Meteo and refreshes every 10 minutes. Enter latitude and longitude for your location.")),
+            (.widget(.agentStatus), NSTextField(wrappingLabelWithString: "Codex tasks on this Mac and saved SSH hosts. Active includes waiting for input or approval."))
+        ]
+        moduleRows += calendarSettingsRows().map { (.widget(.calendar), $0) }
+        for kind in WidgetKind.selectableCases {
+            moduleRows += providerSettingsRows(for: kind).map { (.widget(kind), $0) }
+        }
+        modulePopup.addItems(withTitles: configurableItems.map(\.title))
+        modulePopup.target = self; modulePopup.action = #selector(selectModule)
+        widgetEditor.configurableItems = Set(configurableItems)
+        widgetEditor.onConfigure = { [weak self] item in self?.selectWidgetOptions(item) }
+        let options = makeSection(title: "General settings", rows: [formRow("Configure", modulePopup), widgetScopeNote] + moduleRows.map { $0.1 })
+        widgetOptionsSection = options
+        stack.addArrangedSubview(options)
+        selectModule()
     }
 }

@@ -31,8 +31,8 @@ jobs:
           test "$(git rev-parse HEAD)" = "$(git rev-parse "refs/tags/$RELEASE_TAG^{commit}")"
           test -z "$(git status --porcelain)"
       - run: python3 scripts/tests/test_release.py
+      - run: python3 scripts/tests/test_build_gates.py
       - run: swift test
-      - run: node --test extensions/browser-media/content.test.cjs
       - name: Import distribution credentials
         env:
           CERTIFICATE_BASE64: ${{ secrets.DEVELOPER_ID_P12_BASE64 }}
@@ -72,6 +72,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "$RELEASE_TAG" ".build/distribution/ConstellationBar-$(cat VERSION)-universal.zip" .build/distribution/SHA256SUMS --verify-tag --draft --prerelease --title "ConstellationBar $RELEASE_TAG Alpha" --notes 'Developer ID signed, notarized and stapled universal build. Record tested OS and hardware coverage in release notes before publishing.'
+      - name: Retain native UI journey logs and snapshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-journeys
+          path: .build/ui-journeys/
+          if-no-files-found: ignore
       - name: Retain notarization diagnostics
         if: always()
         uses: actions/upload-artifact@v4

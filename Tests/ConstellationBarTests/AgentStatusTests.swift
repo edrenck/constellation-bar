@@ -56,6 +56,29 @@ final class AgentStatusTests: XCTestCase {
         XCTAssertTrue(snapshot.tasks.isEmpty, "Never retain a stale active count after a failed read")
         XCTAssertFalse(FileManager.default.fileExists(atPath: home.appendingPathComponent("state_5.sqlite").path), "Read-only open must not recreate missing databases")
     }
+    func testVersionedDatabasesAndLegacySchemaWithoutHistoryColumn() throws {
+        let home = try fixture()
+        _ = try lockFile(home, activeID)
+        try database(home, "state_6.sqlite", sql: "CREATE TABLE threads(id TEXT, history_mode TEXT, rollout_path TEXT, archived INT); INSERT INTO threads VALUES ('\(activeID)', 'paginated', '', 0)")
+        try database(home, "thread_history_2.sqlite", sql: "CREATE TABLE thread_turns(thread_id TEXT, status TEXT, rollout_ordinal INT); INSERT INTO thread_turns VALUES ('\(activeID)', 'inProgress', 1)")
+        let integration = CodexAgentStatusIntegration(home: home, lockIsHeld: { _ in true })
+        XCTAssertTrue(integration.snapshot().available)
+        XCTAssertEqual(integration.snapshot().activeCount, 1)
+        let rollout = home.appendingPathComponent("rollout.jsonl")
+        try Data("{\"type\":\"event_msg\",\"payload\":{\"type\":\"task_started\"}}\n".utf8).write(to: rollout)
+        try database(home, "state_6.sqlite", sql: "ALTER TABLE threads DROP COLUMN history_mode; UPDATE threads SET rollout_path = '\(rollout.path)'")
+        XCTAssertEqual(integration.snapshot().activeCount, 1)
+        XCTAssertTrue(integration.snapshot().available)
+    }
+    func testFreshCodexInstallWithoutWriterDirectoryIsReadableAndIdle() throws {
+        let home = try fixture()
+        try FileManager.default.removeItem(at: home.appendingPathComponent("thread-writer-locks"))
+        try database(home, "state_5.sqlite", sql: "CREATE TABLE threads(id TEXT, rollout_path TEXT, archived INT)")
+        let snapshot = CodexAgentStatusIntegration(home: home).snapshot()
+        XCTAssertTrue(snapshot.available)
+        XCTAssertTrue(snapshot.tasks.isEmpty)
+    }
+
     func testTaskNamesProjectsAndLiveRenamesUseOptionalMetadata() throws {
         let home = try fixture()
         _ = try lockFile(home, activeID)

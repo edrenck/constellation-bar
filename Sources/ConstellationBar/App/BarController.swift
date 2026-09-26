@@ -211,7 +211,7 @@ extension BarController: BarInteractionDelegate {
     func performWidgetAction(_ action: WidgetAction, completion: @escaping (String?) -> Void) {
         if case .authorizeCalendar = action {
             let selected = config.providerPreferences.calendarProvider
-            guard config.providerPreferences.includes(selected.rawValue) else { completion("Enable the calendar provider in Connections first."); return }
+            guard config.providerPreferences.includes(selected.rawValue) else { completion("Enable the provider in Customize Bar → Widgets → Calendar first."); return }
             let done: (String?) -> Void = { [weak self] error in completion(error); self?.sampleSystem() }
             if selected == .outlook { WidgetServices.shared.outlook.requestAccess(completion: done) }
             else { WidgetServices.shared.calendar.requestAccess(completion: done) }

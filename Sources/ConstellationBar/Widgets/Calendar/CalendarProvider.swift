@@ -46,7 +46,7 @@ final class CalendarProvider: SystemProviding {
     func sample(config: BarConfig, into state: inout SystemState) {
         let selected = config.providerPreferences.calendarProvider
         guard config.providerPreferences.includes(selected.rawValue) else {
-            state.agenda = AgendaState(message: "\(selected.title) is disabled in Connections."); return
+            state.agenda = AgendaState(message: "\(selected.title) is disabled in Widgets → Calendar settings."); return
         }
         state.agenda = integrations.first { $0.id == selected.rawValue }?.agenda()
             ?? AgendaState(message: "The selected calendar provider is unavailable.")

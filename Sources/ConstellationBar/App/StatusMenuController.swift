@@ -44,39 +44,8 @@ final class StatusMenuController: NSObject {
         menu.addItem(launchAtLogin)
         menu.addItem(.separator())
 
-        let appearance = NSMenuItem(title: "Appearance", action: nil, keyEquivalent: "")
-        let appearanceMenu = NSMenu()
-        for choice in BarAppearance.allCases {
-            appearanceMenu.addItem(actionItem(choice.title, action: #selector(selectAppearance(_:)), representedObject: choice, state: config.appearance == choice))
-        }
-        appearanceMenu.addItem(.separator())
-        for (title, mode, action) in [("Follow System", "system", #selector(useSystemTheme)), ("Light", "light", #selector(useLightTheme)), ("Dark", "dark", #selector(useDarkTheme))] {
-            let item = actionItem(title, action: action, state: config.themeMode == mode)
-            item.isEnabled = config.appearance.isNative
-            appearanceMenu.addItem(item)
-        }
-        appearance.submenu = appearanceMenu
-        menu.addItem(appearance)
-
-        let widgets = NSMenuItem(title: "Widgets", action: nil, keyEquivalent: "")
-        let widgetsMenu = NSMenu()
-        for kind in WidgetKind.selectableCases {
-            let item = actionItem(kind.menuTitle, action: #selector(toggleWidget(_:)), representedObject: kind,
-                                  state: config.widgetLayout.allWidgetKinds.contains { $0.canonical == kind })
-            item.image = NSImage(systemSymbolName: kind.symbolName, accessibilityDescription: nil)
-            widgetsMenu.addItem(item)
-        }
-        widgetsMenu.addItem(.separator())
-        let presets = NSMenuItem(title: "Presets", action: nil, keyEquivalent: "")
-        let presetsMenu = NSMenu()
-        presetsMenu.addItem(actionItem("Essentials", action: #selector(essentialsWidgetPreset)))
-        presetsMenu.addItem(actionItem("Minimal", action: #selector(minimalWidgetPreset)))
-        presetsMenu.addItem(actionItem("Daily", action: #selector(dailyWidgetPreset)))
-        presetsMenu.addItem(actionItem("Performance", action: #selector(performanceWidgetPreset)))
-        presets.submenu = presetsMenu
-        widgetsMenu.addItem(presets)
-        widgets.submenu = widgetsMenu
-        menu.addItem(widgets)
+        menu.addItem(actionItem("Widgets…", action: #selector(openWidgetSettings)))
+        menu.addItem(actionItem("Appearance…", action: #selector(openAppearanceSettings)))
 
         menu.addItem(.separator())
         let settings = NSMenuItem(title: "Configuration", action: nil, keyEquivalent: "")
@@ -106,13 +75,6 @@ final class StatusMenuController: NSObject {
         item.representedObject = representedObject
         item.state = state ? .on : .off
         return item
-    }
-
-    private func apply(_ update: (inout BarConfig) -> Void) {
-        update(&config)
-        persistConfig()
-        onChange(config)
-        rebuildMenu()
     }
 
     private func replaceConfig(_ updated: BarConfig) {
@@ -152,22 +114,8 @@ final class StatusMenuController: NSObject {
         alert.runModal()
     }
 
-    @objc private func useSystemTheme() { apply { $0.themeMode = "system" } }
-    @objc private func useDarkTheme() { apply { $0.themeMode = "dark" } }
-    @objc private func useLightTheme() { apply { $0.themeMode = "light" } }
-    @objc private func selectAppearance(_ sender: NSMenuItem) {
-        guard let choice = sender.representedObject as? BarAppearance else { return }
-        apply { $0.appearance = choice }
-    }
-    @objc private func essentialsWidgetPreset() { apply { $0.setGlobalWidgets([.battery, .vpn, .network, .dateTime, .system]) } }
-    @objc private func minimalWidgetPreset() { apply { $0.setGlobalWidgets([.vpn, .network, .dateTime]) } }
-    @objc private func dailyWidgetPreset() { apply { $0.setGlobalWidgets([.weather, .nowPlaying, .dateTime, .battery]) } }
-    @objc private func performanceWidgetPreset() { apply { $0.setGlobalWidgets([.network, .system, .thermal, .disk]) } }
-
-    @objc private func toggleWidget(_ sender: NSMenuItem) {
-        guard let kind = sender.representedObject as? WidgetKind else { return }
-        apply { $0.toggleGlobalWidget(kind) }
-    }
+    @objc private func openWidgetSettings() { showConfiguration(); configurationWindow.selectSection(1) }
+    @objc private func openAppearanceSettings() { showConfiguration(); configurationWindow.selectSection(2) }
 
     @objc private func openConfigFile() {
         let url = ConfigFile.prepareWritableURL()

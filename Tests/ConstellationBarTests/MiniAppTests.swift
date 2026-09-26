@@ -29,41 +29,21 @@ final class MiniAppTests: XCTestCase {
             init(_ id: String) { self.id = id }
             func sessions() -> (sessions: [MediaSession], status: String) {
                 calls += 1
-                return ([MediaSession(id: id, providerID: id, playback: NowPlayingState(title: id, artist: "", isPlaying: id == "browser", source: id))], "Connected")
+                return ([MediaSession(id: id, providerID: id, playback: NowPlayingState(title: id, artist: "", isPlaying: id == "nativeMedia", source: id))], "Connected")
             }
             func perform(session: String, command: PlaybackCommand?, position: Double?) throws {}
         }
-        let music = Fake("appleMusic"), browser = Fake("browser")
-        let provider = MediaProvider(integrations: [music, browser])
+        let music = Fake("appleMusic"), native = Fake("nativeMedia")
+        let provider = MediaProvider(integrations: [music, native])
         var config = BarConfig.default, state = SystemState()
         provider.sample(config: config, into: &state)
         XCTAssertEqual(state.mediaSessions.count, 2)
-        XCTAssertEqual(state.nowPlaying.source, "browser")
+        XCTAssertEqual(state.nowPlaying.source, "nativeMedia")
         config.providerPreferences.disabled = ["appleMusic"]
         state = SystemState(); provider.sample(config: config, into: &state)
         XCTAssertEqual(music.calls, 1)
-        XCTAssertEqual(state.mediaSessions.map(\.providerID), ["browser"])
+        XCTAssertEqual(state.mediaSessions.map(\.providerID), ["nativeMedia"])
         XCTAssertNotNil(IntegrationCatalog.all.first { $0.id == "nativeMedia" })
-    }
-    func testBrowserBridgeValidatesPathsExpiresCommandsAndAcknowledges() throws {
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-        defer { try? FileManager.default.removeItem(at: directory) }
-        var snapshot = BrowserSnapshot(id: "test-123", title: "Sample", playing: true, position: 2, duration: 30, canSeek: true, timestamp: 0)
-        XCTAssertNil(try BrowserBridge.exchange(snapshot, at: directory))
-        let file = directory.appendingPathComponent("test-123-command.json")
-        var command = BrowserCommand(action: "playPause")
-        try BrowserBridge.write(command, to: file)
-        XCTAssertEqual(try BrowserBridge.exchange(snapshot, at: directory)?.id, command.id)
-        snapshot.acknowledged = command.id
-        XCTAssertNil(try BrowserBridge.exchange(snapshot, at: directory))
-        XCTAssertFalse(FileManager.default.fileExists(atPath: file.path))
-        command = BrowserCommand(action: "seek", position: 10, timestamp: Date().timeIntervalSince1970 - 20)
-        try BrowserBridge.write(command, to: file)
-        XCTAssertNil(try BrowserBridge.exchange(snapshot, at: directory))
-        snapshot.id = "../../escape"
-        XCTAssertThrowsError(try BrowserBridge.exchange(snapshot, at: directory))
-        snapshot.id = "safe"; snapshot.position = .infinity
-        XCTAssertFalse(snapshot.valid)
     }
     func testCalendarMeetingLinksRejectDeceptiveHostsAndNonWebSchemes() {
         XCTAssertNil(AppleCalendarIntegration.meetingURL(URL(string: "https://zoom.us.attacker.example/meeting"), text: ""))
@@ -84,7 +64,7 @@ final class MiniAppTests: XCTestCase {
     }
     func testProviderConfigurationRoundTripsAndDefaultsPreserveOldFiles() throws {
         var config = try BarConfig.decode(Data("{\"schemaVersion\":3,\"providerPreferences\":{}}".utf8))
-        XCTAssertTrue(config.providerPreferences.includes("browser"))
+        XCTAssertTrue(config.providerPreferences.includes("nativeMedia"))
         config.providerPreferences.disabled = ["appleMusic"]
         config.rightWidgets = [.system, .audio, .calendar]
         let decoded = try BarConfig.decode(config.encoded())

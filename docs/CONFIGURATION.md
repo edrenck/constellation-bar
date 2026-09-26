@@ -46,16 +46,16 @@ Example with aliases and a display override:
 }
 ```
 
-Use the Application tab to choose per-display layouts. Display UUIDs are included in exported configuration after making a display override and appear in the row's tooltip. UUIDs are preferable to monitor names, which may repeat. Per-display widget lists can be edited in JSON; sampling includes modules enabled by these overrides. Dragging the running bar changes the global module order; use JSON to reorder a display-specific widget list.
+Use the display picker in customization to choose a connected display or a saved disconnected display. Layout, Widgets, and Appearance all edit that display’s bar, and the live preview follows its effective settings. Add widgets with **Add widget…**, assign their Left/Center/Right area, and reorder them with the arrows. Copy the complete setup to every connected display from Layout. Optional values still inherit shared defaults in JSON; editing a display writes only the changed override fields. Provider, playback, date, weather, and application options are shared across displays.
 
 The compatibility keys `surfsharkDisplayName` and `tailwindDisplayName` retain older personalized labels; VPN state itself is now provider-neutral. Legacy `style`, `colorScheme`, `theme`, `cornerRadius`, and effect controls are ignored on import and omitted on export. Layouts, widgets, names, providers and display overrides are preserved. Older files start with Native Glass; choose any of the five styles in Appearance.
 
-Fullscreen detection uses public window geometry. It distinguishes a maximized window from a screen-covering window, but a borderless application covering the entire display may also trigger hiding. Disable hiding on that display if necessary. Bars split into the safe regions on either side of a notch. A 100 ms dwell within the top two points makes room for the system menu bar, with pointer events passed through at that edge. The bar stays displaced while the menu is visible or the pointer remains within its region, then eases back after a short delay. Workspace selection uses a 160 ms slide; keyboard callbacks query focus separately from full window enumeration. Bar clicks provide immediate selection feedback and reconcile with the provider. The active application icon/title crossfade on changes. These transitions respect macOS Reduce Motion.
+Fullscreen detection uses public window geometry. It distinguishes a maximized window from a screen-covering window, but a borderless application covering the entire display may also trigger hiding. Disable hiding on that display if necessary. Bars stay attached to the physical top edge while the macOS menu is hidden and split into the safe regions on either side of a notch. Revealing the menu temporarily moves the bar below it; hiding it returns the bar to the top edge after a short grace period. Pointer events pass through at the top edge so macOS can reveal its menu bar when configured to auto-hide. Workspace selection uses a 160 ms slide; keyboard callbacks query focus separately from full window enumeration. Bar clicks provide immediate selection feedback and reconcile with the provider. The active application icon/title crossfade on changes. These transitions respect macOS Reduce Motion.
 
 
 ## Appearance materials
 
-Cove uses a sculpted black Rail with concave shoulders, continuous opaque surfaces, and an ivory workspace selection. In Islands and Compact it uses separated black surfaces. Interactive content always avoids the camera cutout; Cove's black Rail backdrop can visually join the notch. When the system menu bar is visible or topInset is nonzero, the bar occupies its configured position below the top edge.
+Cove uses a sculpted black Rail with concave shoulders, continuous opaque surfaces, and an ivory workspace selection. In Islands and Compact it uses separated black surfaces. Interactive content always avoids the camera cutout; Cove's black Rail backdrop can visually join the notch. A nonzero topInset moves the bar below the top edge.
 
 Typeset uses graphite, monospaced typography and a bracketed selected workspace. Porcelain uses warm ivory, espresso text, and serif metric readouts. Their fixed palettes are intentional.
 
@@ -65,23 +65,23 @@ CPU and memory inspectors show a prominent metric plus actual sampled history, u
 
 ### Cove screen border and centered placement
 
-Set `visualPreferences.coveScreenBorder` to `true` to make Cove Rail cover the full display width, with concave corners extending 20 points down each side. The option defaults to off and is retained but inactive in other appearances and layouts. Side margin still controls content inset. Bar height controls the content band; the decorative corners add 20 points below it. Menu-bar clearance and top inset still apply.
+Set `visualPreferences.coveScreenBorder` to `true` to make Cove Rail cover the full display width, with concave corners extending 20 points down each side. The option defaults to off and is retained but inactive in other appearances and layouts. Side margin still controls content inset. Bar height controls the content band; the decorative corners add 20 points below it. Top inset still applies.
 
-Set `widgetPlacement` to `"centered"` to gather workspaces, the focused window, and status widgets in the middle in any appearance or layout. When the bar intersects the camera region, the two groups sit beside its safe area. Existing overflow behavior still applies. These options are available in Appearance → Cove Rail and Layout → Placement.
+Set `widgetPlacement` to `"centered"` to gather workspaces, the focused window, and status widgets in the middle in any appearance or layout. When the bar intersects the camera region, the two groups sit beside its safe area. Existing overflow behavior still applies. These options are available in Appearance → Cove Rail and Layout → Alignment.
 
 ### Widget providers
 
-`providerPreferences.disabled` is an array of provider identifiers to disable (default `[]`). Initial identifiers are `appleMusic`, `browser`, `appleCalendar`, `systemVPN`, `surfshark`, and `tailscale`. New widget identifiers are `audio`, `calendar`, and `system`; existing `nowPlaying`, `vpn`, `cpu`, and `memory` identifiers remain compatible. See [widget setup](WIDGETS.md) for permissions and supported capabilities.
+`providerPreferences.disabled` is an array of provider identifiers to disable (default `[]`). Identifiers include `codex`, `codexSSH`, `nativeMedia`, `appleMusic`, `appleCalendar`, `outlook`, `systemVPN`, `surfshark`, and `tailscale`. New widget identifiers are `audio`, `calendar`, and `system`; existing `nowPlaying`, `vpn`, `cpu`, and `memory` identifiers remain compatible. See [widget setup](WIDGETS.md) for permissions and supported capabilities.
 
 ## Agent Status and System consolidation
 
-Enable `agentStatus` in `rightWidgets` or Customize Bar → Widgets → Agent Status. Its Codex provider is enabled by default when the widget is enabled; disable it independently in Connections or with `providerPreferences.disabled: ["codex"]`. It reads `CODEX_HOME` when set in the bar’s environment, otherwise `~/.codex`.
+Enable `agentStatus` in `rightWidgets` or Customize Bar → Widgets → Agent Status. Its Codex provider is enabled by default when the widget is enabled; disable it independently in Widgets → General settings → Agent Status or with `providerPreferences.disabled: ["codex"]`. It reads `CODEX_HOME` when set in the bar’s environment, otherwise `~/.codex`.
 
 Legacy `cpu` and `memory` widget identifiers migrate to one `system` entry at the first matching position. This applies to global and per-display widget lists, preserving the order of other widgets. System retains CPU, memory and network tabs. Network stays available as a dedicated throughput indicator. Old graph preferences remain decodable for compatibility, but the separate CPU/Memory picker entries and controls are retired.
 
 ## Independent monitor groups (0.5.0 alpha)
 
-`displayOverrides` uses stable macOS display UUIDs. The Application settings editor lists connected displays and saved disconnected displays. Optional override values inherit global settings. `widgets` is the edge group, `centerWidgets` is the independent center group, and `widgetPlacement` selects `trailing`, `leading`, or the existing `centered` composition. With an independent center group, the edge stays at the selected edge (`centered` uses the right edge).
+`displayOverrides` uses stable macOS display UUIDs. The customization display picker lists connected displays and saved disconnected displays. Optional override values inherit global settings. `widgets` is the edge group, `centerWidgets` is the independent center group, and `widgetPlacement` selects `trailing`, `leading`, or the existing `centered` composition. With an independent center group, the edge stays at the selected edge (`centered` uses the right edge).
 
 `workspaceVisibility` accepts `local`, `all`, `selected`, or `hidden`. Omit it to follow `workspacesOnCurrentDisplay`. `selectedWorkspaces` is an ordered array of AeroSpace workspace IDs, used in selected mode; unknown IDs are ignored until discovered. These settings affect presentation, not AeroSpace monitor assignment.
 
@@ -107,3 +107,6 @@ Legacy `cpu` and `memory` widget identifiers migrate to one `system` entry at th
 ```
 
 An explicit empty group hides it. Null/omitted groups inherit global values. If an inherited edge widget is explicitly put in the center, it is removed from the effective edge group. Explicit duplicate widgets across groups are rejected. Global `centerWidgets` is also accepted for shared setups.
+
+
+`providerPreferences.calendarProvider` accepts `appleCalendar` (default) or `outlook`. Both read the same native EventKit store, using macOS Internet Accounts for account synchronization. The Outlook choice opens the Outlook app from event details.

@@ -10,8 +10,6 @@ extension ConfigurationWindowController {
         densityPopup.addItems(withTitles: BarDensity.allCases.map(\.menuTitle))
         densityPopup.target = self
         densityPopup.action = #selector(visualChanged)
-        workspaceAppsButton.target = self
-        workspaceAppsButton.action = #selector(visualChanged)
     }
 
     func configureWidgetOptionControls() {

@@ -18,7 +18,6 @@ STAGED_APP="$STAGING_DIR/ConstellationBar.app"
 mkdir -p "$STAGED_APP/Contents/MacOS" "$STAGED_APP/Contents/Resources" "$STAGED_APP/Contents/Frameworks"
 cp "$BINARY_DIR/libNativeMediaHelper.dylib" "$STAGED_APP/Contents/Frameworks/"
 cp "$BINARY_DIR/ConstellationBar" "$STAGED_APP/Contents/MacOS/ConstellationBar"
-cp extensions/browser-media/README.md "$STAGED_APP/Contents/Resources/BrowserMedia-README.md"
 cp LICENSE "$STAGED_APP/Contents/Resources/LICENSE.txt"
 cp Resources/Info.plist "$STAGED_APP/Contents/Info.plist"
 xcrun swift scripts/render-icon.swift "$STAGING_DIR/ConstellationBar.iconset"
@@ -41,6 +40,9 @@ fi
 codesign "${SIGN_ARGS[@]}" "$STAGED_APP/Contents/Frameworks/libNativeMediaHelper.dylib"
 codesign "${SIGN_ARGS[@]}" "$STAGED_APP"
 codesign --verify --strict "$STAGED_APP"
+# Check the packaged executable, not just the debug product, before replacing
+# the last good app. A failure retains both the previous app and journey logs.
+./scripts/verify-ui.sh "$STAGED_APP/Contents/MacOS/ConstellationBar"
 # Preserve the last build until a complete replacement is available.
 if [[ -d "$APP_DIR" ]]; then
   rm -rf "$PROJECT_ROOT/.build/ConstellationBar.previous.app"

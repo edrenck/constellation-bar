@@ -18,14 +18,21 @@ jobs:
       - name: Toolchain
         run: xcodebuild -version && xcrun swift --version
       - run: python3 scripts/tests/test_release.py
+      - run: python3 scripts/tests/test_build_gates.py
       - run: swift test
-      - run: node --test extensions/browser-media/content.test.cjs
       - run: ./scripts/build-app.sh --universal
       - name: Verify and archive development build
         run: |
           lipo .build/ConstellationBar.app/Contents/MacOS/ConstellationBar -verify_arch arm64 x86_64
           codesign --verify --strict .build/ConstellationBar.app
           ditto -c -k --sequesterRsrc --keepParent .build/ConstellationBar.app .build/ConstellationBar-development.zip
+      - name: Retain native UI journey logs and snapshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-journeys
+          path: .build/ui-journeys/
+          if-no-files-found: ignore
       - uses: actions/upload-artifact@v4
         with:
           name: ConstellationBar-development
