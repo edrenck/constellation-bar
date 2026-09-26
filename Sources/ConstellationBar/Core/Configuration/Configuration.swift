@@ -79,7 +79,14 @@ struct BarConfig {
         config.visualPreferences = file.visualPreferences ?? config.visualPreferences
         config.displayMode = file.displayMode ?? config.displayMode
         if (file.schemaVersion ?? 1) < 5 {
-            let old = config.rightWidgets + config.centerWidgets + config.widgetLayout.allWidgetKinds + config.displayOverrides.values.flatMap { ($0.widgets ?? []) + ($0.centerWidgets ?? []) + ($0.widgetLayout?.allWidgetKinds ?? []) }
+            var old: [WidgetKind] = config.rightWidgets
+            old.append(contentsOf: config.centerWidgets)
+            old.append(contentsOf: config.widgetLayout.allWidgetKinds)
+            for override in config.displayOverrides.values {
+                old.append(contentsOf: override.widgets ?? [])
+                old.append(contentsOf: override.centerWidgets ?? [])
+                old.append(contentsOf: override.widgetLayout?.allWidgetKinds ?? [])
+            }
             let metrics = SystemMetric.allCases.filter { metric in old.contains(metric.legacyWidget) }
             if !metrics.isEmpty { config.widgetPreferences.systemMetrics = metrics }
         }
