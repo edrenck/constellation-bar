@@ -71,7 +71,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$RELEASE_TAG" ".build/distribution/ConstellationBar-$(cat VERSION)-universal.zip" .build/distribution/SHA256SUMS --verify-tag --draft --prerelease --title "ConstellationBar $RELEASE_TAG Alpha" --notes 'Developer ID signed, notarized and stapled universal build. Record tested OS and hardware coverage in release notes before publishing.'
+          gh release create "$RELEASE_TAG" ".build/distribution/ConstellationBar-$(cat VERSION)-universal.zip" .build/distribution/SHA256SUMS --verify-tag --draft --prerelease --title "ConstellationBar $RELEASE_TAG Beta" --notes-file "docs/releases/$(cat VERSION).md"
       - name: Retain native UI journey logs and snapshots
         if: always()
         uses: actions/upload-artifact@v4

@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.8.0 — Beta (2026-09-29)
+
+- Add configurable System, Timer, Keep Awake, Reminders, Keyboard and world-clock widgets, with widget-specific settings and panels.
+- Expand appearance choices with terminal-inspired palettes, and improve per-display layout and customization previews.
+- Improve provider diagnostics, independent sampling, configuration save recovery, weather freshness and native media control isolation.
+- Add native UI build gates and signed-update recovery with startup acknowledgment and rollback.
+- Change Outlook calendar access to macOS EventKit. Microsoft calendars must be synced through Internet Accounts; Outlook-only local calendars are no longer read directly.
+
+See the [0.8.0 beta release notes](docs/releases/0.8.0.md) for compatibility coverage and upgrade details.
+
 ## 0.7.1 — Alpha (2026-09-20)
 
 - Combine controls within each floating zone into a single island while preserving clear spacing between the left, center, and right areas.

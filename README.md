@@ -2,7 +2,7 @@
 
 A native macOS workspace and status bar. Keep workspaces, music, calendar and system widgets within reach, with a different layout on every display. Built with Swift and AppKit.
 
-**[Download the notarized 0.7.1 alpha](https://github.com/edrenck/constellation-bar/releases/download/v0.7.1/ConstellationBar-0.7.1-universal.zip)** · [Release notes and checksums](https://github.com/edrenck/constellation-bar/releases/tag/v0.7.1) · [Report a bug](https://github.com/edrenck/constellation-bar/issues/new?template=bug_report.md)
+**[Download the notarized 0.8.0 beta](https://github.com/edrenck/constellation-bar/releases/download/v0.8.0/ConstellationBar-0.8.0-universal.zip)** · [Release notes and checksums](https://github.com/edrenck/constellation-bar/releases/tag/v0.8.0) · [Report a bug](https://github.com/edrenck/constellation-bar/issues/new?template=bug_report.md)
 
 ![ConstellationBar Rail layout](docs/images/rail.png)
 
@@ -12,7 +12,7 @@ A native macOS workspace and status bar. Keep workspaces, music, calendar and sy
 2. Open the app. The configuration window opens on first launch.
 3. Choose your widgets and appearance. Use **Customize Bar…** from the menu-bar icon to return to settings.
 
-The download is Developer ID signed, Apple-notarized and stapled. It targets **macOS 14+** and contains **Apple Silicon and Intel** binaries. Runtime testing so far covers macOS 27 on Apple Silicon; Intel, older macOS versions and physical multi-monitor setups need alpha feedback. AeroSpace is optional; Standalone mode provides the active app and widgets without it.
+The download is Developer ID signed, Apple-notarized and stapled. It targets **macOS 14+** and contains **Apple Silicon and Intel** binaries. Runtime testing so far covers macOS 27 on Apple Silicon; Intel, older macOS versions and physical multi-monitor setups need beta feedback. AeroSpace is optional; Standalone mode provides the active app and widgets without it.
 
 See [installation, updates and removal](docs/INSTALLATION.md) for checksum verification and troubleshooting. Check for Updates in the menu or Application settings to download, verify, install and relaunch signed updates.
 
