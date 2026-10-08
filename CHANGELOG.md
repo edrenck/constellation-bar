@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Hide bars only on displays whose active macOS Space is native fullscreen, including Arc YouTube fullscreen. Remove Accessibility and window-geometry checks from fullscreen detection.
+
 ## 0.8.0 — Beta (2026-09-29)
 
 - Add configurable System, Timer, Keep Awake, Reminders, Keyboard and world-clock widgets, with widget-specific settings and panels.
