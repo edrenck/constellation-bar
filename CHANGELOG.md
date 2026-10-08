@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.8.1 — Beta (2026-10-08)
 
 - Hide bars only on displays whose active macOS Space is native fullscreen, including Arc YouTube fullscreen. Remove Accessibility and window-geometry checks from fullscreen detection.
 

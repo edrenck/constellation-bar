@@ -2,7 +2,7 @@
 
 A native macOS workspace and status bar. Keep workspaces, music, calendar and system widgets within reach, with a different layout on every display. Built with Swift and AppKit.
 
-**[Download the notarized 0.8.0 beta](https://github.com/edrenck/constellation-bar/releases/download/v0.8.0/ConstellationBar-0.8.0-universal.zip)** · [Release notes and checksums](https://github.com/edrenck/constellation-bar/releases/tag/v0.8.0) · [Report a bug](https://github.com/edrenck/constellation-bar/issues/new?template=bug_report.md)
+**[Download the notarized 0.8.1 beta](https://github.com/edrenck/constellation-bar/releases/download/v0.8.1/ConstellationBar-0.8.1-universal.zip)** · [Release notes and checksums](https://github.com/edrenck/constellation-bar/releases/tag/v0.8.1) · [Report a bug](https://github.com/edrenck/constellation-bar/issues/new?template=bug_report.md)
 
 ![ConstellationBar Rail layout](docs/images/rail.png)
 
