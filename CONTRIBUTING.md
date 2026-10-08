@@ -8,7 +8,7 @@ For layout changes, generate native previews with `swift run ConstellationBar --
 
 Include relevant test results and before/after screenshots in your pull request. Do not commit personal configs, local paths, weather locations, logs, build products, or development screenshot history. Example configurations belong in `examples/`.
 
-The current automated tests cover config migration/validation, provider parsing and gating, process failures/timeouts, layout bounds, and fullscreen geometry. Hardware checks still needed before claiming broad compatibility include Intel execution, macOS 14/15 execution, multiple physical monitors, notch/menu-bar behavior, display disconnect/reconnect, wake, VoiceOver, and media permissions.
+The current automated tests cover config migration/validation, provider parsing and gating, process failures/timeouts, layout bounds, and native fullscreen Space classification. Hardware checks still needed before claiming broad compatibility include Intel execution, macOS 14/15 execution, multiple physical monitors, notch/menu-bar behavior, display disconnect/reconnect, wake, VoiceOver, and media permissions.
 
 ## Tests and source layout
 
