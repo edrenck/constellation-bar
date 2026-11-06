@@ -11,7 +11,7 @@ final class SystemWidgetMigrationTests: XCTestCase {
         XCTAssertEqual(config.widgetLayout.allWidgetKinds.filter { $0 == .system }.count, 1)
         XCTAssertEqual(config.rightWidgets, [.system, .battery])
         XCTAssertEqual(config.centerWidgets, [])
-        XCTAssertFalse(config.widgetsForSampling.contains { $0.canonical != $0 })
+        XCTAssertFalse(DisplayScope(config: config, connectedDisplayIDs: ["fixture"]).widgets.contains { $0.canonical != $0 })
         try config.validate()
     }
 
@@ -24,7 +24,7 @@ final class SystemWidgetMigrationTests: XCTestCase {
         XCTAssertEqual(display.widgetLayout.right, [.widget(.dateTime)])
         XCTAssertEqual(display.widgetLayout.alignment, .centerAll)
         XCTAssertEqual(config.displayOverrides["external"]?.widgets, [.system])
-        XCTAssertEqual(config.widgetsForSampling.filter { $0 == .system }.count, 1)
+        XCTAssertEqual(DisplayScope(config: config, connectedDisplayIDs: ["external"]).widgets.filter { $0 == .system }.count, 1)
     }
 
     func testLegacyCenterAndEdgeAliasesProduceSaveableDisplayOverride() throws {

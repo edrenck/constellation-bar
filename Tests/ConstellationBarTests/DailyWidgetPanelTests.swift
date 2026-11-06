@@ -5,6 +5,20 @@ import XCTest
 final class DailyWidgetPanelTests: XCTestCase {
     override func setUpWithError() throws { try super.setUpWithError(); try requireGraphicalTests(); _ = NSApplication.shared }
     private func buttons(_ view: NSView) -> [WidgetActionButton] { (view as? WidgetActionButton).map { [$0] } ?? view.subviews.flatMap(buttons) }
+    func testRemindersReadFailureOffersRetryInsteadOfPermission() throws {
+        var state = SystemState()
+        state.reminders = RemindersState(authorized: true, message: "", failure: "Injected read timeout", nextAttemptAt: state.date.addingTimeInterval(15))
+        let panel = MiniAppPanel(kind: .reminders, state: state, config: .default, history: WidgetHistory())
+        XCTAssertFalse(buttons(panel).contains { $0.title == "Allow Reminders access…" })
+        var refreshed = false
+        panel.onAction = { action, completion in
+            if case .refreshReminders = action { refreshed = true }
+            else { XCTFail("Read failures must not request permission") }
+            completion(nil)
+        }
+        try XCTUnwrap(buttons(panel).first { $0.title == "Retry" }).performClick(nil)
+        XCTAssertTrue(refreshed)
+    }
     func testDailyPanelsRenderAndRouteOnlyExplicitUserActions() throws {
         var state = SystemState()
         state.keyboard = KeyboardState(sources: [KeyboardSource(id: "en", name: "English", language: "en"), KeyboardSource(id: "jp", name: "Japanese", language: "ja")], selectedID: "en")
@@ -35,13 +49,13 @@ final class DailyWidgetPanelTests: XCTestCase {
         }
     }
     func testCountdownRefreshPreservesControlsAndCompletingRebuilds() {
-        var state = SystemState(); state.timer = CountdownState(duration: 60, remaining: 60, running: true)
+        var state = SystemState(); state.timer = CountdownState(duration: 60, remaining: 60, phase: .running)
         let panel = MiniAppPanel(kind: .timer, state: state, config: .default, history: WidgetHistory())
         let countdown = panel.stack.arrangedSubviews.first as? NSTextField
         state.timer.remaining = 45; panel.update(state: state, history: WidgetHistory())
         XCTAssertTrue(panel.stack.arrangedSubviews.first === countdown)
         XCTAssertEqual(countdown?.stringValue, "0:45")
-        state.timer = CountdownState(duration: 60, remaining: 0, running: false, finished: true)
+        state.timer = CountdownState(duration: 60, remaining: 0, phase: .finished)
         panel.update(state: state, history: WidgetHistory())
         XCTAssertFalse(panel.stack.arrangedSubviews.first === countdown)
         XCTAssertEqual((panel.stack.arrangedSubviews.first as? NSTextField)?.stringValue, "Time's up")

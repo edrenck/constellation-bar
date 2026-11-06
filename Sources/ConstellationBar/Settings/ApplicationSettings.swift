@@ -4,7 +4,7 @@ import AppKit
 extension ConfigurationWindowController {
     func buildApplicationSettings(in stack: NSStackView) {
         configureApplicationControls()
-        fullscreenButton.target = self; fullscreenButton.action = #selector(applicationOptionChanged)
+        fullscreenButton.target = self; fullscreenButton.action = #selector(fullscreenChanged)
         launchAtLoginStatus.font = .systemFont(ofSize: 12)
         let loginOptions = NSStackView(views: [launchAtLoginButton, launchAtLoginStatus])
         loginOptions.orientation = .vertical

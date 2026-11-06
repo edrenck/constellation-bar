@@ -35,6 +35,18 @@ final class KeepAwakeProvider: SystemProviding {
         let replacement = try driver.create(display: display, seconds: seconds)
         stop(); assertion = replacement; deadline = now() + seconds; self.display = display
     }
+    func setDisplayAwake(_ display: Bool) throws {
+        guard snapshot().active, let previous = assertion else { throw WidgetActionError(message: "This awake session has ended. Start a new session first.") }
+        guard self.display != display else { return }
+        let remaining = deadline - now()
+        guard remaining > 0 else { stop(); throw WidgetActionError(message: "This awake session has ended. Start a new session first.") }
+        // A mode change keeps the original deadline, including its final partial minute.
+        // Creating first leaves the current assertion intact when macOS rejects the change.
+        let replacement = try driver.create(display: display, seconds: remaining)
+        assertion = replacement; self.display = display
+        driver.release(previous)
+        if now() >= deadline { stop() }
+    }
     func stop() { if let assertion { driver.release(assertion) }; assertion = nil }
     func snapshot() -> KeepAwakeState {
         if assertion != nil, now() >= deadline { stop() }

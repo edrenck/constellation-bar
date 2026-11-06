@@ -1,0 +1,1253 @@
+{
+  "schemaVersion": 1,
+  "scale": {
+    "minimum": 0,
+    "maximum": 10,
+    "increment": 0.5,
+    "anchors": {
+      "0": "Absent or unusable",
+      "3": "Major failures",
+      "5": "Works with substantial weaknesses",
+      "7": "Solid with material gaps",
+      "9": "Production polish",
+      "10": "Exceptional"
+    },
+    "method": "Independent holistic assessment; scores are directional and do not replace release gates."
+  },
+  "checkpoints": [
+    {
+      "id": "B0",
+      "date": "2026-11-05",
+      "revision": "804b03f4a3d045eab27b3b8371f3c2b8ed05d678",
+      "sourceChanged": false,
+      "review": "reviews/B0.md",
+      "blindReviewer": true,
+      "scores": {
+        "codeQuality": 7.5,
+        "usability": 7.0,
+        "ui": 7.5
+      },
+      "confidence": {
+        "codeQuality": "Medium-high for source; full XCTest execution unavailable",
+        "usability": "Medium; hardware and permission journeys unobserved",
+        "ui": "Medium-high for native fixtures; live glass and assistive technology unverified"
+      },
+      "environment": {
+        "macOS": "26.6.2",
+        "architecture": "arm64",
+        "activeSwift": "6.3.3",
+        "installedXcode": "27.2 (27B52)"
+      },
+      "verification": {
+        "build": "passed",
+        "pythonTests": {
+          "executed": 13,
+          "passed": 13,
+          "failed": 0
+        },
+        "xctest": {
+          "status": "blocked before execution",
+          "executed": 0,
+          "reason": "Command Line Tools cannot resolve XCTest; installed Xcode retry requires owner license acceptance."
+        },
+        "nativeRendering": {
+          "status": "passed",
+          "pngFixtures": 105,
+          "themeCatalogs": 1
+        },
+        "isolatedDefectReproductions": 3,
+        "hardwareAndSignedUpdateQualification": "not performed"
+      },
+      "sourceTreeSHA256": "c8d0422cde585598876c18e114d58e94e389d80e2be04729bdd56c8f57ed1834"
+    },
+    {
+      "id": "I1",
+      "date": "2026-11-05",
+      "revision": "804b03f4a3d045eab27b3b8371f3c2b8ed05d678",
+      "workingTreeChanges": true,
+      "sourceChanged": true,
+      "sourceTreeSHA256": "14148f02e020433014f4999968849b945b5363d3d3499fafd04fc6013a7e9079",
+      "testsTreeSHA256": "65bfdee95a508168ca5ae18e3db9c48ef69ae7c5ff7bd765d3e27cab0f2902e5",
+      "review": "reviews/I1.md",
+      "report": "I1.md",
+      "blindReviewer": true,
+      "scores": {
+        "codeQuality": 8.0,
+        "usability": 7.5,
+        "ui": 8.0
+      },
+      "confidence": {
+        "codeQuality": "Medium-high",
+        "usability": "Medium",
+        "ui": "High for inspected fixtures; medium for live presentation"
+      },
+      "environment": {
+        "macOS": "26.6.2",
+        "architecture": "arm64",
+        "activeSwift": "6.3.3",
+        "installedXcode": "27.2 (27B52)"
+      },
+      "verification": {
+        "build": "passed",
+        "pythonTests": {
+          "executed": 13,
+          "passed": 13,
+          "failed": 0
+        },
+        "xctest": {
+          "status": "blocked before execution",
+          "executed": 0,
+          "newRegressionMethods": 12,
+          "newAndChangedSourceCheck": "syntax parsing only; semantic compilation unverified",
+          "reason": "Installed Xcode requires owner license acceptance; active Command Line Tools cannot resolve XCTest."
+        },
+        "nativeRendering": {
+          "status": "passed",
+          "pngFixtures": 105,
+          "themeCatalogs": 1,
+          "additionalTimerPresetFixtures": 5
+        },
+        "startupSmoke": "passed STARTUP_UI_OK",
+        "isolatedProductionObjectAssertions": {
+          "executed": 463,
+          "passed": 463,
+          "failed": 0,
+          "isXCTest": false
+        },
+        "hardwareAndSignedUpdateQualification": "not performed"
+      },
+      "followUpVerification": {
+        "date": "2026-11-05",
+        "when": "Before I2 application edits",
+        "sourceTreeSHA256": "14148f02e020433014f4999968849b945b5363d3d3499fafd04fc6013a7e9079",
+        "command": "env DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer ./scripts/verify-ui.sh .build/arm64-apple-macosx/debug/ConstellationBar",
+        "xcode": "27.2",
+        "swift": "6.4.2",
+        "xctest": {
+          "executed": 201,
+          "passed": 201,
+          "failed": 0,
+          "skipped": 0
+        },
+        "evidence": ".build/production-readiness/i2/i1-followup-native.log"
+      }
+    },
+    {
+      "id": "I2",
+      "date": "2026-11-05",
+      "revision": "804b03f4a3d045eab27b3b8371f3c2b8ed05d678",
+      "workingTreeChanges": true,
+      "sourceChanged": true,
+      "sourceTreeSHA256": "23fc175dbc29bcfdf3561028164a713d2ca9253c2f95b707154c9265423190b4",
+      "testsTreeSHA256": "75e8bd2f9e4f22b0b11bd156d99f8d47c600906593e11615d7d15de3d4ad261b",
+      "review": "reviews/I2.md",
+      "report": "I2.md",
+      "blindReviewer": true,
+      "scores": {
+        "codeQuality": 8.0,
+        "usability": 7.5,
+        "ui": 7.5
+      },
+      "confidence": {
+        "codeQuality": "High",
+        "usability": "Medium-high",
+        "ui": "High for supplied fixtures"
+      },
+      "environment": {
+        "macOS": "26.6.2",
+        "architecture": "arm64",
+        "xcode": "27.2 (27B52)",
+        "swift": "6.4.2"
+      },
+      "verification": {
+        "build": "passed",
+        "pythonTests": {
+          "executed": 13,
+          "passed": 13,
+          "failed": 0
+        },
+        "xctest": {
+          "executed": 214,
+          "passed": 214,
+          "failed": 0,
+          "skipped": 0,
+          "newRegressionMethods": 13
+        },
+        "nativeRendering": {
+          "status": "passed",
+          "pngFixtures": 112,
+          "themeCatalogs": 1
+        },
+        "startupSmoke": "passed within native gate",
+        "layoutRecoveryDiagnostics": 0,
+        "hardwareAndSignedUpdateQualification": "not performed"
+      }
+    },
+    {
+      "id": "I3",
+      "date": "2026-11-05",
+      "revision": "804b03f4a3d045eab27b3b8371f3c2b8ed05d678",
+      "workingTreeChanges": true,
+      "sourceChanged": true,
+      "sourceTreeSHA256": "85c0058ea1bae2228c1fc4f3d2a7e5af4e5abf2b6c05c6104f61292b924a8228",
+      "testsTreeSHA256": "2a904828a7d959988be6ddc8e63322da2ab12484573e88d353d4c9851874e878",
+      "review": "reviews/I3.md",
+      "report": "I3.md",
+      "blindReviewer": true,
+      "protocolException": "An ineffective exclusion glob returned one baseline sentence about calendar-filter UserDefaults ownership. Reviewer had independently observed the source issue before the search, excluded it from ratings/findings and did not open previous review documents or historical artifacts.",
+      "scores": {
+        "codeQuality": 8.5,
+        "usability": 8.0,
+        "ui": 8.5
+      },
+      "confidence": {
+        "codeQuality": "High",
+        "usability": "Medium-high",
+        "ui": "High within supplied fixtures"
+      },
+      "environment": {
+        "macOS": "26.6.2",
+        "architecture": "arm64",
+        "xcode": "27.2 (27B52)",
+        "swift": "6.4.2"
+      },
+      "verification": {
+        "build": "passed",
+        "pythonTests": {
+          "executed": 13,
+          "passed": 13,
+          "failed": 0
+        },
+        "xctest": {
+          "executed": 225,
+          "passed": 225,
+          "failed": 0,
+          "skipped": 0,
+          "newRegressionMethods": 11
+        },
+        "nativeRendering": {
+          "status": "passed",
+          "pngFixtures": 112,
+          "themeCatalogs": 1
+        },
+        "startupSmoke": "passed within native gate",
+        "layoutRecoveryDiagnostics": 0,
+        "cleanWarningFreeCompilation": "not established; earlier focused compilation exposed existing test warnings",
+        "hardwareAndSignedUpdateQualification": "not performed"
+      }
+    },
+    {
+      "id": "I4",
+      "date": "2026-11-05",
+      "revision": "804b03f4a3d045eab27b3b8371f3c2b8ed05d678",
+      "workingTreeChanges": true,
+      "sourceChanged": true,
+      "sourceTreeSHA256": "4b390390c3e06eb585b71d2fa541910b47e0bb28ef1403c895aef6470c1cf693",
+      "testsTreeSHA256": "d188e1639603498b4643cf68a6323e22019c8c01ebbe0a78770e8ddf8797f714",
+      "review": "reviews/I4.md",
+      "report": "I4.md",
+      "blindReviewer": true,
+      "scores": {
+        "codeQuality": 8.5,
+        "usability": 8.0,
+        "ui": 8.0
+      },
+      "confidence": {
+        "codeQuality": "High",
+        "usability": "Medium",
+        "ui": "High for fixtures; medium for live behavior"
+      },
+      "environment": {
+        "macOS": "26.6.2",
+        "architecture": "arm64",
+        "xcode": "27.2 (27B52)",
+        "swift": "6.4.2"
+      },
+      "verification": {
+        "build": "passed",
+        "pythonTests": {
+          "executed": 13,
+          "passed": 13,
+          "failed": 0
+        },
+        "xctest": {
+          "executed": 235,
+          "passed": 235,
+          "failed": 0,
+          "skipped": 0,
+          "newRegressionMethods": 10
+        },
+        "nativeRendering": {
+          "status": "passed",
+          "pngFixtures": 112,
+          "themeCatalogs": 1
+        },
+        "startupSmoke": "passed within native gate",
+        "layoutRecoveryDiagnostics": 0,
+        "cleanWarningFreeCompilation": "not established; earlier focused compilation exposed existing test warnings",
+        "hardwareAndSignedUpdateQualification": "not performed"
+      },
+      "followUpVerification": {
+        "when": "Frozen source; evidence recorded after review finalized",
+        "universalReleaseBuild": "passed",
+        "slices": [
+          "arm64",
+          "x86_64"
+        ],
+        "applicationAndHelperMinimumOS": "14.0 in each slice",
+        "releaseStartup": "passed STARTUP_UI_OK on arm64 macOS26.6.2",
+        "buildWarning": "Xcode aggregate x86_64 deprecation warning for macOS27.2; actual slices declare minos14.0",
+        "evidence": ".build/production-readiness/i4/universal-build.log, universal-metadata.log, release-startup.log",
+        "intelExecution": "not performed",
+        "packagedOrSignedInstall": "not performed"
+      }
+    },
+    {
+      "id": "I5",
+      "date": "2026-11-05",
+      "revision": "804b03f4a3d045eab27b3b8371f3c2b8ed05d678",
+      "workingTreeChanges": true,
+      "sourceChanged": true,
+      "sourceTreeSHA256": "2f61bb0f7097383fa1ded991804321610e01ff2fdff213815df72fb149652ca9",
+      "testsTreeSHA256": "062e9fc0a9a2409465c18e2d0a033b288e5d85083379cf4ed71b175f4bead150",
+      "review": "reviews/I5.md",
+      "report": "I5.md",
+      "blindReviewer": true,
+      "scores": {
+        "codeQuality": 7.5,
+        "usability": 7.5,
+        "ui": 8.0
+      },
+      "confidence": {
+        "codeQuality": "High for inspected implementation paths",
+        "usability": "Medium-high; live accessibility and hardware unqualified",
+        "ui": "High for opaque fixtures; medium for live materials"
+      },
+      "environment": {
+        "macOS": "26.6.2",
+        "architecture": "arm64",
+        "xcode": "27.2 (27B52)",
+        "swift": "6.4.2"
+      },
+      "verification": {
+        "build": "passed",
+        "pythonTests": {
+          "executed": 13,
+          "passed": 13,
+          "failed": 0
+        },
+        "xctest": {
+          "executed": 246,
+          "passed": 246,
+          "failed": 0,
+          "skipped": 0,
+          "newRegressionMethods": 11
+        },
+        "nativeRendering": {
+          "status": "passed",
+          "pngFixtures": 127,
+          "themeCatalogs": 1
+        },
+        "startupSmoke": "passed within native gate",
+        "layoutRecoveryDiagnostics": 0,
+        "cleanWarningFreeCompilation": "not established; earlier focused compilation exposed existing test warnings",
+        "universalReleaseBuild": "passed; app/helper arm64 and x86_64, minos14.0",
+        "releaseStartup": "passed STARTUP_UI_OK on arm64 macOS26.6.2",
+        "releaseBuildWarning": "Xcode aggregate x86_64 deprecation warning for macOS27.2; actual slices minos14.0",
+        "hardwareAndSignedUpdateQualification": "not performed"
+      }
+    },
+    {
+      "id": "I6",
+      "date": "2026-11-05",
+      "revision": "804b03f4a3d045eab27b3b8371f3c2b8ed05d678",
+      "workingTreeChanges": true,
+      "sourceChanged": true,
+      "sourceTreeSHA256": "3b24af4cb2aec23adeb69bda7e3c6ee2cde0b69643766e66249ec731ec053087",
+      "testsTreeSHA256": "7c00314462336b057ef8c03c0d0a2c8372c7129ffcc86ff10db4b54e93e376ce",
+      "review": "reviews/I6.md",
+      "report": "I6.md",
+      "blindReviewer": true,
+      "reviewScope": "Focused representative audit; 36 of 130 native PNGs viewed, source/tests sampled, all supplied final logs read. No historical review access.",
+      "scores": {
+        "codeQuality": 8.0,
+        "usability": 8.0,
+        "ui": 8.5
+      },
+      "confidence": {
+        "codeQuality": "High for inspected paths",
+        "usability": "Moderate-high",
+        "ui": "Moderate-high for exported opaque surfaces"
+      },
+      "environment": {
+        "macOS": "26.6.2",
+        "architecture": "arm64",
+        "xcode": "27.2 (27B52)",
+        "swift": "6.4.2"
+      },
+      "verification": {
+        "build": "passed",
+        "pythonTests": {
+          "executed": 13,
+          "passed": 13,
+          "failed": 0
+        },
+        "xctest": {
+          "executed": 255,
+          "passed": 255,
+          "failed": 0,
+          "skipped": 0,
+          "newRegressionMethods": 9
+        },
+        "nativeRendering": {
+          "status": "passed",
+          "pngFixtures": 130,
+          "themeCatalogs": 1
+        },
+        "startupSmoke": "passed within native gate",
+        "layoutRecoveryDiagnostics": 0,
+        "cleanWarningFreeCompilation": "not established; earlier focused compilation exposed existing test warnings",
+        "universalReleaseBuild": "passed; app/helper arm64 and x86_64, minos14.0",
+        "releaseStartup": "passed STARTUP_UI_OK on arm64 macOS26.6.2",
+        "releaseBuildWarning": "Xcode aggregate x86_64 deprecation warning for macOS27.2; actual slices minos14.0",
+        "hardwareAndSignedUpdateQualification": "not performed"
+      }
+    },
+    {
+      "id": "I7",
+      "date": "2026-11-05",
+      "revision": "804b03f4a3d045eab27b3b8371f3c2b8ed05d678",
+      "workingTreeChanges": true,
+      "sourceChanged": true,
+      "sourceTreeSHA256": "5d7bdc4bafaae41bcbd94f3942a732e3e23b2d3fc074c1dc4c0b835b6fb54041",
+      "testsTreeSHA256": "72e1ab99b6906a32d6f236faf5d8465e3ef297c254f5c6749f8e8ccebc7aaa3e",
+      "review": "reviews/I7.md",
+      "report": "I7.md",
+      "blindReviewer": false,
+      "reviewerStartedBlind": true,
+      "blindRatingsSubmittedBeforeExposure": true,
+      "protocolException": "After submitting all provisional scores and findings, the reviewer called a team-status tool whose response exposed earlier reviewers assessments and scores. Original scores/findings were preserved; complete blind isolation is not claimed. Source/tests remained frozen through final assessment.",
+      "reviewScope": "Representative audit; 34 of 136 native PNGs viewed, source/tests sampled, permitted final logs read. No execution by reviewer.",
+      "scores": {
+        "codeQuality": 8.5,
+        "usability": 8.0,
+        "ui": 8.0
+      },
+      "confidence": {
+        "codeQuality": "Medium-high for inspected paths",
+        "usability": "Medium",
+        "ui": "Medium-high for opaque exported fixtures"
+      },
+      "environment": {
+        "macOS": "26.6.2",
+        "architecture": "arm64",
+        "xcode": "27.2 (27B52)",
+        "swift": "6.4.2"
+      },
+      "verification": {
+        "build": "passed",
+        "pythonTests": {
+          "executed": 13,
+          "passed": 13,
+          "failed": 0
+        },
+        "xctest": {
+          "executed": 273,
+          "passed": 273,
+          "failed": 0,
+          "skipped": 0,
+          "newRegressionMethods": 18
+        },
+        "nativeRendering": {
+          "status": "passed",
+          "pngFixtures": 136,
+          "themeCatalogs": 1
+        },
+        "startupSmoke": "passed within native gate",
+        "layoutRecoveryDiagnostics": 0,
+        "cleanWarningFreeCompilation": "not established; earlier focused compilation exposed existing test warnings",
+        "universalReleaseBuild": "passed; app/helper arm64 and x86_64, minos14.0",
+        "releaseStartup": "passed STARTUP_UI_OK on arm64 macOS26.6.2",
+        "releaseBuildWarning": "Xcode aggregate x86_64 deprecation warning for macOS27.2; actual slices minos14.0",
+        "hardwareAndSignedUpdateQualification": "not performed"
+      },
+      "correctiveFollowUp": {
+        "when": "After I7 reviewer finalized; small corrective follow-up, not rerated",
+        "sourceTreeSHA256": "9cc8d2e0a12169034c9716d88ebf8f92119be97dfbebb27ad066be9a7dca725c",
+        "testsTreeSHA256": "2205a575a09e3d1199cbec30360cd2249b08fbd6f34a4b123bd710770b22a9a5",
+        "change": "Validate Core Audio string status and byte count before consuming the returned CFObject; extend invalid-object native read coverage to string reads.",
+        "nativeTests": 273,
+        "nativeFailures": 0,
+        "nativeSkipped": 0,
+        "layoutRecoveryDiagnostics": 0,
+        "universalReleaseBuild": "Passed; app/helper arm64 and x86_64, minos14.0",
+        "releaseStartup": "Passed STARTUP_UI_OK on arm64 macOS26.6.2",
+        "evidence": ".build/production-readiness/i7/followup-manifest.json",
+        "fixtureScope": "Original 136 fixtures retained; no presentation code changed, no fresh export claimed.",
+        "testLimit": "Native invalid-object string read verifies OSStatus propagation. Malformed nonnil driver output was not injected or reproduced."
+      }
+    },
+    {
+      "id": "I8",
+      "date": "2026-11-05",
+      "revision": "804b03f4a3d045eab27b3b8371f3c2b8ed05d678",
+      "workingTreeChanges": true,
+      "sourceChanged": true,
+      "sourceTreeSHA256": "0ef2f22f447b8030a7a7552b786821fee31e09420f9ad7661db2ecdce403a9e7",
+      "testsTreeSHA256": "755a28a763a5f1191493024b115d7ccc296d92bf00cfd55e5fca93ec9cb2b344",
+      "review": "reviews/I8.md",
+      "report": "I8.md",
+      "blindReviewer": true,
+      "reviewScope": "Representative audit; 48 of 142 native PNGs plus theme catalog, sampled current source/tests and permitted final logs. No execution, writes or previous-assessment access reported.",
+      "scores": {
+        "codeQuality": 8.5,
+        "usability": 8.0,
+        "ui": 8.5
+      },
+      "confidence": {
+        "codeQuality": "Medium-high",
+        "usability": "Medium",
+        "ui": "Medium-high for inspected opaque fixtures"
+      },
+      "environment": {
+        "macOS": "26.6.2",
+        "architecture": "arm64",
+        "xcode": "27.2 (27B52)",
+        "swift": "6.4.2"
+      },
+      "verification": {
+        "build": "passed",
+        "pythonTests": {
+          "executed": 13,
+          "passed": 13,
+          "failed": 0
+        },
+        "xctest": {
+          "executed": 285,
+          "passed": 285,
+          "failed": 0,
+          "skipped": 0,
+          "newRegressionMethods": 12
+        },
+        "nativeRendering": {
+          "status": "passed",
+          "pngFixtures": 142,
+          "themeCatalogs": 1
+        },
+        "startupSmoke": "passed within native gate",
+        "layoutRecoveryDiagnostics": 0,
+        "cleanWarningFreeCompilation": "not established; final gate is incremental, prior test warnings remain historical evidence",
+        "universalReleaseBuild": "passed; app/helper arm64 and x86_64, minos14.0",
+        "releaseStartup": "passed STARTUP_UI_OK on arm64 macOS26.6.2",
+        "releaseBuildWarning": "Xcode aggregate x86_64 deprecation warning for macOS27.2; actual slices minos14.0",
+        "localAdHocPackagedBuild": {
+          "status": "passed",
+          "nativeTests": 285,
+          "nativeFailures": 0,
+          "nativeSkipped": 0,
+          "startup": "packaged executable passed native startup journey",
+          "signatures": "ad-hoc; strict/deep verification passed",
+          "resources": "licenses, icon, theme licenses present",
+          "slices": "app/helper arm64+x86_64, minos14.0",
+          "evidence": ".build/production-readiness/i8/packaged-build.log, packaged-metadata.log",
+          "limits": "No LaunchServices install, Developer ID/notarization, distributed update or Intel execution qualification"
+        },
+        "hardwareAndSignedDistributionQualification": "not performed"
+      }
+    },
+    {
+      "id": "I9",
+      "date": "2026-11-05",
+      "revision": "804b03f4a3d045eab27b3b8371f3c2b8ed05d678",
+      "workingTreeChanges": true,
+      "sourceChanged": true,
+      "sourceTreeSHA256": "bd3d75302116cfb1da9c004faba670c1088dfa370f3ce32b3219232c9ae176b1",
+      "testsTreeSHA256": "1ba62e9ff20246ea6408ed9349bf1bf19a06b599495621fb3a5a1dcb23b2eb67",
+      "review": "reviews/I9.md",
+      "report": "I9.md",
+      "blindReviewer": true,
+      "reviewScope": "Representative read-only audit; 38 of 146 native PNGs, theme catalog inventory and four token records, sampled current source/tests, six permitted docs and current evidence logs. No execution, writes or prior-assessment exposure reported.",
+      "scores": {
+        "codeQuality": 8.5,
+        "usability": 8.0,
+        "ui": 8.5
+      },
+      "confidence": {
+        "codeQuality": "High for reviewed architecture; moderate for whole-app behavior",
+        "usability": "Moderate",
+        "ui": "High for sampled opaque fixtures; moderate for live presentation"
+      },
+      "environment": {
+        "macOS": "26.6.2",
+        "architecture": "arm64",
+        "xcode": "27.2 (27B52)",
+        "swift": "6.4.2"
+      },
+      "verification": {
+        "build": "passed",
+        "pythonTests": {
+          "executed": 13,
+          "passed": 13,
+          "failed": 0
+        },
+        "xctest": {
+          "executed": 297,
+          "passed": 297,
+          "failed": 0,
+          "skipped": 0,
+          "newRegressionMethods": 12
+        },
+        "nativeRendering": {
+          "status": "passed",
+          "pngFixtures": 146,
+          "themeCatalogs": 1
+        },
+        "startupSmoke": "passed within native gate; actual executable startup test asserts STARTUP_UI_OK",
+        "layoutRecoveryDiagnostics": 0,
+        "cleanWarningFreeCompilation": "not established; final gates incremental, earlier recompilation retains existing weak-capture/Sendable warnings",
+        "universalReleaseBuild": "passed; app/helper arm64 and x86_64, minos14.0",
+        "releaseBuildWarning": "Xcode aggregate x86_64 deprecation warning for macOS27.2; actual slices minos14.0",
+        "localAdHocPackagedBuild": {
+          "status": "passed",
+          "nativeTests": 297,
+          "nativeFailures": 0,
+          "nativeSkipped": 0,
+          "startup": "packaged executable passed native startup journey",
+          "signatures": "ad-hoc; strict/deep verification passed",
+          "resources": "licenses, icon, theme licenses present",
+          "slices": "app/helper arm64+x86_64, minos14.0",
+          "evidence": ".build/production-readiness/i9/packaged-build.log, packaged-metadata.log",
+          "limits": "No successful LaunchServices activation, Developer ID/notarization, distributed update or Intel execution qualification"
+        },
+        "activeKeyboardProbe": {
+          "status": "not qualified",
+          "exit": 1,
+          "output": "KEYBOARD_UI_FAILED: Keyboard journey: Settings editor unavailable (active=false, key=false, main=false, canKey=true)",
+          "evidence": ".build/production-readiness/i9/keyboard-activation.log",
+          "scope": "Separate failed real event-loop probe, outside the passing XCTest count. Isolated-target key-equivalent/selection checks pass; automatic responder-chain routing and actual text Undo/Redo remain unqualified. Cause is not established."
+        },
+        "hardwareAndSignedDistributionQualification": "not performed"
+      }
+    },
+    {
+      "id": "I10",
+      "date": "2026-11-05",
+      "revision": "804b03f4a3d045eab27b3b8371f3c2b8ed05d678",
+      "workingTreeChanges": true,
+      "sourceChanged": true,
+      "sourceTreeSHA256": "f7244af357f6da8ea2d318949208b6be572ee7181677076bd2bf8956d2e13767",
+      "testsTreeSHA256": "285bd0115735be40dbdbfd1e9886102e3dc640e192a02e8811a484673f74e0d7",
+      "review": "reviews/I10.md",
+      "report": "I10.md",
+      "blindReviewer": true,
+      "reviewScope": "Representative read-only audit; 25 of 151 native PNGs, theme catalog, sampled current source/tests, six permitted docs and current evidence logs. Explicit confirmation of no execution, writes or prior-assessment/excluded-content exposure.",
+      "scores": {
+        "codeQuality": 8.5,
+        "usability": 7.5,
+        "ui": 8.5
+      },
+      "confidence": {
+        "codeQuality": "High for inspected source; supplied execution supports regression coverage",
+        "usability": "Medium; active keyboard use and several real-world journeys remain unqualified",
+        "ui": "Medium-high for exported fixtures; live materials remain unqualified"
+      },
+      "environment": {
+        "macOS": "26.6.2",
+        "architecture": "arm64",
+        "xcode": "27.2 (27B52)",
+        "swift": "6.4.2"
+      },
+      "verification": {
+        "build": "passed",
+        "pythonTests": {
+          "executed": 13,
+          "passed": 13,
+          "failed": 0
+        },
+        "xctest": {
+          "executed": 310,
+          "passed": 310,
+          "failed": 0,
+          "skipped": 0,
+          "newRegressionMethods": 13
+        },
+        "nativeRendering": {
+          "status": "passed",
+          "pngFixtures": 151,
+          "themeCatalogs": 1
+        },
+        "startupSmoke": "passed within native gates; actual built and packaged executable startup assertions",
+        "layoutRecoveryDiagnostics": 0,
+        "cleanAppCompilation": {
+          "status": "passed",
+          "scratchPath": ".build/production-readiness/i10/clean-scratch",
+          "warnings": 0,
+          "errors": 0,
+          "evidence": "clean-build.log",
+          "scope": "Fresh-scratch compiler-only app/helper build. This does not compile the XCTest target or establish a warning-free test build."
+        },
+        "cleanWarningFreeTestCompilation": "not established; prior recompilation retains existing weak-capture/Sendable warnings",
+        "universalReleaseBuild": "passed; app/helper arm64 and x86_64, minos14.0",
+        "releaseBuildWarning": "Aggregate x86_64 warning names macOS27.2; actual app/helper slices minos14.0",
+        "localAdHocPackagedBuild": {
+          "status": "passed",
+          "nativeTests": 310,
+          "nativeFailures": 0,
+          "nativeSkipped": 0,
+          "startup": "packaged executable passed native startup journey",
+          "signatures": "ad-hoc; strict/deep verification passed",
+          "resources": "license, notices, icon and all theme licenses verified",
+          "slices": "app/helper arm64+x86_64, minos14.0",
+          "binaryHashes": {
+            "Contents/MacOS/ConstellationBar": "f36a84d4ecb41ce980ea309c92848ba24891049240047d0277754be79460344f",
+            "Contents/Frameworks/libNativeMediaHelper.dylib": "cdc539aa4bf2b249af1f8d5c449cb75a27fb2703a4939d679f7351949838b174"
+          },
+          "evidence": ".build/production-readiness/i10/packaged-build.log, packaged-metadata.log",
+          "limits": "No successful LaunchServices activation, Developer ID/notarization, distributed update or Intel execution qualification"
+        },
+        "activeKeyboardProbe": {
+          "status": "not qualified",
+          "exit": 1,
+          "output": "KEYBOARD_UI_FAILED: Keyboard journey: Settings editor unavailable (active=false, key=false, main=false, canKey=true)\n",
+          "evidence": "keyboard-activation.log",
+          "scope": "Separate failed probe outside the passing XCTest count; active-app responder-chain routing remains unqualified. Cause not established."
+        },
+        "hardwareAndSignedDistributionQualification": "not performed"
+      }
+    },
+    {
+      "id": "I11",
+      "date": "2026-11-05",
+      "revision": "804b03f4a3d045eab27b3b8371f3c2b8ed05d678",
+      "workingTreeChanges": true,
+      "sourceChanged": true,
+      "sourceTreeSHA256": "a9ab86e97997577444ed4fd373ef7d9201474d39caa4bb9984c018f1090ecdcd",
+      "testsTreeSHA256": "29102eab958e29298fc770163324d5a907657f67d7c8fea4544e3e87c308a140",
+      "review": "reviews/I11.md",
+      "report": "I11.md",
+      "blindReviewer": true,
+      "reviewScope": "Representative read-only audit; 32 of 158 native PNGs, theme catalog, sampled current source/tests, six permitted ordinary docs and current evidence logs. Explicit confirmation of no execution, writes or excluded-content/prior-assessment exposure. Candidate remained frozen.",
+      "scores": {
+        "codeQuality": 8.5,
+        "usability": 8.0,
+        "ui": 8.5
+      },
+      "confidence": {
+        "codeQuality": "Medium-high",
+        "usability": "Medium",
+        "ui": "Medium-high for opaque fixtures; live materials unqualified"
+      },
+      "environment": {
+        "macOS": "26.6.2",
+        "architecture": "arm64",
+        "xcode": "27.2 (27B52)",
+        "swift": "6.4.2"
+      },
+      "verification": {
+        "build": "passed",
+        "pythonTests": {
+          "executed": 13,
+          "passed": 13,
+          "failed": 0
+        },
+        "xctest": {
+          "executed": 322,
+          "passed": 322,
+          "failed": 0,
+          "skipped": 0,
+          "newRegressionMethods": 12
+        },
+        "nativeRendering": {
+          "status": "passed",
+          "pngFixtures": 158,
+          "themeCatalogs": 1
+        },
+        "startupSmoke": "passed within native gates; actual built and packaged executable startup assertions",
+        "layoutRecoveryDiagnostics": 0,
+        "cleanAppCompilation": {
+          "status": "passed",
+          "scratchPath": ".build/production-readiness/i11/clean-scratch",
+          "warnings": 0,
+          "errors": 0,
+          "evidence": "clean-build.log",
+          "scope": "Fresh-scratch compiler-only app/helper build; excludes XCTest compilation/execution"
+        },
+        "cleanWarningFreeTestCompilation": "not established; prior recompilation retains existing weak-capture/Sendable warnings",
+        "universalReleaseBuild": "passed; app/helper arm64 and x86_64, minos14.0",
+        "releaseBuildWarning": "Aggregate x86_64 warning names macOS27.2; actual app/helper slices minos14.0",
+        "localAdHocPackagedBuild": {
+          "status": "passed",
+          "nativeTests": 322,
+          "nativeFailures": 0,
+          "nativeSkipped": 0,
+          "startup": "packaged executable passed native startup journey",
+          "signatures": "ad-hoc; strict/deep verification passed",
+          "resources": "license, notices, icon and all theme licenses verified",
+          "slices": "app/helper arm64+x86_64, minos14.0",
+          "binaryHashes": {
+            "Contents/MacOS/ConstellationBar": "96e23ed3bf1a1b91a76b146ff5f730fa7aad3daea309b2c167b2332d4b8988b0",
+            "Contents/Frameworks/libNativeMediaHelper.dylib": "cdc539aa4bf2b249af1f8d5c449cb75a27fb2703a4939d679f7351949838b174"
+          },
+          "evidence": ".build/production-readiness/i11/packaged-build.log, packaged-metadata.log",
+          "limits": "No successful LaunchServices activation, Developer ID/notarization, distributed update or Intel execution qualification"
+        },
+        "activeKeyboardProbe": {
+          "status": "not qualified",
+          "exit": 1,
+          "output": "KEYBOARD_UI_FAILED: Keyboard journey: Settings editor unavailable (active=false, key=false, main=false, canKey=true)\n",
+          "evidence": "keyboard-activation.log",
+          "scope": "Separate real event-loop probe outside the passing XCTest count. No hardware-keyboard or VoiceOver claim."
+        },
+        "hardwareAndSignedDistributionQualification": "not performed"
+      }
+    },
+    {
+      "id": "I12",
+      "date": "2026-11-05",
+      "revision": "804b03f4a3d045eab27b3b8371f3c2b8ed05d678",
+      "workingTreeChanges": true,
+      "sourceChanged": true,
+      "sourceTreeSHA256": "0002ed9379ec2da9904550f5da99f7c68f30c3465c639d112636716ac0989cf1",
+      "testsTreeSHA256": "5d5f8013d224bcfe3b6a333502e02e92351ea6771a1811c206b9cb188d37821e",
+      "review": "reviews/I12.md",
+      "report": "I12.md",
+      "blindReviewer": true,
+      "reviewScope": "Representative read-only audit; 40 of 160 native PNGs, exact fixture inventory, sampled current code/tests, six permitted ordinary docs and current execution/activation evidence. Explicit confirmation of no execution, writes or excluded-content/prior-assessment exposure. Candidate remained frozen.",
+      "scores": {
+        "codeQuality": 8.0,
+        "usability": 7.5,
+        "ui": 8.0
+      },
+      "confidence": {
+        "codeQuality": "Medium-high",
+        "usability": "Medium",
+        "ui": "Medium-high"
+      },
+      "environment": {
+        "macOS": "26.6.2",
+        "architecture": "arm64",
+        "xcode": "Xcode 27.2; Build version 27B52",
+        "swift": "swift-driver version: 1.168.6 Apple Swift version 6.4.2 (swiftlang-6.4.2.1.9 clang-2100.4.1.1)"
+      },
+      "verification": {
+        "build": "passed",
+        "pythonTests": {
+          "executed": 13,
+          "passed": 13,
+          "failed": 0
+        },
+        "xctest": {
+          "executed": 330,
+          "passed": 330,
+          "failed": 0,
+          "skipped": 0,
+          "newRegressionMethods": 8
+        },
+        "nativeRendering": {
+          "status": "passed",
+          "pngFixtures": 160,
+          "themeCatalogs": 1
+        },
+        "startupSmoke": "passed within native gates; actual built and packaged executable startup assertions",
+        "layoutRecoveryDiagnostics": 0,
+        "cleanAppCompilation": {
+          "status": "passed",
+          "scratchPath": ".build/production-readiness/i12/clean-scratch-final",
+          "warnings": 0,
+          "errors": 0,
+          "evidence": "clean-build.log",
+          "scope": "Fresh-scratch compiler-only app/helper build; excludes XCTest compilation/execution"
+        },
+        "cleanWarningFreeTestCompilation": "not established; prior recompilation retains existing weak-capture/Sendable warnings",
+        "universalReleaseBuild": "passed; app/helper arm64 and x86_64, minos14.0",
+        "releaseBuildWarning": "Aggregate x86_64 warning names macOS27.2; actual app/helper slices minos14.0",
+        "localAdHocPackagedBuild": {
+          "status": "passed",
+          "nativeTests": 330,
+          "nativeFailures": 0,
+          "nativeSkipped": 0,
+          "startup": "packaged executable passed native startup journey",
+          "signatures": "ad-hoc; strict/deep verification passed",
+          "resources": "source-matching license, notices and theme licenses; generated icon present",
+          "slices": "app/helper arm64+x86_64, minos14.0",
+          "binaryHashes": {
+            "Contents/MacOS/ConstellationBar": "9dd3371d00e8b86cfa6ca9f2eb4a04d16bd1eaf1108b737880df9666a6085f53",
+            "Contents/Frameworks/libNativeMediaHelper.dylib": "cdc539aa4bf2b249af1f8d5c449cb75a27fb2703a4939d679f7351949838b174"
+          },
+          "evidence": ".build/production-readiness/i12/packaged-build.log, packaged-metadata.log",
+          "limits": "No successful LaunchServices activation, Developer ID/notarization, distributed update or Intel execution qualification"
+        },
+        "activeKeyboardProbe": {
+          "status": "not qualified",
+          "evidence": "keyboard-activation.log",
+          "scope": "Separate event-loop probe outside the passing XCTest count; no hardware keyboard or VoiceOver claim.",
+          "exit": 1,
+          "output": "KEYBOARD_UI_FAILED: Keyboard journey: Activation timed out (active=false, key=false, main=false, canKey=true, screenLocked=true). An unlocked interactive session is required; shortcuts were not exercised.\n"
+        },
+        "hardwareAndSignedDistributionQualification": "not performed",
+        "activationExperiment": "Independent minimal accessory/regular AppKit experiment also inactive; console session reports locked. Context does not establish product behavior on an unlocked session."
+      }
+    },
+    {
+      "id": "I13",
+      "date": "2026-11-05",
+      "revision": "804b03f4a3d045eab27b3b8371f3c2b8ed05d678",
+      "workingTreeChanges": true,
+      "sourceChanged": true,
+      "sourceTreeSHA256": "ff55a7828ff6a406623e1719876415e70c7a5b7978e7f94b8a3ba92e6b24daca",
+      "testsTreeSHA256": "6417c7f771f06efac09e32996d11e7313bb564cd5683753048960660a7d394a2",
+      "review": "reviews/I13.md",
+      "report": "I13.md",
+      "blindReviewer": true,
+      "reviewScope": "Representative read-only audit; 47 of 173 current native PNGs, enumerated exports, broadly sampled current code/tests, six permitted ordinary docs and current execution records. Explicit confirmation of no execution/mutations, prior-assessment/excluded-content exposure or team/status tooling. Candidate remained frozen.",
+      "scores": {
+        "codeQuality": 8.0,
+        "usability": 8.0,
+        "ui": 8.0
+      },
+      "confidence": {
+        "codeQuality": "High",
+        "usability": "Medium",
+        "ui": "Medium\u2013high for rendered opaque surfaces"
+      },
+      "environment": {
+        "macOS": "26.6.2",
+        "architecture": "arm64",
+        "xcode": "Xcode 27.2; Build version 27B52",
+        "swift": "swift-driver version: 1.168.6 Apple Swift version 6.4.2 (swiftlang-6.4.2.1.9 clang-2100.4.1.1)"
+      },
+      "verification": {
+        "build": "passed",
+        "pythonTests": {
+          "executed": 13,
+          "passed": 13,
+          "failed": 0
+        },
+        "xctest": {
+          "executed": 340,
+          "passed": 340,
+          "failed": 0,
+          "skipped": 0,
+          "newRegressionMethods": 10
+        },
+        "nativeRendering": {
+          "status": "passed",
+          "pngFixtures": 173,
+          "themeCatalogs": 1
+        },
+        "startupSmoke": "passed within native gates; actual built and packaged executable startup assertions",
+        "layoutRecoveryDiagnostics": 0,
+        "cleanAppCompilation": {
+          "status": "passed",
+          "scratchPath": ".build/production-readiness/i13/clean-scratch",
+          "warnings": 0,
+          "errors": 0,
+          "evidence": "clean-build.log",
+          "scope": "Fresh-scratch compiler-only app/helper build; excludes XCTest compilation/execution"
+        },
+        "cleanWarningFreeTestCompilation": "not established; prior recompilation retains existing weak-capture/Sendable warnings",
+        "universalReleaseBuild": "passed; app/helper arm64 and x86_64, minos14.0",
+        "releaseBuildWarning": "Aggregate x86_64 warning names macOS27.2; actual app/helper slices minos14.0",
+        "localAdHocPackagedBuild": {
+          "status": "passed",
+          "nativeTests": 340,
+          "nativeFailures": 0,
+          "nativeSkipped": 0,
+          "startup": "packaged executable passed native startup journey",
+          "signatures": "ad-hoc; strict/deep verification passed",
+          "resources": "source-matching license, notices and theme licenses; generated icon present",
+          "slices": "app/helper arm64+x86_64, minos14.0",
+          "binaryHashes": {
+            "Contents/MacOS/ConstellationBar": "e3e694d2985bd8e54ed49a2fcfb02312d1294a624e4baffde9b6d542fe5acf68",
+            "Contents/Frameworks/libNativeMediaHelper.dylib": "cdc539aa4bf2b249af1f8d5c449cb75a27fb2703a4939d679f7351949838b174"
+          },
+          "evidence": ".build/production-readiness/i13/packaged-build.log, packaged-metadata.log",
+          "limits": "No successful LaunchServices activation, Developer ID/notarization, distributed update or Intel execution qualification"
+        },
+        "activeKeyboardProbe": {
+          "status": "not qualified",
+          "evidence": "keyboard-activation.log",
+          "scope": "Separate event-loop probe outside the passing XCTest count; no hardware keyboard or VoiceOver claim.",
+          "exit": 1,
+          "output": "KEYBOARD_UI_FAILED: Keyboard journey: Activation timed out (active=false, key=false, main=false, canKey=true, screenLocked=true). An unlocked interactive session is required; shortcuts were not exercised.\n"
+        },
+        "hardwareAndSignedDistributionQualification": "not performed"
+      }
+    },
+    {
+      "id": "I14",
+      "date": "2026-11-05",
+      "revision": "804b03f4a3d045eab27b3b8371f3c2b8ed05d678",
+      "workingTreeChanges": true,
+      "sourceChanged": true,
+      "sourceTreeSHA256": "8ef6b4120e31250416c7341e80e8f2fb38dc5ba764e869b2f5d7daef071252e7",
+      "testsTreeSHA256": "8f7318cdcc6bd2eeff6aee67e6b752e9c7aec5f19bc8e0a3d4b0693aadac9b54",
+      "review": "reviews/I14.md",
+      "report": "I14.md",
+      "blindReviewer": true,
+      "reviewScope": "Representative read-only audit; 51 of 190 current native PNGs, broadly sampled current source/tests, permitted ordinary docs and supplied execution records. Explicit confirmation of no execution/mutations, prior-assessment/excluded-content exposure or team/thread discovery. Candidate remained frozen.",
+      "scores": {
+        "codeQuality": 8.0,
+        "usability": 8.0,
+        "ui": 8.5
+      },
+      "confidence": {
+        "codeQuality": "High, 85%",
+        "usability": "Moderate, 75%",
+        "ui": "High for fixtures, 85%; moderate for live behavior"
+      },
+      "environment": {
+        "macOS": "26.6.2",
+        "architecture": "arm64",
+        "xcode": "Xcode 27.2; Build version 27B52",
+        "swift": "swift-driver version: 1.168.6 Apple Swift version 6.4.2 (swiftlang-6.4.2.1.9 clang-2100.4.1.1)"
+      },
+      "verification": {
+        "build": "passed",
+        "pythonTests": {
+          "executed": 13,
+          "passed": 13,
+          "failed": 0
+        },
+        "xctest": {
+          "executed": 350,
+          "passed": 350,
+          "failed": 0,
+          "skipped": 0,
+          "newRegressionMethods": 10
+        },
+        "nativeRendering": {
+          "status": "passed",
+          "pngFixtures": 190,
+          "themeCatalogs": 1
+        },
+        "startupSmoke": "passed within native gates; actual built and packaged executable startup assertions",
+        "layoutRecoveryDiagnostics": 0,
+        "cleanAppCompilation": {
+          "status": "passed",
+          "scratchPath": ".build/production-readiness/i14/clean-scratch-frozen",
+          "warnings": 0,
+          "errors": 0,
+          "evidence": "clean-build.log",
+          "scope": "Fresh-scratch compiler-only app/helper build; excludes XCTest compilation/execution"
+        },
+        "cleanWarningFreeTestCompilation": "not established; prior recompilation retains existing weak-capture/Sendable warnings",
+        "universalReleaseBuild": "passed; app/helper arm64 and x86_64, minos14.0",
+        "releaseBuildWarning": "Aggregate x86_64 warning names macOS27.2; actual app/helper slices minos14.0",
+        "localAdHocPackagedBuild": {
+          "status": "passed",
+          "nativeTests": 350,
+          "nativeFailures": 0,
+          "nativeSkipped": 0,
+          "startup": "packaged executable passed native startup journey",
+          "signatures": "ad-hoc; strict/deep verification passed",
+          "resources": "source-matching license, notices and theme licenses; generated icon present",
+          "slices": "app/helper arm64+x86_64, minos14.0",
+          "binaryHashes": {
+            "Contents/MacOS/ConstellationBar": "38dc8c1d3a3ffbef45575a3d7fc3c32164a1fc740144d49d3f5208445e6d9874",
+            "Contents/Frameworks/libNativeMediaHelper.dylib": "cdc539aa4bf2b249af1f8d5c449cb75a27fb2703a4939d679f7351949838b174"
+          },
+          "evidence": ".build/production-readiness/i14/packaged-build.log, packaged-metadata.log",
+          "limits": "No successful LaunchServices activation, Developer ID/notarization, distributed update or Intel execution qualification"
+        },
+        "activeKeyboardProbe": {
+          "status": "not qualified",
+          "evidence": "keyboard-activation.log",
+          "scope": "Separate event-loop probe outside the passing XCTest count; no hardware keyboard or VoiceOver claim.",
+          "exit": 1,
+          "output": "KEYBOARD_UI_FAILED: Keyboard journey: Activation timed out (active=false, key=false, main=false, canKey=true, screenLocked=true). An unlocked interactive session is required; shortcuts were not exercised.\n"
+        },
+        "hardwareAndSignedDistributionQualification": "not performed",
+        "nativeKeyboardScope": "Synthetic NSEvent dispatch through NSApp.sendEvent and the production local monitor verifies two-window ownership, modified Escape, sheet propagation and cleanup. Does not qualify active-app or hardware keyboard operation."
+      },
+      "fixtureAudit": {
+        "available": 190,
+        "viewed": 51,
+        "filenames": [
+          "nativeStudio-light-board.png",
+          "nativeStudio-dark-board.png",
+          "nativeGlass-light-board.png",
+          "nativeGlass-dark-board.png",
+          "cove-light-board.png",
+          "porcelain-light-board.png",
+          "typeset-light-board.png",
+          "typeset-catppuccin-mocha-board.png",
+          "typeset-rosePine-dawn-board.png",
+          "typeset-everforest-lightSoft-board.png",
+          "settings-0.png",
+          "settings-1.png",
+          "settings-2.png",
+          "settings-3.png",
+          "settings-4.png",
+          "settings-compact-1.png",
+          "settings-constrained-recovery.png",
+          "settings-reminders-empty.png",
+          "mini-app-nowPlaying.png",
+          "mini-app-calendar.png",
+          "mini-app-audio.png",
+          "mini-app-vpn.png",
+          "mini-app-reminders.png",
+          "mini-app-timer.png",
+          "mini-app-keepAwake.png",
+          "mini-app-agentStatus.png",
+          "mini-app-dateTime.png",
+          "mini-app-keyboard.png",
+          "mini-app-system.png",
+          "constrained-calendar.png",
+          "constrained-nowPlaying.png",
+          "constrained-audio.png",
+          "constrained-agentStatus.png",
+          "constrained-timer.png",
+          "constrained-action-error.png",
+          "compact-calendar-empty.png",
+          "compact-access-calendar.png",
+          "compact-access-nowPlaying.png",
+          "reminders-expired.png",
+          "reminders-permission.png",
+          "audio-unavailable.png",
+          "system-cpu-unavailable.png",
+          "network-unavailable.png",
+          "timer-recovery-error-details.png",
+          "nativeGlass-light-compact-640.png",
+          "cove-light-notch.png",
+          "cove-border-centered-notch.png",
+          "wide-center-widgets.png",
+          "workspace-many-windows.png",
+          "workspace-narrow-windows.png",
+          "window-switcher-many-windows.png"
+        ]
+      }
+    },
+    {
+      "id": "I15",
+      "date": "2026-11-05",
+      "revision": "804b03f4a3d045eab27b3b8371f3c2b8ed05d678",
+      "workingTreeChanges": true,
+      "sourceChanged": true,
+      "sourceTreeSHA256": "19876b54a00a54ccd044f1d7900d9800c7ac9297b754e32f8c42188b1a3e7432",
+      "testsTreeSHA256": "6b89eb98b1af742fd60acc26eed6e4ce05a5eafe4f1beb91798c29eddc00694f",
+      "review": "reviews/I15.md",
+      "report": "I15.md",
+      "blindReviewer": true,
+      "reviewScope": "Bounded beta candidate read-only audit; 24 of 190 PNGs, representative current source/tests and permitted supplied logs/docs. Clean isolation explicitly confirmed, no execution or mutation. Parent verified frozen source/test/fixture/binary hashes separately.",
+      "scores": {
+        "codeQuality": 8.5,
+        "usability": 8.0,
+        "ui": 8.5
+      },
+      "confidence": {
+        "codeQuality": "Medium-high",
+        "usability": "Medium",
+        "ui": "Medium-high for authored opaque layouts"
+      },
+      "environment": {
+        "macOS": "26.6.2",
+        "architecture": "arm64",
+        "xcode": "Xcode 27.2; Build version 27B52",
+        "swift": "swift-driver version: 1.168.6 Apple Swift version 6.4.2 (swiftlang-6.4.2.1.9 clang-2100.4.1.1)"
+      },
+      "verification": {
+        "build": "passed",
+        "pythonTests": {
+          "executed": 13,
+          "passed": 13,
+          "failed": 0
+        },
+        "xctest": {
+          "executed": 352,
+          "passed": 352,
+          "failed": 0,
+          "skipped": 0,
+          "newRegressionMethods": 2
+        },
+        "nativeRendering": {
+          "status": "passed",
+          "pngFixtures": 190,
+          "themeCatalogs": 1
+        },
+        "startupSmoke": "passed within native gates; actual built and packaged executable startup assertions",
+        "layoutRecoveryDiagnostics": 0,
+        "cleanAppCompilation": {
+          "status": "passed",
+          "scratchPath": ".build/production-readiness/i15/clean-scratch",
+          "warnings": 0,
+          "errors": 0,
+          "evidence": "clean-build.log",
+          "scope": "Fresh-scratch compiler-only app/helper build; excludes XCTest compilation/execution"
+        },
+        "cleanWarningFreeTestCompilation": "not established; prior recompilation retains existing weak-capture/Sendable warnings",
+        "universalReleaseBuild": "passed; app/helper arm64 and x86_64, minos14.0",
+        "releaseBuildWarning": "Aggregate x86_64 warning names macOS27.2; actual app/helper slices minos14.0",
+        "localAdHocPackagedBuild": {
+          "status": "passed",
+          "nativeTests": 352,
+          "nativeFailures": 0,
+          "nativeSkipped": 0,
+          "startup": "packaged executable passed native startup journey",
+          "signatures": "ad-hoc; strict/deep verification passed",
+          "resources": "source-matching license, notices and theme licenses; generated icon present",
+          "slices": "app/helper arm64+x86_64, minos14.0",
+          "binaryHashes": {
+            "Contents/MacOS/ConstellationBar": "52353c139ea56d6701231c87b15b9e03fce6da606d7fee61a674f9b18699cdf2",
+            "Contents/Frameworks/libNativeMediaHelper.dylib": "cdc539aa4bf2b249af1f8d5c449cb75a27fb2703a4939d679f7351949838b174"
+          },
+          "evidence": ".build/production-readiness/i15/packaged-build.log, packaged-metadata.log",
+          "limits": "No successful LaunchServices activation, Developer ID/notarization, distributed update or Intel execution qualification"
+        },
+        "activeKeyboardProbe": {
+          "status": "not qualified",
+          "evidence": "keyboard-activation.log",
+          "scope": "Separate event-loop probe outside the passing XCTest count; no hardware keyboard or VoiceOver claim.",
+          "exit": 1,
+          "output": "KEYBOARD_UI_FAILED: Keyboard journey: Activation timed out (active=false, key=false, main=false, canKey=true, screenLocked=true). An unlocked interactive session is required; shortcuts were not exercised.\n"
+        },
+        "hardwareAndSignedDistributionQualification": "not performed",
+        "nativeKeyboardScope": "Synthetic NSEvent dispatch through NSApp.sendEvent and the production local monitor verifies two-window ownership, modified Escape, sheet propagation and cleanup. Does not qualify active-app or hardware keyboard operation.",
+        "machHostPortProbe": {
+          "readsPerKind": 1024,
+          "beforeFixReferenceGrowth": {
+            "cpu": 1024,
+            "memory": 1024
+          },
+          "afterFixReferenceGrowth": {
+            "cpu": 0,
+            "memory": 0
+          },
+          "scope": "Actual OS right counts in focused and full native/package gates; not a whole-app long-running resource/energy soak."
+        }
+      },
+      "fixtureAudit": {
+        "available": 190,
+        "viewed": 24,
+        "filenames": [
+          "reminders-date-only-overdue.png",
+          "nativeStudio-light-board.png",
+          "nativeStudio-dark-compact-640.png",
+          "nativeGlass-dark-board.png",
+          "cove-light-notch.png",
+          "porcelain-light-board.png",
+          "typeset-catppuccin-mocha-board.png",
+          "typeset-rosePine-dawn-board.png",
+          "settings-0.png",
+          "settings-1.png",
+          "settings-2.png",
+          "settings-compact-3.png",
+          "settings-constrained-recovery.png",
+          "settings-reminders-unavailable.png",
+          "settings-fullscreen-unavailable.png",
+          "mini-app-system.png",
+          "mini-app-calendar.png",
+          "mini-app-nowPlaying.png",
+          "compact-calendar-empty.png",
+          "reminders-permission.png",
+          "audio-partial.png",
+          "constrained-calendar.png",
+          "constrained-action-error.png",
+          "timer-recovery-typeset-paused-error.png"
+        ]
+      },
+      "candidateVersion": "0.8.2",
+      "bundleBuild": "11"
+    }
+  ]
+}

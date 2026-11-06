@@ -3,15 +3,33 @@ import Darwin
 
 /// Follow the display's active native Space, never window geometry or AX state.
 enum FullscreenDetector {
+    static func snapshot(on displays: [CGDirectDisplayID]) -> FullscreenSnapshot {
+        snapshot(displays) { NativeSpaceQuery.shared?.currentSpaceType(on: $0) }
+    }
+
+    static func snapshot(_ displays: [CGDirectDisplayID], spaceType: (CGDirectDisplayID) -> Int32?) -> FullscreenSnapshot {
+        var covered = Set<CGDirectDisplayID>(), unavailable = Set<CGDirectDisplayID>()
+        for display in Set(displays) {
+            // Known desktop/system types are 0/2; 4 includes native Split View.
+            // Negative errors and future unknown types cannot prove a desktop.
+            switch spaceType(display) {
+            case 4: covered.insert(display)
+            case 0, 2: break
+            default: unavailable.insert(display)
+            }
+        }
+        return FullscreenSnapshot(requestedDisplays: Set(displays), coveredDisplays: covered, unavailableDisplays: unavailable)
+    }
+
     static func coveredDisplays() -> Set<CGDirectDisplayID> {
-        coveredDisplays(NSScreen.screens.map(\.displayID)) { NativeSpaceQuery.shared?.currentSpaceType(on: $0) }
+        snapshot(on: NSScreen.screens.map(\.displayID)).coveredDisplays
     }
 
     static func coveredDisplays(_ displays: [CGDirectDisplayID],
                                 spaceType: (CGDirectDisplayID) -> Int32?) -> Set<CGDirectDisplayID> {
         // SkyLight type 4 is a native fullscreen Space (including Split View).
         // Unknown state keeps the bar visible rather than guessing from size.
-        Set(displays.filter { spaceType($0) == 4 })
+        snapshot(displays, spaceType: spaceType).coveredDisplays
     }
 }
 

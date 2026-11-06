@@ -10,12 +10,14 @@ final class WidgetInspectorView: OverlayContentView {
     private let titleLabel = NSTextField(labelWithString: "")
     private let subtitleLabel = NSTextField(labelWithString: "")
     private let rowsStack = NSStackView()
+    private let rowsScroll = NSScrollView()
+    private let rowsDocument = NSView()
     private let closeButton = NSButton()
     var onClose: (() -> Void)?
+    private var rowsHeight: CGFloat { rowsStack.arrangedSubviews.reduce(0) { $0 + $1.fittingSize.height + rowsStack.spacing } }
 
     var preferredSize: NSSize {
-        let rowCount = inspectorRows.count
-        return NSSize(width: 300, height: 70 + (isMetric ? 140 : 0) + CGFloat(rowCount) * 27 + 14)
+        return NSSize(width: 300, height: 70 + (isMetric ? 140 : 0) + rowsHeight + 14)
     }
 
     init(kind: WidgetKind, state: SystemState, config: BarConfig, pinned: Bool, history: WidgetHistory = WidgetHistory()) {
@@ -57,7 +59,9 @@ final class WidgetInspectorView: OverlayContentView {
         rowsStack.spacing = 4
         rowsStack.frame = NSRect(x: 16, y: 14, width: 268, height: CGFloat(inspectorRows.count) * 27)
         update(state: state, history: history)
-        addSubview(rowsStack)
+        rowsScroll.drawsBackground = false; rowsScroll.hasVerticalScroller = true; rowsScroll.hasHorizontalScroller = true
+        rowsScroll.autohidesScrollers = true; rowsScroll.scrollerStyle = .overlay
+        rowsScroll.documentView = rowsDocument; rowsDocument.addSubview(rowsStack); addSubview(rowsScroll)
 
 
     }
@@ -71,20 +75,27 @@ final class WidgetInspectorView: OverlayContentView {
         closeButton.frame = NSRect(x: bounds.width - 30, y: bounds.height - 36, width: 18, height: 18)
         metricLabel.frame = NSRect(x: 16, y: bounds.height - 103, width: bounds.width - 32, height: 57)
         historyGraph.frame = NSRect(x: 16, y: bounds.height - 184, width: bounds.width - 32, height: 66)
-        rowsStack.frame = NSRect(x: 16, y: 14, width: bounds.width - 32, height: CGFloat(inspectorRows.count) * 27)
+        rowsScroll.frame = NSRect(x: 16, y: 14, width: max(0, bounds.width-32), height: max(0, bounds.height-70-(isMetric ? 140 : 0)))
+        rowsScroll.tile()
+        let height = rowsHeight
+        rowsDocument.frame.size = NSSize(width: max(268, rowsScroll.contentSize.width), height: max(height, rowsScroll.contentSize.height))
+        rowsStack.frame = NSRect(x: 0, y: rowsDocument.bounds.height-height, width: 268, height: height)
     }
 
     func update(state: SystemState, history: WidgetHistory) {
         systemState = state
+        subtitleLabel.stringValue = inspectorSubtitle
         if isMetric {
-            let usage = kind == .cpu ? state.cpu.usage : state.memory.usage
-            metricLabel.stringValue = "\(Int(usage.rounded()))%"
+            metricLabel.stringValue = kind == .cpu ? state.cpu.valueText : state.memory.valueText
             historyGraph.values = kind == .cpu ? history.cpu : history.memory
             historyGraph.setAccessibilityLabel("\(kind.menuTitle) utilization history")
             metricLabel.setAccessibilityLabel("\(kind.menuTitle) \(metricLabel.stringValue)")
         }
         rowsStack.arrangedSubviews.forEach { rowsStack.removeArrangedSubview($0); $0.removeFromSuperview() }
-        for row in inspectorRows { rowsStack.addArrangedSubview(makeRow(row.0, row.1)) }
+        let rows = inspectorRows.map { makeRow($0.0, $0.1) }
+        // Required row heights must fit before attachment, including when an error adds lines.
+        rowsStack.frame.size = NSSize(width: 268, height: max(1, rows.reduce(0) { $0 + $1.fittingSize.height + rowsStack.spacing }))
+        for row in rows { rowsStack.addArrangedSubview(row) }
         needsLayout = true
     }
 
@@ -103,19 +114,24 @@ final class WidgetInspectorView: OverlayContentView {
         let row = NSView()
         row.translatesAutoresizingMaskIntoConstraints = false
         row.widthAnchor.constraint(equalToConstant: 268).identified("inspector.row.width").isActive = true
-        row.heightAnchor.constraint(equalToConstant: 23).identified("inspector.row.height").isActive = true
+        let wraps = title == "Status"
+        let font = config.appearance.font(size: 11, weight: .medium)
+        let textHeight = ceil((value as NSString).boundingRect(with: NSSize(width: 264, height: CGFloat.greatestFiniteMagnitude), options: [.usesLineFragmentOrigin, .usesFontLeading], attributes: [.font: font]).height)+6
+        let height = wraps ? max(46, textHeight+27) : 23
+        row.heightAnchor.constraint(equalToConstant: height).identified("inspector.row.height").isActive = true
         let left = NSTextField(labelWithString: title)
         left.font = config.appearance.font(size: 11)
         left.textColor = config.theme.muted
-        let right = NSTextField(labelWithString: value)
-        right.font = config.appearance.font(size: 11, weight: .medium)
+        let right = wraps ? NSTextField(wrappingLabelWithString: value) : NSTextField(labelWithString: value)
+        right.font = font
         right.textColor = config.theme.foreground
-        right.alignment = .right
-        right.lineBreakMode = .byTruncatingMiddle
+        right.alignment = wraps ? .left : .right
+        right.lineBreakMode = wraps ? .byWordWrapping : .byTruncatingMiddle
+        right.toolTip = value
         row.addSubview(left)
         row.addSubview(right)
-        left.frame = NSRect(x: 0, y: 4, width: 112, height: 15)
-        right.frame = NSRect(x: 116, y: 4, width: 152, height: 15)
+        left.frame = NSRect(x: 0, y: wraps ? height-20 : 4, width: 112, height: 15)
+        right.frame = NSRect(x: wraps ? 0 : 116, y: 4, width: wraps ? 268 : 152, height: wraps ? textHeight : 15)
         return row
     }
 

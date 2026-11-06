@@ -1,92 +1,32 @@
 import AppKit
 
-final class WorkspaceOverviewView: OverlayContentView {
-    private let workspace: WorkspaceState
-    private let titleLabel = NSTextField(labelWithString: "")
-    private var cards: [WindowCardView] = []
+final class WorkspaceOverviewView: WindowCollectionPanel {
     var onWindowClick: ((WindowIdentity) -> Void)?
-
-    var preferredSize: NSSize {
-        let count = max(1, min(9, workspace.windows.count))
-        let columns = min(3, count)
-        let rows = Int(ceil(Double(count) / Double(columns)))
-        return NSSize(width: CGFloat(columns) * 164 + CGFloat(columns - 1) * 8 + 24, height: 48 + CGFloat(rows) * 82 + CGFloat(rows - 1) * 8 + 14)
-    }
 
     init(workspace: WorkspaceState, theme: BarTheme) {
-        self.workspace = workspace
-        super.init(frame: NSRect(origin: .zero, size: .zero))
-        applyAppearance(theme: theme)
-        titleLabel.stringValue = "Workspace \(workspace.name)"
-        titleLabel.font = theme.appearanceID.font(size: 12, weight: .semibold)
-        titleLabel.textColor = theme.foreground
-        addSubview(titleLabel)
-
-        if workspace.windows.isEmpty {
-            let empty = WindowCardView(window: nil, isFocused: false, theme: theme)
-            cards = [empty]
-            addSubview(empty)
-        } else {
-            cards = workspace.windows.prefix(9).map { window in
-                let card = WindowCardView(window: window, isFocused: false, theme: theme)
-                card.onClick = { [weak self] window in self?.onWindowClick?(window) }
-                addSubview(card)
-                return card
-            }
-        }
+        let cards = workspace.windows.isEmpty ? [WindowCardView(window: nil, isFocused: false, theme: theme)]
+            : workspace.windows.map { WindowCardView(window: $0, isFocused: false, theme: theme) }
+        super.init(title: "Workspace \(workspace.name)", windowCount: workspace.windows.count, items: cards, layout: .grid, theme: theme)
+        cards.forEach { $0.onClick = { [weak self] in self?.onWindowClick?($0) } }
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-    override func layout() {
-        super.layout()
-        titleLabel.frame = NSRect(x: 14, y: bounds.height - 34, width: bounds.width - 28, height: 17)
-        let columns = min(3, max(1, cards.count))
-        for (index, card) in cards.enumerated() {
-            let row = index / columns
-            let column = index % columns
-            card.frame = NSRect(x: 12 + CGFloat(column) * 172, y: bounds.height - 48 - CGFloat(row + 1) * 82 - CGFloat(row) * 8, width: 164, height: 82)
-        }
-    }
 }
 
-final class WindowSwitcherView: OverlayContentView {
-    private let titleLabel = NSTextField(labelWithString: "Windows")
-    private var rows: [WindowRowView] = []
+final class WindowSwitcherView: WindowCollectionPanel {
     var onWindowClick: ((WindowIdentity) -> Void)?
 
-    var preferredSize: NSSize {
-        NSSize(width: 390, height: 50 + CGFloat(max(1, min(8, rows.count))) * 44 + 12)
-    }
-
     init(windows: [WindowIdentity], focusedID: Int?, theme: BarTheme) {
-        super.init(frame: .zero)
-        applyAppearance(theme: theme)
-        titleLabel.font = theme.appearanceID.font(size: 12, weight: .semibold)
-        titleLabel.textColor = theme.foreground
-        addSubview(titleLabel)
-        rows = windows.prefix(8).map { window in
-            let row = WindowRowView(window: window, isFocused: window.id == focusedID, theme: theme)
-            row.onClick = { [weak self] window in self?.onWindowClick?(window) }
-            addSubview(row)
-            return row
-        }
-        if windows.isEmpty {
-            let row = WindowRowView(window: nil, isFocused: false, theme: theme)
-            rows = [row]
-            addSubview(row)
-        }
+        let rows = windows.isEmpty ? [WindowRowView(window: nil, isFocused: false, theme: theme)]
+            : windows.map { WindowRowView(window: $0, isFocused: $0.id == focusedID, theme: theme) }
+        let focused = windows.firstIndex { $0.id == focusedID }.map { rows[$0] }
+        super.init(title: "Windows", windowCount: windows.count, items: rows, layout: .list, theme: theme, initiallyVisibleItem: focused)
+        rows.forEach { $0.onClick = { [weak self] in self?.onWindowClick?($0) } }
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
-    override func layout() {
-        super.layout()
-        titleLabel.frame = NSRect(x: 14, y: bounds.height - 34, width: bounds.width - 28, height: 17)
-        for (index, row) in rows.enumerated() {
-            row.frame = NSRect(x: 10, y: bounds.height - 48 - CGFloat(index + 1) * 44, width: bounds.width - 20, height: 40)
-        }
-    }
 }
 
 final class WindowCardView: ModernControlView {
@@ -104,7 +44,8 @@ final class WindowCardView: ModernControlView {
         self.theme = theme
         setAccessibilityRole(.button)
         setAccessibilityLabel(window.map { "\($0.appName), \($0.title)" } ?? "No windows")
-        keyboardAction = { [weak self] in guard let self, let identity = self.windowIdentity else { return }; self.onClick?(identity) }
+        toolTip = window.map { "\($0.appName)\n\($0.title.isEmpty ? "Untitled window" : $0.title)\nWorkspace \($0.workspace)" }
+        if window != nil { keyboardAction = { [weak self] in guard let self, let identity = self.windowIdentity else { return }; self.onClick?(identity) } }
         iconView.imageScaling = .scaleProportionallyUpOrDown
         addSubview(iconView)
         appLabel.font = .systemFont(ofSize: 11, weight: .semibold)
@@ -147,6 +88,12 @@ final class WindowCardView: ModernControlView {
     override func mouseDown(with event: NSEvent) {
         if let windowIdentity { onClick?(windowIdentity) }
     }
+    override func becomeFirstResponder() -> Bool {
+        guard super.becomeFirstResponder() else { return false }
+        WindowCollectionPanel.revealFocusedItem(self)
+        return true
+    }
+    override func hitTest(_ point: NSPoint) -> NSView? { super.hitTest(point) == nil ? nil : self }
 }
 
 final class WindowRowView: ModernControlView {
@@ -164,7 +111,8 @@ final class WindowRowView: ModernControlView {
         self.theme = theme
         setAccessibilityRole(.button)
         setAccessibilityLabel(window.map { "\($0.appName), \($0.title)" } ?? "No windows")
-        keyboardAction = { [weak self] in guard let self, let identity = self.windowIdentity else { return }; self.onClick?(identity) }
+        toolTip = window.map { "\($0.appName)\n\($0.title.isEmpty ? "Untitled window" : $0.title)\nWorkspace \($0.workspace)" }
+        if window != nil { keyboardAction = { [weak self] in guard let self, let identity = self.windowIdentity else { return }; self.onClick?(identity) } }
         iconView.imageScaling = .scaleProportionallyUpOrDown
         addSubview(iconView)
         titleLabel.font = .systemFont(ofSize: 11, weight: .semibold)
@@ -203,4 +151,10 @@ final class WindowRowView: ModernControlView {
     override func mouseDown(with event: NSEvent) {
         if let windowIdentity { onClick?(windowIdentity) }
     }
+    override func becomeFirstResponder() -> Bool {
+        guard super.becomeFirstResponder() else { return false }
+        WindowCollectionPanel.revealFocusedItem(self)
+        return true
+    }
+    override func hitTest(_ point: NSPoint) -> NSView? { super.hitTest(point) == nil ? nil : self }
 }

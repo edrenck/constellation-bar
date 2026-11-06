@@ -1,18 +1,20 @@
 import Foundation
 
-extension BarConfig {
-    /// Providers must run even when their only presentation is on another display or in the center.
-    var widgetsForSampling: [WidgetKind] {
-        var result = WidgetKind.consolidated(widgetLayout.allWidgetKinds + rightWidgets + centerWidgets)
-        for override in displayOverrides.values where override.enabled != false {
-            let layoutKinds = override.widgetLayout?.allWidgetKinds ?? []
-            for kind in layoutKinds + (override.widgets ?? []) + (override.centerWidgets ?? []) where !result.contains(kind) {
-                result.append(kind)
-            }
-        }
-        return result
-    }
+/// The same effective displays own both rendered bars and the providers they need.
+/// Connected IDs are ordered with the primary display first; saved overrides are not connections.
+struct DisplayScope: Equatable {
+    let displayIDs: [String]
+    let widgets: [WidgetKind]
 
+    init(config: BarConfig, connectedDisplayIDs: [String]) {
+        let candidates = config.displayMode == .primaryOnly ? Array(connectedDisplayIDs.prefix(1)) : connectedDisplayIDs
+        var seen = Set<String>()
+        displayIDs = candidates.filter { seen.insert($0).inserted && config.displayOverrides[$0]?.enabled != false }
+        widgets = WidgetKind.consolidated(displayIDs.flatMap { config.forDisplay($0).widgetLayout.allWidgetKinds })
+    }
+}
+
+extension BarConfig {
     func stateForDisplay(_ state: BarState, id: String, monitorIndex: Int) -> BarState {
         let override = displayOverrides[id]
         let visibility = override?.workspaceVisibility ?? (workspacesOnCurrentDisplay ? .local : .all)

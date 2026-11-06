@@ -1,11 +1,15 @@
 # Configuration reference
 
-Version 4 uses JSON. Versions 1 through 3 are accepted and migrated when saved. Missing top-level settings use defaults. Settings edited in the app save atomically. Reload external edits through the Configuration menu. Import validates a file before applying it. Export includes the location and paths you configured; review them before sharing a preset.
+When a malformed default configuration is fixed or moved aside, Reload clears its previous load error, and Retry Save checks the current file state without requiring an app restart. A malformed file still present at the destination remains protected. An explicit `--config` or environment-selected source that cannot be read remains an error; the missing-default fallback does not hide explicit read failures.
+
+Version 5 uses JSON. Versions 1 through 4 are accepted and migrated when saved. Missing top-level settings use defaults. Settings edited in the app save atomically. Reload external edits through the Configuration menu. Import validates a file before applying it. Export includes the location and paths you configured; review them before sharing a preset.
 
 | Setting | Default | Behavior |
 | --- | --- | --- |
 | `schemaVersion` | 5 | Future versions are rejected with a visible error. |
 | `layout` | `rail` | `rail`, `islands`, `compact`; Composition selects a continuous rail or floating groups, with shorter widget contents in Compact. |
+| `barPresentation` | `fullWidth` | `fullWidth` or `floating`; independent of the selected appearance. |
+| `widgetLayout` | workspaces/currentApp left, battery/dateTime right | Explicit `left`, `center`, `right` arrays of bar item identifiers and `alignment` (`spread` or `centerAll`). Each item appears at most once. |
 | `widgetPlacement` | `trailing` | `trailing` = right; `leading` = left |
 | `integration` | `automatic` | `automatic`, `aerospace`, `standalone` |
 | `aerospacePath` | empty | Discover from PATH and Homebrew locations; a nonempty value is an explicit override. |
@@ -52,7 +56,7 @@ Use the display picker in customization to choose a connected display or a saved
 
 The compatibility keys `surfsharkDisplayName` and `tailwindDisplayName` retain older personalized labels; VPN state itself is now provider-neutral. Legacy `style`, `colorScheme`, `theme`, `cornerRadius`, and effect controls are ignored on import and omitted on export. Layouts, widgets, names, providers and display overrides are preserved. Older files without an appearance start with Native > macOS. Existing appearance values retain their rendering; Typeset files without a scheme retain Graphite.
 
-Fullscreen hiding follows the native macOS fullscreen Space on each display, including browser video fullscreen and Split View. Maximized or borderless windows on ordinary desktop Spaces keep the bar visible. No Accessibility or Screen Recording permission is required. Detection uses dynamically loaded private SkyLight queries; if those queries are unavailable on a macOS version, the bar remains visible. Bars stay attached to the physical top edge while the macOS menu is hidden and split into the safe regions on either side of a notch. Revealing the menu temporarily moves the bar below it; hiding it returns the bar to the top edge after a short grace period. Pointer events pass through at the top edge so macOS can reveal its menu bar when configured to auto-hide. Workspace selection uses a 160 ms slide; keyboard callbacks query focus separately from full window enumeration. Bar clicks provide immediate selection feedback and reconcile with the provider. The active application icon/title crossfade on changes. These transitions respect macOS Reduce Motion.
+Fullscreen hiding follows the native macOS fullscreen Space on each display, including browser video fullscreen and Split View. Maximized or borderless windows on ordinary desktop Spaces keep the bar visible. No Accessibility or Screen Recording permission is required. Detection uses dynamically loaded private SkyLight queries; if those queries are unavailable on a macOS version, the bar remains visible. Diagnostics → Fullscreen visibility reports unavailable or partial detection, recovery, and displays where hiding is disabled; the copied diagnostic report includes the same status. Refresh status retries the visibility query. Bars stay attached to the physical top edge while the macOS menu is hidden and split into the safe regions on either side of a notch. Revealing the menu temporarily moves the bar below it; hiding it returns the bar to the top edge after a short grace period. Pointer events pass through at the top edge so macOS can reveal its menu bar when configured to auto-hide. Workspace selection uses a 160 ms slide; keyboard callbacks query focus separately from full window enumeration. Bar clicks provide immediate selection feedback and reconcile with the provider. The active application icon/title crossfade on changes. These transitions respect macOS Reduce Motion.
 
 
 ## Appearance materials
@@ -95,7 +99,7 @@ Legacy `cpu`, `memory`, `network` and `thermal` identifiers migrate to one `syst
 
 ## Independent monitor groups (0.5.0 alpha)
 
-`displayOverrides` uses stable macOS display UUIDs. The customization display picker lists connected displays and saved disconnected displays. Optional override values inherit global settings. `widgets` is the edge group, `centerWidgets` is the independent center group, and `widgetPlacement` selects `trailing`, `leading`, or the existing `centered` composition. With an independent center group, the edge stays at the selected edge (`centered` uses the right edge).
+`displayOverrides` uses stable macOS display UUIDs. The customization display picker lists connected displays and saved disconnected displays. Optional override values inherit shared settings. New configurations use `widgetLayout` with explicit Left/Center/Right arrays and alignment. Legacy `widgets`, `centerWidgets` and `widgetPlacement` remain accepted: `widgets` is the edge group, `centerWidgets` the independent center group, and `widgetPlacement` selects `trailing`, `leading` or `centered`. An explicit `widgetLayout` takes precedence over those legacy placement keys.
 
 `workspaceVisibility` accepts `local`, `all`, `selected`, or `hidden`. Omit it to follow `workspacesOnCurrentDisplay`. `selectedWorkspaces` is an ordered array of AeroSpace workspace IDs, used in selected mode; unknown IDs are ignored until discovered. These settings affect presentation, not AeroSpace monitor assignment.
 
@@ -123,12 +127,14 @@ Legacy `cpu`, `memory`, `network` and `thermal` identifiers migrate to one `syst
 An explicit empty group hides it. Null/omitted groups inherit global values. If an inherited edge widget is explicitly put in the center, it is removed from the effective edge group. Explicit duplicate widgets across groups are rejected. Global `centerWidgets` is also accepted for shared setups.
 
 
-`providerPreferences.calendarProvider` accepts `appleCalendar` (default) or `outlook`. Both read the same native EventKit store, using macOS Internet Accounts for account synchronization. The Outlook choice opens the Outlook app from event details.
+`providerPreferences.calendarProvider` accepts `appleCalendar` (default) or `outlook`. Both read the same native EventKit store, using macOS Internet Accounts for account synchronization. The panel’s Open Calendar/Outlook action opens that application without targeting a particular event.
+
+Calendar's **Choose calendars** filters are stored locally for this Mac. Calendar account identifiers are not included in exported JSON or configuration Undo. The same filter applies to the compact widget and its panel.
 
 `visualPreferences.coveCornerRadius` sets Cove’s desktop corner radius from 0 to 40 screen points (default 12). Each display can override it in its visual preferences. macOS does not expose a public hardware corner-radius measurement; this control allows matching the display without changing bar content sizing.
 
 ## Daily widgets
 
-`timerPresetMinutes` sets one to six countdown presets (1–1,440 minutes each). `worldClockIdentifiers` adds up to eight unique IANA time zones to Clock, for example `America/New_York` and `Asia/Tokyo`. `reminderListIDs` filters Reminders by EventKit list identifiers; an empty selection reads all lists. The new widget identifiers are `timer`, `keepAwake`, `reminders` and `keyboard`; Clock keeps `dateTime` for compatibility.
+Inside `widgetPreferences`, `timerPresetMinutes` sets one to six countdown presets (1–1,440 minutes each). `worldClockIdentifiers` adds up to eight unique IANA time zones to Clock, for example `America/New_York` and `Asia/Tokyo`. `reminderListIDs` filters Reminders by EventKit list identifiers; an empty selection reads all lists. The new widget identifiers are `timer`, `keepAwake`, `reminders` and `keyboard`; Clock keeps `dateTime` for compatibility.
 
 Settings commits and undo history advance after a successful configuration write. A failed write leaves the edited form visibly unsaved, with Retry and Revert controls; it does not silently overwrite an invalid existing file.

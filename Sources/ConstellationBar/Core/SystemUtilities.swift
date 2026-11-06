@@ -4,14 +4,17 @@ import Foundation
 struct NetworkCounters {
     var received: UInt64
     var sent: UInt64
+    var interfaceNames: [String] = []
 }
 
 enum NetworkInterfaceProvider {
-    static func counters() -> NetworkCounters {
+    static func counters() throws -> NetworkCounters {
         var addresses: UnsafeMutablePointer<ifaddrs>?
         var received: UInt64 = 0
         var sent: UInt64 = 0
-        guard getifaddrs(&addresses) == 0, let first = addresses else { return NetworkCounters(received: 0, sent: 0) }
+        var names: [String] = []
+        guard getifaddrs(&addresses) == 0 else { throw POSIXError(POSIXErrorCode(rawValue: errno) ?? .EIO) }
+        guard let first = addresses else { return NetworkCounters(received: 0, sent: 0) }
         defer { freeifaddrs(addresses) }
 
         var ptr: UnsafeMutablePointer<ifaddrs>? = first
@@ -24,27 +27,11 @@ enum NetworkInterfaceProvider {
                 let networkData = data.assumingMemoryBound(to: if_data.self).pointee
                 received += UInt64(networkData.ifi_ibytes)
                 sent += UInt64(networkData.ifi_obytes)
+                if let name = interface.ifa_name { names.append(String(cString: name)) }
             }
             ptr = interface.ifa_next
         }
-        return NetworkCounters(received: received, sent: sent)
-    }
-
-    static func interfaceNames() -> [String] {
-        var addresses: UnsafeMutablePointer<ifaddrs>?
-        guard getifaddrs(&addresses) == 0, let first = addresses else { return [] }
-        defer { freeifaddrs(addresses) }
-        var names: [String] = []
-        var ptr: UnsafeMutablePointer<ifaddrs>? = first
-        while ptr != nil {
-            guard let interface = ptr?.pointee else { break }
-            let flags = Int32(interface.ifa_flags)
-            if (flags & IFF_UP) == IFF_UP, let cName = interface.ifa_name {
-                names.append(String(cString: cName))
-            }
-            ptr = interface.ifa_next
-        }
-        return Array(Set(names))
+        return NetworkCounters(received: received, sent: sent, interfaceNames: Array(Set(names)).sorted())
     }
 }
 
@@ -53,17 +40,17 @@ struct CPUCounters {
     var system: UInt64
     var idle: UInt64
     var nice: UInt64
-    var total: UInt64 { user + system + idle + nice }
-
-    static func current() -> CPUCounters {
+    static func current() throws -> CPUCounters {
+        let host = mach_host_self()
+        defer { mach_port_deallocate(mach_task_self_, host) }
         var count = mach_msg_type_number_t(MemoryLayout<host_cpu_load_info_data_t>.stride / MemoryLayout<integer_t>.stride)
         var info = host_cpu_load_info()
         let result = withUnsafeMutablePointer(to: &info) { pointer in
             pointer.withMemoryRebound(to: integer_t.self, capacity: Int(count)) { rebound in
-                host_statistics(mach_host_self(), HOST_CPU_LOAD_INFO, rebound, &count)
+                host_statistics(host, HOST_CPU_LOAD_INFO, rebound, &count)
             }
         }
-        guard result == KERN_SUCCESS else { return CPUCounters(user: 0, system: 0, idle: 0, nice: 0) }
+        guard result == KERN_SUCCESS else { throw CPUReadError(status: result) }
         return CPUCounters(
             user: UInt64(info.cpu_ticks.0),
             system: UInt64(info.cpu_ticks.1),
@@ -71,6 +58,11 @@ struct CPUCounters {
             nice: UInt64(info.cpu_ticks.3)
         )
     }
+}
+
+private struct CPUReadError: LocalizedError {
+    let status: kern_return_t
+    var errorDescription: String? { "CPU sampling failed (macOS error \(status)). Retrying with the next sample." }
 }
 
 enum AppIconProvider {

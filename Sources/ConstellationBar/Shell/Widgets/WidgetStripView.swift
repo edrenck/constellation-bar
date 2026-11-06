@@ -15,8 +15,13 @@ final class WidgetStripView: NSView {
     private(set) var memoryHistory: [Double] = []
     private var networkHistory: [Double] = []
     private var historyDates: [Date] = []
-    var fullHistory: WidgetHistory { WidgetHistory(cpu: cpuHistory, memory: memoryHistory, network: networkHistory, dates: historyDates) }
+    private var cpuHistoryDates: [Date] = []
+    private var memoryHistoryDates: [Date] = []
+    private var networkHistoryDates: [Date] = []
+    var fullHistory: WidgetHistory { WidgetHistory(cpu: cpuHistory, memory: memoryHistory, network: networkHistory, dates: historyDates, cpuDates: cpuHistoryDates, memoryDates: memoryHistoryDates, networkDates: networkHistoryDates) }
     private var lastHistorySample = Date.distantPast
+    private var lastMetricsSample: Date?
+    private var now: () -> Date = Date.init
     private let dropIndicator = NSView()
     private let overflowControl = OverflowWidgetControl()
     private var proposedDropIndex: Int?
@@ -58,6 +63,7 @@ final class WidgetStripView: NSView {
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+    convenience init(frame: NSRect, now: @escaping () -> Date) { self.init(frame: frame); self.now = now }
 
     override func layout() {
         super.layout()
@@ -154,14 +160,25 @@ final class WidgetStripView: NSView {
         forcedHiddenKinds = system.hidesNowPlaying(whenIdle: config.widgetPreferences.nowPlayingHidesWhenIdle) ? [.nowPlaying] : []
         if system.battery.percent == nil { forcedHiddenKinds.insert(.battery) }
         if !config.weather.isConfigured { forcedHiddenKinds.insert(.weather) }
-        if Date().timeIntervalSince(lastHistorySample) >= config.systemUpdateInterval * 0.9 {
-            lastHistorySample = Date()
-            cpuHistory.append(system.cpu.usage)
-            cpuHistory = Array(cpuHistory.suffix(1800))
-            historyDates.append(Date()); historyDates = Array(historyDates.suffix(1800))
-            networkHistory.append(Double(system.network.downloadBytesPerSecond)); networkHistory = Array(networkHistory.suffix(1800))
-            memoryHistory.append(system.memory.usage)
-            memoryHistory = Array(memoryHistory.suffix(1800))
+        let date = now()
+        let sampleDate = system.metricsSampledAt ?? date
+        let isNewSample = system.metricsSampledAt.map { $0 != lastMetricsSample } ?? (date.timeIntervalSince(lastHistorySample) >= config.systemUpdateInterval * 0.9)
+        if isNewSample {
+            lastHistorySample = date
+            lastMetricsSample = system.metricsSampledAt
+            if system.cpu.isAvailable {
+                cpuHistory.append(system.cpu.usage); cpuHistory = Array(cpuHistory.suffix(1800))
+                cpuHistoryDates.append(sampleDate); cpuHistoryDates = Array(cpuHistoryDates.suffix(1800))
+            }
+            historyDates.append(sampleDate); historyDates = Array(historyDates.suffix(1800))
+            if system.network.status.isAvailable {
+                networkHistory.append(Double(system.network.downloadBytesPerSecond)); networkHistory = Array(networkHistory.suffix(1800))
+                networkHistoryDates.append(sampleDate); networkHistoryDates = Array(networkHistoryDates.suffix(1800))
+            }
+            if system.memory.status.isAvailable {
+                memoryHistory.append(system.memory.usage); memoryHistory = Array(memoryHistory.suffix(1800))
+                memoryHistoryDates.append(sampleDate); memoryHistoryDates = Array(memoryHistoryDates.suffix(1800))
+            }
         }
         for kind in kinds {
             let module = WidgetCatalog.module(for: kind)

@@ -8,8 +8,14 @@ final class BarOverlayCoordinator {
     private var closeWorkItem: DispatchWorkItem?
     private(set) var isPinned = false
     private var keyMonitor: Any?
+    private weak var anchorView: NSView?
+    private let availableFrame: (NSWindow) -> NSRect
 
-    init(ownerView: BarRootView) { self.ownerView = ownerView }
+    init(ownerView: BarRootView, availableFrame: @escaping (NSWindow) -> NSRect = { $0.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? .zero }) {
+        self.ownerView = ownerView; self.availableFrame = availableFrame
+    }
+
+    deinit { close() }
 
     func scheduleWidget(_ kind: WidgetKind, state: SystemState, config: BarConfig, anchoredTo control: NSView) {
         guard !isPinned else { return }
@@ -104,18 +110,29 @@ final class BarOverlayCoordinator {
         displayedWidget = nil
         if let keyMonitor { NSEvent.removeMonitor(keyMonitor); self.keyMonitor = nil }
 
-        let anchor = window.convertToScreen(control.convert(control.bounds, to: nil))
-        let visible = window.screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? .zero
-        var x = anchor.midX - size.width / 2
-        x = min(max(visible.minX + 10, x), visible.maxX - size.width - 10)
-        let origin = NSPoint(x: x, y: max(visible.minY + 8, anchor.minY - size.height - 8))
-        let newPanel = BarFloatingPanel(contentRect: NSRect(origin: origin, size: size))
+        anchorView = control
+        guard let frame = frame(for: size, control: control, window: window) else { return }
+        let newPanel = BarFloatingPanel(contentRect: frame)
         content.onPointerEntered = { [weak self] in self?.closeWorkItem?.cancel() }
         content.onPointerExited = { [weak self] in self?.scheduleClose() }
         newPanel.contentView = content
         panel = newPanel
         newPanel.orderFrontRegardless()
         setPinned(staysOpen)
+    }
+
+    private func frame(for size: NSSize, control: NSView, window: NSWindow) -> NSRect? {
+        let visible = availableFrame(window)
+        guard visible.width > 0, visible.height > 0 else { return nil }
+        let anchor = window.convertToScreen(control.convert(control.bounds, to: nil))
+        return WindowPlacement.constrain(NSRect(x: anchor.midX-size.width/2, y: anchor.minY-size.height-8,
+                                               width: size.width, height: size.height), to: visible, inset: 10)
+    }
+
+    private func resize(to size: NSSize) {
+        guard let panel, let anchorView, let window = anchorView.window,
+              let frame = frame(for: size, control: anchorView, window: window) else { return }
+        if panel.frame != frame { panel.setFrame(frame, display: true) }
     }
 
     private func setPinned(_ pinned: Bool) {
@@ -127,29 +144,32 @@ final class BarOverlayCoordinator {
         if pinned {
             panel?.makeKeyAndOrderFront(nil)
             keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-                if event.keyCode == 53 { self?.close(); return nil }
-                return event
+                guard let self, let panel = self.panel, self.isPinned, panel.isVisible,
+                      event.window === panel, panel.attachedSheet == nil,
+                      event.modifierFlags.intersection([.command, .control, .option, .shift]).isEmpty,
+                      event.keyCode == 53 else { return event }
+                self.close(); return nil
             }
         }
     }
 
     func refresh(state: SystemState, history: WidgetHistory) {
-        if let miniApp = panel?.contentView as? MiniAppPanel { miniApp.update(state: state, history: history); return }
+        if let miniApp = panel?.contentView as? MiniAppPanel {
+            miniApp.update(state: state, history: history); resize(to: miniApp.preferredSize); return
+        }
         guard let panel, let inspector = panel.contentView as? WidgetInspectorView else { return }
         inspector.update(state: state, history: history)
-        let size = inspector.preferredSize
-        if panel.frame.size != size {
-            panel.setFrame(NSRect(x: panel.frame.minX, y: panel.frame.maxY - size.height, width: size.width, height: size.height), display: true)
-        }
+        resize(to: inspector.preferredSize)
     }
 
     func close() {
-        showWorkItem?.cancel()
-        closeWorkItem?.cancel()
+        showWorkItem?.cancel(); showWorkItem = nil
+        closeWorkItem?.cancel(); closeWorkItem = nil
         panel?.orderOut(nil)
         panel?.close()
         panel = nil
         displayedWidget = nil
+        anchorView = nil
         isPinned = false
         if let keyMonitor { NSEvent.removeMonitor(keyMonitor); self.keyMonitor = nil }
     }

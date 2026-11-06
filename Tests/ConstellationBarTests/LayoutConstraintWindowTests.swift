@@ -33,9 +33,12 @@ final class LayoutConstraintWindowTests: XCTestCase {
         window.isReleasedWhenClosed = false; window.contentView = inspector
         defer { window.close() }
         inspector.layoutSubtreeIfNeeded()
-        let stack = try XCTUnwrap(inspector.subviews.compactMap { $0 as? NSStackView }.first)
+        let scroll = try XCTUnwrap(inspector.subviews.compactMap { $0 as? NSScrollView }.first)
+        let document = try XCTUnwrap(scroll.documentView)
+        let stack = try XCTUnwrap(document.subviews.compactMap { $0 as? NSStackView }.first)
         XCTAssertEqual(stack.frame.width, 268)
         XCTAssertTrue(stack.arrangedSubviews.allSatisfy { $0.frame.width == 268 })
+        XCTAssertTrue(inspector.bounds.contains(scroll.frame))
         saveSnapshot(inspector, named: "simple-inspector-layout")
     }
     private func saveSnapshot(_ view: NSView, named name: String) {

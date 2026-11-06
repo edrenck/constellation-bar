@@ -24,6 +24,8 @@ These checks cover application behavior for those journeys. Actual Window Server
 
 See [Architecture](docs/ARCHITECTURE.md) for feature ownership. Changes should be small, reviewable commits on a branch from `main`; open a pull request and wait for Build and test before merging. Keep `VERSION` as the source of the marketing version. Public release artifacts must use the signing pipeline, not the development CI ZIP.
 
+Production-readiness work starts from the [recorded baseline](docs/quality/BASELINE.md); the [checkpoint index](docs/quality/README.md) tracks implementation and review results. After each major application iteration, use the [blind review protocol](docs/quality/BLIND_REVIEW_PROTOCOL.md) and append the independent ratings and verification limits to the [scorecard](docs/quality/scorecard.json).
+
 ## Contributions and licensing
 
 By submitting a contribution, you agree to make it available under this repository’s MIT license. You retain ownership; no copyright assignment is required. Submit only code/assets you have the right to contribute, preserve upstream notices, and identify any third-party material and its license.

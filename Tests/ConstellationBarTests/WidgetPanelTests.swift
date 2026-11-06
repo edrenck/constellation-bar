@@ -21,6 +21,40 @@ final class WidgetPanelTests: XCTestCase {
         try run(overlay, anchor)
     }
 
+    func testClosingOrHidingBarDismissesItsPinnedPanel() throws {
+        _ = NSApplication.shared
+        let screen = try XCTUnwrap(NSScreen.main)
+        for hide in [false, true] {
+            var config = BarConfig.default; config.setGlobalWidgets([.dateTime])
+            let bar = BarWindow(screen: screen, config: config,
+                environment: MenuBarEnvironment(pointer: NSPoint(x: screen.frame.midX, y: screen.frame.midY), visible: false, uptime: 0, height: 24))
+            defer { if hide { bar.close() } }
+            bar.barView.render(state: ConfigurationPreviewView.previewState)
+            bar.orderFrontRegardless(); bar.barView.layoutSubtreeIfNeeded()
+            func descendants(_ view: NSView) -> [NSView] { view.subviews.flatMap { [$0] + descendants($0) } }
+            let clock = try XCTUnwrap(descendants(bar.barView).compactMap { $0 as? ModernWidgetView }.first)
+            let before = Set(NSApp.windows.map(ObjectIdentifier.init))
+            XCTAssertTrue(clock.accessibilityPerformPress())
+            let panel = try XCTUnwrap(NSApp.windows.compactMap { $0 as? BarFloatingPanel }.first { !before.contains(ObjectIdentifier($0)) && $0.isVisible })
+            if hide { bar.orderOut(nil) } else { bar.close() }
+            XCTAssertFalse(panel.isVisible, "A floating panel must not survive its bar window")
+        }
+    }
+
+    func testCoordinatorDeallocationClosesFloatingPanel() throws {
+        try withOverlay { _, anchor in
+            let owner = try XCTUnwrap(anchor.superview as? BarRootView)
+            var coordinator: BarOverlayCoordinator? = BarOverlayCoordinator(ownerView: owner)
+            coordinator?.showWidget(.system, state: SystemState(), config: .default, anchoredTo: anchor, pinned: true)
+            let panel = try XCTUnwrap(coordinator?.panel)
+            weak var weakCoordinator = coordinator
+            coordinator = nil
+            XCTAssertNil(weakCoordinator)
+            XCTAssertFalse(panel.isVisible)
+            panel.close()
+        }
+    }
+
     func testBatteryAndWeatherUseFullPanelAndSharedCloseControl() throws {
         for kind: WidgetKind in [.battery, .weather] {
             try withOverlay { overlay, anchor in

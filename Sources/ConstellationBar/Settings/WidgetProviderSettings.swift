@@ -66,7 +66,7 @@ extension ConfigurationWindowController {
     }
 
     @objc func allowCalendarAccess() {
-        WidgetServices.shared.calendar.requestAccess { [weak self] error in
+        widgets.requestCalendarAccess(config.providerPreferences.calendarProvider) { [weak self] error in
             if let error, let window = self?.window {
                 let alert = NSAlert(); alert.messageText = "Calendar access"; alert.informativeText = error
                 alert.beginSheetModal(for: window)
@@ -79,7 +79,7 @@ extension ConfigurationWindowController {
     }
 
     @objc func allowMusicAccess() {
-        AppleMusicIntegration.requestAccess { [weak self] error in
+        widgets.requestMusicAccess { [weak self] error in
             guard let error, let window = self?.window else { return }
             let alert = NSAlert(); alert.messageText = "Apple Music access"; alert.informativeText = error
             alert.beginSheetModal(for: window)

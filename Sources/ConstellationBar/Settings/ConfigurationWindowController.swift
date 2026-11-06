@@ -7,16 +7,21 @@ final class FlippedSettingsView: NSView {
 }
 
 final class ConfigurationWindowController: NSWindowController, NSTextFieldDelegate {
-    var config: BarConfig
+    let widgets: WidgetRuntime
+    let diagnostics: IntegrationDiagnostics
+    let editingSession: ConfigurationEditingSession
+    var config: BarConfig {
+        get { editingSession.draft }
+        set { editingSession.draft = newValue }
+    }
     let onChange: (BarConfig) -> Void
-    let persist: (BarConfig) -> ConfigurationSaveResult
-    private(set) var unsavedError: String?
-    private var pendingUndo = false
+    var unsavedError: String? { editingSession.error }
     let saveStatus = NSTextField(wrappingLabelWithString: "Changes save automatically.")
     let retrySaveButton = NSButton(title: "Retry Save", target: nil, action: nil)
     let revertSaveButton = NSButton(title: "Revert Unsaved Changes", target: nil, action: nil)
-    var undoStack: [BarConfig] = []
-    var lastCommittedConfig: BarConfig
+    let saveDetailsButton = NSButton(title: "Details…", target: nil, action: nil)
+    var undoStack: [BarConfig] { editingSession.undoHistory }
+    var lastCommittedConfig: BarConfig { editingSession.saved }
     let undoButton = NSButton(title: "Undo", target: nil, action: nil)
     let resetAppearanceButton = NSButton(title: "Reset Appearance", target: nil, action: nil)
 
@@ -34,6 +39,19 @@ final class ConfigurationWindowController: NSWindowController, NSTextFieldDelega
     let sectionTitle = NSTextField(labelWithString: "")
     let sectionDescription = NSTextField(wrappingLabelWithString: "")
     let settingsScroll = NSScrollView()
+    let sidebarScroll = NSScrollView()
+    let sectionPopup = NSPopUpButton()
+    private lazy var recoveryView = SettingsRecoveryView(status: saveStatus, buttons: [undoButton, retrySaveButton, revertSaveButton, saveDetailsButton])
+    private lazy var compactNavigation: NSStackView = {
+        let label = NSTextField(labelWithString: "Section")
+        sectionPopup.addItems(withTitles: Self.sectionTitles)
+        sectionPopup.target = self; sectionPopup.action = #selector(sectionPopupChanged)
+        sectionPopup.setAccessibilityLabel("Settings section"); sectionPopup.setAccessibilityTitleUIElement(label)
+        sectionPopup.widthAnchor.constraint(equalToConstant: 180).isActive = true
+        let row = NSStackView(views: [label, sectionPopup, NSView()])
+        row.orientation = .horizontal; row.alignment = .centerY; row.spacing = 12
+        return row
+    }()
     var sections: [Int: [NSView]] = [:]
     let barPresentationPopup = NSPopUpButton()
     let widgetAlignmentPopup = NSPopUpButton()
@@ -89,7 +107,7 @@ final class ConfigurationWindowController: NSWindowController, NSTextFieldDelega
     @objc func editingDisplayChanged() {
         guard editingDisplayIDs.indices.contains(editingDisplayPopup.indexOfSelectedItem) else { return }
         editingDisplayID = editingDisplayIDs[editingDisplayPopup.indexOfSelectedItem]
-        sync(config: config)
+        syncControls()
     }
     var appearanceButtons: [AppearanceChoiceButton] = []
     let nativeColorPopup = NSPopUpButton()
@@ -104,9 +122,8 @@ final class ConfigurationWindowController: NSWindowController, NSTextFieldDelega
     let workspaceAppsButton = NSButton(checkboxWithTitle: "Show open application icons", target: nil, action: nil)
     let worldClocksField = NSTextField()
     let timerPresetsField = NSTextField()
-    var reminderListButtons: [String: NSButton] = [:]
-    let reminderListChoices = NSStackView()
-    let reminderAccessReader = AppleRemindersReader()
+    var reminderListButtons: [String: NSButton] { reminderListChoices.buttons }
+    lazy var reminderListChoices = ReminderListSettingsView { [widgets] complete in widgets.readReminderLists(completion: complete) }
     let datePopup = NSPopUpButton()
     var systemMetricButtons: [SystemMetric: NSButton] = [:]
     let systemGraphButton = NSButton(checkboxWithTitle: "Show CPU graph", target: nil, action: nil)
@@ -128,13 +145,15 @@ final class ConfigurationWindowController: NSWindowController, NSTextFieldDelega
     let configErrorStatus = NSTextField(wrappingLabelWithString: "")
     var diagnosticRows: [WidgetKind: DiagnosticRow] = [:]
     var workspaceDiagnosticRow: DiagnosticRow?
+    var fullscreenDiagnosticRow: DiagnosticRow?
     let configPathStatus = NSTextField(labelWithString: "")
 
-    init(config: BarConfig, persist: @escaping (BarConfig) -> ConfigurationSaveResult = { _ in .saved(URL(fileURLWithPath: "/dev/null")) }, onChange: @escaping (BarConfig) -> Void) {
-        self.config = config
-        self.lastCommittedConfig = config
+    // Previews/tests may construct an isolated graph; production passes startup's shared runtime.
+    init(config: BarConfig, widgets: WidgetRuntime = WidgetRuntime(services: WidgetServices()),
+         diagnostics: IntegrationDiagnostics = IntegrationDiagnostics(), persist: @escaping (BarConfig) -> ConfigurationSaveResult = { _ in .saved(URL(fileURLWithPath: "/dev/null")) }, onChange: @escaping (BarConfig) -> Void) {
+        self.widgets = widgets; self.diagnostics = diagnostics
+        self.editingSession = ConfigurationEditingSession(config: config, persist: persist)
         self.onChange = onChange
-        self.persist = persist
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 1080, height: 800),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
@@ -142,12 +161,14 @@ final class ConfigurationWindowController: NSWindowController, NSTextFieldDelega
             defer: false
         )
         window.title = "Customize ConstellationBar"
-        window.minSize = NSSize(width: 980, height: 640)
+        window.minSize = NSSize(width: 640, height: 420)
         window.collectionBehavior = [.moveToActiveSpace]
         super.init(window: window)
         NotificationCenter.default.addObserver(self, selector: #selector(applicationDidBecomeActive), name: NSApplication.didBecomeActiveNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(syncUpdater), name: AppUpdater.changed, object: nil)
-        NotificationCenter.default.addObserver(self, selector: #selector(updateDiagnostics), name: IntegrationDiagnostics.changed, object: nil)
+        diagnostics.notifications.addObserver(self, selector: #selector(updateDiagnostics), name: IntegrationDiagnostics.changed, object: diagnostics)
+        widgets.notifications.addObserver(self, selector: #selector(refreshReminderListChoices), name: WidgetRuntime.reminderListsChanged, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(updateDiagnostics), name: ConfigurationStore.changed, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(displaysChanged), name: NSApplication.didChangeScreenParametersNotification, object: nil)
         buildInterface()
         sync(config: config)
@@ -157,28 +178,41 @@ final class ConfigurationWindowController: NSWindowController, NSTextFieldDelega
 
     deinit {
         NotificationCenter.default.removeObserver(self)
+        diagnostics.notifications.removeObserver(self)
+        widgets.notifications.removeObserver(self)
     }
 
     func present(config: BarConfig) {
         if unsavedError == nil, let screen = NSScreen.screens.first(where: { $0.frame.contains(NSEvent.mouseLocation) }) { editingDisplayID = screen.configurationID }
         sync(config: config)
+        refreshReminderListChoices()
         showWindow(nil)
-        window?.center()
+        if let visible = window?.screen?.visibleFrame ?? NSScreen.main?.visibleFrame { fitWindow(to: visible) }
         window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
 
+    func fitWindow(to visible: NSRect) {
+        guard let window, visible.width > 0, visible.height > 0 else { return }
+        window.minSize = NSSize(width: min(640, visible.width), height: min(420, visible.height))
+        let proposed = NSRect(x: visible.midX-window.frame.width/2, y: visible.midY-window.frame.height/2,
+                              width: window.frame.width, height: window.frame.height)
+        window.setFrame(WindowPlacement.constrain(proposed, to: visible), display: true)
+    }
+
     func sync(config: BarConfig) {
-        // External refreshes must not erase a failed-save draft.
-        if unsavedError != nil, config.jsonString() != self.config.jsonString() { return }
-        self.config = config
+        editingSession.receiveSaved(config)
+        syncControls()
+    }
+
+    private func syncControls() {
+        let config = self.config
         syncEditingDisplay()
         let local = displayConfig
         syncSystemOptions()
         compositionPopup.selectItem(at: BarLayout.allCases.firstIndex(of: local.layout) ?? 0)
         calendarProviderPopup.selectItem(at: CalendarProviderChoice.allCases.firstIndex(of: config.providerPreferences.calendarProvider) ?? 0)
         for (id, button) in providerButtons { button.state = config.providerPreferences.includes(id) ? .on : .off }
-        if unsavedError == nil { lastCommittedConfig = config }
         modePopup.selectItem(at: ["system", "light", "dark"].firstIndex(of: local.themeMode) ?? 0)
         syncAppearanceControls(local)
         coveBorderButton.state = local.visualPreferences.coveScreenBorder ? .on : .off
@@ -193,13 +227,12 @@ final class ConfigurationWindowController: NSWindowController, NSTextFieldDelega
         artistButton.state = config.widgetPreferences.nowPlayingShowsArtist ? .on : .off
         hideIdlePlayerButton.state = config.widgetPreferences.nowPlayingHidesWhenIdle ? .on : .off
         weatherLocationButton.state = config.widgetPreferences.weatherShowsLocation ? .on : .off
-        weatherLocationField.stringValue = config.weather.locationLabel
-        latitudeField.doubleValue = config.weather.latitude
-        longitudeField.doubleValue = config.weather.longitude
+        weatherLocationField.stringValue = editingSession.input.weather?.locationLabel ?? config.weather.locationLabel
+        latitudeField.stringValue = editingSession.input.weather?.latitude ?? String(config.weather.latitude)
+        longitudeField.stringValue = editingSession.input.weather?.longitude ?? String(config.weather.longitude)
         if let index = WeatherUnit.allCases.firstIndex(of: config.weather.unit) { weatherUnitPopup.selectItem(at: index) }
         displayPopup.selectItem(at: BarDisplayMode.allCases.firstIndex(of: config.displayMode) ?? 0)
-        let refreshValues: [Double] = [1, 2, 5, 10]
-        refreshPopup.selectItem(at: refreshValues.enumerated().min(by: { abs($0.element - config.systemUpdateInterval) < abs($1.element - config.systemUpdateInterval) })?.offset ?? 1)
+        syncRefreshInterval()
         barPresentationPopup.selectItem(at: BarPresentation.allCases.firstIndex(of: local.barPresentation) ?? 0)
         widgetAlignmentPopup.selectItem(at: WidgetAlignment.allCases.firstIndex(of: local.widgetLayout.alignment) ?? 1)
         integrationPopup.selectItem(at: IntegrationMode.allCases.firstIndex(of: config.integration) ?? 0)
@@ -213,23 +246,24 @@ final class ConfigurationWindowController: NSWindowController, NSTextFieldDelega
         widgetEditor.selectDisplay(id: editingDisplayID)
         syncLaunchAtLogin()
         updateDiagnostics()
-        undoButton.isEnabled = !undoStack.isEmpty
+        updateSaveStatus()
     }
 
     func selectSection(_ index: Int) {
         guard Self.sectionTitles.indices.contains(index) else { return }
+        let navigationFocus: NSView? = sidebarButtons.first { window?.firstResponder === $0 }
+            ?? (window?.firstResponder === sectionPopup ? sectionPopup : nil)
         window?.makeFirstResponder(nil)
         selectedSection = index
         sectionChanged()
         window?.contentView?.layoutSubtreeIfNeeded()
+        if let navigationFocus, !navigationFocus.isHiddenOrHasHiddenAncestor { window?.makeFirstResponder(navigationFocus) }
     }
 
     func buildInterface() {
         guard let window else { return }
-        let background = NSVisualEffectView()
-        background.material = .sidebar
-        background.blendingMode = .behindWindow
-        background.state = .active
+        let background = SettingsWindowLayoutView(navigation: sidebarScroll, compactNavigation: compactNavigation, form: settingsScroll, recovery: recoveryView)
+        background.onModeChanged = { [weak self] restoreFocus in self?.updateSectionPresentation(restoringNavigation: restoreFocus) }
         window.contentView = background
 
         let sidebar = NSStackView()
@@ -237,7 +271,21 @@ final class ConfigurationWindowController: NSWindowController, NSTextFieldDelega
         sidebar.orientation = .vertical
         sidebar.alignment = .leading
         sidebar.spacing = 6
-        background.addSubview(sidebar)
+        let sidebarViewport = sidebarScroll
+        sidebarViewport.translatesAutoresizingMaskIntoConstraints = false
+        sidebarViewport.drawsBackground = false; sidebarViewport.hasVerticalScroller = true
+        sidebarViewport.autohidesScrollers = true; sidebarViewport.scrollerStyle = .overlay
+        let sidebarDocument = FlippedSettingsView()
+        sidebarDocument.translatesAutoresizingMaskIntoConstraints = false
+        sidebarViewport.documentView = sidebarDocument
+        sidebarDocument.addSubview(sidebar)
+        NSLayoutConstraint.activate([
+            sidebarDocument.widthAnchor.constraint(equalTo: sidebarViewport.contentView.widthAnchor),
+            sidebar.leadingAnchor.constraint(equalTo: sidebarDocument.leadingAnchor),
+            sidebar.trailingAnchor.constraint(equalTo: sidebarDocument.trailingAnchor),
+            sidebar.topAnchor.constraint(equalTo: sidebarDocument.topAnchor),
+            sidebar.bottomAnchor.constraint(equalTo: sidebarDocument.bottomAnchor)
+        ])
         let brand = NSTextField(labelWithString: "ConstellationBar")
         brand.font = .systemFont(ofSize: 16, weight: .semibold)
         sidebar.addArrangedSubview(brand)
@@ -268,37 +316,27 @@ final class ConfigurationWindowController: NSWindowController, NSTextFieldDelega
         sidebar.setCustomSpacing(22, after: sidebarButtons.last!)
         undoButton.target = self
         undoButton.action = #selector(undoLastChange)
-        sidebar.addArrangedSubview(undoButton)
-        saveStatus.font = .systemFont(ofSize: 11)
-        saveStatus.maximumNumberOfLines = 5
-        sidebar.addArrangedSubview(saveStatus)
-        saveStatus.widthAnchor.constraint(equalTo: sidebar.widthAnchor).isActive = true
+        saveStatus.font = .systemFont(ofSize: 12)
         retrySaveButton.target = self; retrySaveButton.action = #selector(retrySave)
         revertSaveButton.target = self; revertSaveButton.action = #selector(revertUnsaved)
-        sidebar.addArrangedSubview(retrySaveButton)
-        sidebar.addArrangedSubview(revertSaveButton)
+        saveDetailsButton.target = self; saveDetailsButton.action = #selector(showSaveDetails)
         updateSaveStatus()
 
         let scroll = settingsScroll
         scroll.translatesAutoresizingMaskIntoConstraints = false
-        scroll.hasVerticalScroller = true
+        scroll.hasVerticalScroller = true; scroll.hasHorizontalScroller = true
+        scroll.autohidesScrollers = true; scroll.scrollerStyle = .overlay
         scroll.drawsBackground = true
         scroll.backgroundColor = .windowBackgroundColor
-        background.addSubview(scroll)
-        NSLayoutConstraint.activate([
-            sidebar.leadingAnchor.constraint(equalTo: background.leadingAnchor, constant: 16),
-            sidebar.topAnchor.constraint(equalTo: background.topAnchor, constant: 24),
-            sidebar.widthAnchor.constraint(equalToConstant: 190),
-            scroll.leadingAnchor.constraint(equalTo: sidebar.trailingAnchor, constant: 16),
-            scroll.trailingAnchor.constraint(equalTo: background.trailingAnchor),
-            scroll.topAnchor.constraint(equalTo: background.topAnchor),
-            scroll.bottomAnchor.constraint(equalTo: background.bottomAnchor)
-        ])
 
         let document = FlippedSettingsView()
         document.translatesAutoresizingMaskIntoConstraints = false
         scroll.documentView = document
-        document.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor).isActive = true
+        document.widthAnchor.constraint(greaterThanOrEqualToConstant: 604).isActive = true
+        document.widthAnchor.constraint(greaterThanOrEqualTo: scroll.contentView.widthAnchor).isActive = true
+        let followsViewport = document.widthAnchor.constraint(equalTo: scroll.contentView.widthAnchor)
+        // A narrow window must take precedence over the document's preferred width.
+        followsViewport.priority = .defaultLow; followsViewport.isActive = true
 
         let stack = NSStackView()
         stack.translatesAutoresizingMaskIntoConstraints = false
@@ -357,21 +395,23 @@ final class ConfigurationWindowController: NSWindowController, NSTextFieldDelega
     }
 
     @objc func updateDiagnostics() {
-        if let date = IntegrationDiagnostics.sampledAt {
+        if let date = diagnostics.sampledAt {
             let age = max(0, Int(Date().timeIntervalSince(date)))
             let stale = Double(age) > max(10, config.systemUpdateInterval * 3)
             diagnosticsFreshness.stringValue = "\(stale ? "Sample is stale" : "Last provider sample"): \(date.formatted(date: .omitted, time: .standard)) · \(age)s ago · refresh interval \(Int(config.systemUpdateInterval))s"
             diagnosticsFreshness.textColor = stale ? .systemOrange : .secondaryLabelColor
-        } else { diagnosticsFreshness.stringValue = "Waiting for the first provider sample. Hidden widgets are not sampled." }
-        let workspaceHealth: DiagnosticEntry.Health = config.integration == .standalone ? .ready
-            : IntegrationDiagnostics.workspace == "Checking integrations…" ? .pending
-            : IntegrationDiagnostics.workspace == "AeroSpace connected" ? .ready : .attention
+        } else { diagnosticsFreshness.stringValue = "Waiting for the first provider sample. Widgets on inactive displays are not sampled." }
+        let workspaceHealth: DiagnosticEntry.Health = diagnostics.workspaceActionError != nil ? .attention
+            : config.integration == .standalone ? .ready
+            : diagnostics.workspace == "Checking integrations…" ? .pending
+            : diagnostics.workspace == "AeroSpace connected" ? .ready : .attention
         workspaceDiagnosticRow?.apply(DiagnosticEntry(title: "Workspaces", health: workspaceHealth,
-            detail: config.integration == .standalone ? "Standalone mode · uses the active application." : IntegrationDiagnostics.workspace, widget: nil))
+            detail: diagnostics.workspaceActionError ?? (config.integration == .standalone ? "Standalone mode · uses the active application." : diagnostics.workspace), widget: nil))
+        fullscreenDiagnosticRow?.apply(fullscreenDiagnosticEntry())
         for entry in diagnosticEntries() { if let kind = entry.widget { diagnosticRows[kind]?.apply(entry) } }
         configPathStatus.stringValue = ConfigFile.writableURL().path
         configPathStatus.toolTip = configPathStatus.stringValue
-        configErrorStatus.stringValue = ConfigurationStore.diagnosticError ?? "No configuration errors reported. Changes save automatically; Undo is available in the sidebar."
+        configErrorStatus.stringValue = ConfigurationStore.diagnosticError ?? "No configuration errors reported. Changes save automatically; Undo is available at the bottom of this window."
         configErrorStatus.textColor = ConfigurationStore.diagnosticError == nil ? .secondaryLabelColor : .systemOrange
     }
 
@@ -405,11 +445,20 @@ final class ConfigurationWindowController: NSWindowController, NSTextFieldDelega
         commit()
     }
 
-    @objc func applicationOptionChanged() {
+    @objc func fullscreenChanged() {
         config.hideInFullscreen = fullscreenButton.state == .on
-        if displayPopup.indexOfSelectedItem >= 0 { config.displayMode = BarDisplayMode.allCases[displayPopup.indexOfSelectedItem] }
-        let refreshValues: [Double] = [1, 2, 5, 10]
-        if refreshPopup.indexOfSelectedItem >= 0 { config.systemUpdateInterval = refreshValues[refreshPopup.indexOfSelectedItem] }
+        commit()
+    }
+
+    @objc func displayModeChanged() {
+        guard BarDisplayMode.allCases.indices.contains(displayPopup.indexOfSelectedItem) else { return }
+        config.displayMode = BarDisplayMode.allCases[displayPopup.indexOfSelectedItem]
+        commit()
+    }
+
+    @objc func refreshIntervalChanged() {
+        guard let interval = refreshPopup.selectedItem?.representedObject as? Double else { return }
+        config.systemUpdateInterval = interval
         commit()
     }
 
@@ -428,6 +477,7 @@ final class ConfigurationWindowController: NSWindowController, NSTextFieldDelega
 
     @objc func applicationDidBecomeActive() {
         syncLaunchAtLogin()
+        refreshReminderListChoices()
     }
 
     func controlTextDidEndEditing(_ obj: Notification) {
@@ -438,21 +488,21 @@ final class ConfigurationWindowController: NSWindowController, NSTextFieldDelega
             commit()
             return
         }
-        config.weather.locationLabel = weatherLocationField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let latitude = Double(latitudeField.stringValue), (-90...90).contains(latitude) { config.weather.latitude = latitude }
-        if let longitude = Double(longitudeField.stringValue), (-180...180).contains(longitude) { config.weather.longitude = longitude }
+        guard let field = obj.object as? NSTextField,
+              [weatherLocationField, latitudeField, longitudeField].contains(where: { $0 === field }) else { return }
+        editingSession.input.weather = WeatherSettingsInput(locationLabel: weatherLocationField.stringValue,
+            latitude: latitudeField.stringValue, longitude: longitudeField.stringValue)
         commit()
     }
 
     @objc func undoLastChange() {
-        guard unsavedError == nil, let previous = undoStack.last else { return }
-        config = previous; pendingUndo = true
-        commit()
+        guard editingSession.canUndo else { return }
+        finishCommit(editingSession.undo())
     }
     @objc func retrySave() { commit() }
     @objc func revertUnsaved() {
-        unsavedError = nil; pendingUndo = false
-        config = lastCommittedConfig; sync(config: config); updateSaveStatus()
+        editingSession.revert()
+        syncControls()
     }
     private func updateSaveStatus() {
         saveStatus.stringValue = unsavedError.map { "Not saved. The desktop still uses your saved settings. \($0)" } ?? "All changes saved."
@@ -460,7 +510,14 @@ final class ConfigurationWindowController: NSWindowController, NSTextFieldDelega
         saveStatus.toolTip = unsavedError
         retrySaveButton.isHidden = unsavedError == nil
         revertSaveButton.isHidden = unsavedError == nil
-        undoButton.isEnabled = unsavedError == nil && !undoStack.isEmpty
+        saveDetailsButton.isHidden = unsavedError == nil
+        undoButton.isEnabled = editingSession.canUndo
+    }
+    @objc func showSaveDetails() {
+        guard let error = unsavedError, let window else { return }
+        ErrorDetailsPresenter.present(error, title: "Changes weren’t saved",
+                                      explanation: "Your saved settings are still active. Review the error, then retry or revert the unsaved changes.",
+                                      accessibilityLabel: "Save error details", for: window)
     }
 
     @objc func resetAppearance() {
@@ -470,26 +527,11 @@ final class ConfigurationWindowController: NSWindowController, NSTextFieldDelega
         commit()
     }
 
-    func commit() {
-        if pendingUndo, config.jsonString() != undoStack.last?.jsonString() { pendingUndo = false }
-        do { try config.validate() } catch {
-            unsavedError = error.localizedDescription; updateSaveStatus(); return
-        }
-        let result = persist(config)
-        guard result.succeeded else {
-            unsavedError = result.error
-            // Refresh draft controls, but retain the saved baseline and undo history.
-            sync(config: config); updateSaveStatus(); return
-        }
-        if pendingUndo { _ = undoStack.popLast() }
-        else if config.jsonString() != lastCommittedConfig.jsonString() {
-            undoStack.append(lastCommittedConfig)
-            if undoStack.count > 30 { undoStack.removeFirst(undoStack.count - 30) }
-        }
-        pendingUndo = false; unsavedError = nil
-        lastCommittedConfig = config
-        sync(config: config); updateSaveStatus()
-        onChange(config)
+    func commit() { finishCommit(editingSession.commit()) }
+
+    private func finishCommit(_ saved: BarConfig?) {
+        syncControls()
+        if let saved { onChange(saved) }
     }
 
     @objc func selectModule() {
@@ -509,6 +551,22 @@ final class ConfigurationWindowController: NSWindowController, NSTextFieldDelega
         if let section = widgetOptionsSection { section.scrollToVisible(section.bounds) }
     }
     @objc func sidebarSelected(_ sender: NSButton) { selectSection(sender.tag) }
+    @objc func sectionPopupChanged() { selectSection(sectionPopup.indexOfSelectedItem) }
+    private func updateSectionPresentation(restoringNavigation: Bool = false) {
+        let layout = window?.contentView as? SettingsWindowLayoutView
+        let short = layout?.isShort == true
+        let focused = window?.firstResponder as? NSView
+        let previewHadFocus = focused?.isDescendant(of: livePreview) == true
+        previewHeight?.isActive = selectedSection < 3 && !short
+        livePreview.isHidden = selectedSection >= 3 || short
+        displayScopeRow?.isHidden = selectedSection >= 3
+        sectionTitle.isHidden = short; sectionDescription.isHidden = short
+        sectionPopup.setAccessibilityHelp(Self.sectionDescriptions[selectedSection])
+        if restoringNavigation || (previewHadFocus && livePreview.isHidden) {
+            let target: NSView = layout?.isCompact == true ? sectionPopup : sidebarButtons[selectedSection]
+            window?.makeFirstResponder(target)
+        }
+    }
     @objc func sectionChanged() {
         for (index, views) in sections { views.forEach { $0.isHidden = index != selectedSection } }
         for button in sidebarButtons {
@@ -516,9 +574,8 @@ final class ConfigurationWindowController: NSWindowController, NSTextFieldDelega
             button.layer?.backgroundColor = button.tag == selectedSection
                 ? NSColor.controlAccentColor.withAlphaComponent(0.18).cgColor : NSColor.clear.cgColor
         }
-        previewHeight?.isActive = selectedSection < 3
-        displayScopeRow?.isHidden = selectedSection >= 3
-        livePreview.isHidden = selectedSection >= 3
+        sectionPopup.selectItem(at: selectedSection)
+        updateSectionPresentation()
         sectionTitle.stringValue = Self.sectionTitles[selectedSection]
         sectionDescription.stringValue = Self.sectionDescriptions[selectedSection]
         window?.contentView?.layoutSubtreeIfNeeded()
@@ -546,12 +603,12 @@ final class ConfigurationWindowController: NSWindowController, NSTextFieldDelega
         config.integration = IntegrationMode.allCases[max(0, integrationPopup.indexOfSelectedItem)]
         commit()
     }
-    @objc func displaysChanged() { sync(config: config) }
+    @objc func displaysChanged() { syncControls() }
     @objc func importConfiguration() {
         let panel = NSOpenPanel()
         panel.allowedContentTypes = [.json]
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        do { config = try BarConfig.decode(Data(contentsOf: url)); commit(); sync(config: config) }
+        do { editingSession.replaceDraft(try BarConfig.decode(Data(contentsOf: url))); commit() }
         catch { ConfigurationStore.report(error.localizedDescription) }
     }
     @objc func exportConfiguration() {
@@ -559,6 +616,7 @@ final class ConfigurationWindowController: NSWindowController, NSTextFieldDelega
         panel.allowedContentTypes = [.json]
         panel.nameFieldStringValue = "constellation-config.json"
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        ConfigurationStore.save(config, to: url)
+        do { ConfigurationStore.save(try editingSession.validatedDraft(), to: url) }
+        catch { ConfigurationStore.report(error.localizedDescription) }
     }
 }

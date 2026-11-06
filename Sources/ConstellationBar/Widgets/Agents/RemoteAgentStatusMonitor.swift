@@ -45,11 +45,12 @@ final class RemoteAgentStatusMonitor {
         var inFlight = false
     }
     private let lock = NSLock()
-    private let queue: OperationQueue = {
+    private static func makeQueue() -> OperationQueue {
         let queue = OperationQueue(); queue.name = "dev.constellation.agent-ssh"
         queue.maxConcurrentOperationCount = 2; queue.qualityOfService = .utility
         return queue
-    }()
+    }
+    private let queue: OperationQueue
     private let discover: () throws -> [CodexSSHHost]
     private let runner: CommandRunning
     private let now: () -> Date
@@ -58,8 +59,9 @@ final class RemoteAgentStatusMonitor {
     private var discoveryFailed = false
     private var generation = 0
     init(discover: @escaping () throws -> [CodexSSHHost] = CodexSSHHost.discover,
-         runner: CommandRunning = CommandRunner(), now: @escaping () -> Date = Date.init) {
+         runner: CommandRunning = CommandRunner(), now: @escaping () -> Date = Date.init, queue: OperationQueue? = nil) {
         self.discover = discover; self.runner = runner; self.now = now
+        self.queue = queue ?? Self.makeQueue()
     }
     func snapshots(enabled: Bool) -> [AgentProviderSnapshot] {
         lock.lock(); defer { lock.unlock() }

@@ -20,7 +20,7 @@ See [installation, updates and removal](docs/INSTALLATION.md) for checksum verif
 
 - **Three layouts:** Rail, Islands and Compact, with overflow menus and widget reordering.
 - **Two themes:** Native with macOS, Cove and Porcelain colors; Typeset with terminal palettes including Ayu, Tokyo Night, Catppuccin, Rosé Pine, Gruvbox, Nord and Everforest. Scheme variations have their own selector. macOS materials follow system light/dark mode, with fallbacks on older macOS versions.
-- **Independent displays:** choose each monitor’s widgets, order, edge position and workspace buttons. Put widgets in the center of a wide screen while keeping others at its edge.
+- **Independent displays:** choose each monitor’s widgets, order, Left/Center/Right placement and workspace buttons.
 - **Interactive panels:** hover to look and click to pin Music, Calendar, Audio, VPN or System details.
 - **Workspaces:** connect AeroSpace to switch workspaces and preview their application cards without Screen Recording access.
 
@@ -30,7 +30,7 @@ Built-in widgets include configurable System readings (CPU, memory, network and 
 
 ## Set up multiple monitors
 
-Open **Customize Bar → Application → Display overrides** and select a display. Turn off **Use global widgets**, then assign widgets to **Edge**, **Center** or **Hidden**. Reorder each group with the arrow controls and choose which side holds the edge group.
+Open **Customize Bar** and choose a display from the persistent picker in **Layout**, **Widgets** or **Appearance**. In **Widgets**, add widgets, assign them to **Left**, **Center**, **Right** or **Hidden**, and reorder each zone with its arrow controls. Layout controls composition, alignment and display behavior. Use **Use shared settings for this display** to restore inheritance, or **Copy this setup to every display** to copy the selected display’s complete setup.
 
 Choose **Local**, **All**, **Selected** or **Hidden** workspace buttons for that display. Selected workspace IDs control what the bar shows; AeroSpace still manages workspace ownership. Settings for disconnected displays remain saved.
 
@@ -63,7 +63,7 @@ The product website has its own repository: [constellation-bar-website](https://
 
 ### Configuration organization
 
-The configuration window uses a sidebar and applies changes immediately to the native bar.
+The configuration window uses a sidebar, switching to a section picker in narrow or short windows. Saved changes apply immediately to the native bar. Undo and save recovery stay at the bottom while the form scrolls.
 
 - **Layout:** bar shape, alignment, size, and fullscreen behavior for the selected display.
 - **Widgets:** add, hide, and arrange widgets on the selected display. Each configurable widget owns its general settings and providers, including Workspaces.
@@ -71,13 +71,13 @@ The configuration window uses a sidebar and applies changes immediately to the n
 - **Application:** launch at login, refresh interval, and configuration import/export.
 - **Diagnostics:** live provider health, sampling freshness, setup shortcuts, configuration errors, and a copyable diagnostic report.
 
-The display picker and preview stay consistent across Layout, Widgets, and Appearance. Use “Use shared settings for this display” to restore inheritance. Undo remains available in the sidebar for configuration edits made during this session.
+The display picker and preview stay consistent across Layout, Widgets, and Appearance. Short windows prioritize controls and hide the preview; the display picker stays visible. Use “Use shared settings for this display” to restore inheritance. Undo remains available at the bottom for configuration edits made during this session. If saving fails, Retry Save, Revert Unsaved Changes and Details remain visible; Details shows the complete error in selectable, scrollable text.
 
 ### Display customization and native calendars
 
 Customization edits the selected display across **Layout**, **Widgets**, and **Appearance**. The live preview follows that display, including any existing overrides. Widgets are grouped by their actual Left, Center, and Right placement; use the zone menu to show or hide a widget and the arrows to reorder it. **Copy this setup to every display** copies the selected display’s complete setup. Use a widget’s configure button to open its general settings. Widgets without settings, such as Uptime, have no configure button or settings-picker entry. Playback, date, weather, and provider options apply to all displays; Workspaces visibility and application icons use the selected display.
 
-In **Widgets → General settings → Calendar → Provider**, choose **Apple Calendar** or **Outlook via macOS Calendar**. Both use native EventKit access to calendars synced to this Mac. Add your Microsoft account in **System Settings → Internet Accounts** and enable Calendars; accounts configured only in Outlook must also be added to macOS. Choose **Allow Calendar access** and use the widget’s calendar chooser to select which synced calendars appear. Outlook selection opens event details in the Outlook app.
+In **Widgets → General settings → Calendar → Provider**, choose **Apple Calendar** or **Outlook via macOS Calendar**. Both use native EventKit access to calendars synced to this Mac. Add your Microsoft account in **System Settings → Internet Accounts** and enable Calendars; accounts configured only in Outlook must also be added to macOS. Choose **Allow Calendar access** and use the widget’s calendar chooser to select which synced calendars appear. The panel’s Open Calendar/Outlook button opens the chosen application; it does not navigate to a particular event.
 
 The calendar widget reads events without editing them, including recurring occurrences, locations, attendees, and recognized meeting links. Both calendar provider choices use native macOS Calendar access.
 

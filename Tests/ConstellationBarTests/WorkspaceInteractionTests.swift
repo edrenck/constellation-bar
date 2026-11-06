@@ -3,6 +3,47 @@ import XCTest
 @testable import ConstellationBar
 
 final class WorkspaceInteractionTests: XCTestCase {
+    func testCollapsedSelectorRendersReadableTextWithOppositeWindowAppearance() throws {
+        try requireGraphicalTests()
+        _ = NSApplication.shared
+        func luminance(_ color: NSColor) -> CGFloat {
+            let rgb = color.usingColorSpace(.sRGB)!
+            func linear(_ value: CGFloat) -> CGFloat { value <= 0.04045 ? value / 12.92 : pow((value + 0.055) / 1.055, 2.4) }
+            return 0.2126 * linear(rgb.redComponent) + 0.7152 * linear(rgb.greenComponent) + 0.0722 * linear(rgb.blueComponent)
+        }
+        for appearance in BarAppearance.allCases {
+            for mode in appearance.isNative ? ["light", "dark"] : ["system"] {
+                let theme = appearance.theme(mode: mode)
+                let background = theme.background.withAlphaComponent(1)
+                let window = NSWindow(contentRect: NSRect(x: -10000, y: -10000, width: 72, height: 40), styleMask: .borderless, backing: .buffered, defer: false)
+                window.isReleasedWhenClosed = false
+                defer { window.close() }
+                window.appearance = NSAppearance(named: theme.background.prefersDarkAppearance ? .aqua : .darkAqua)
+                let content = try XCTUnwrap(window.contentView)
+                content.wantsLayer = true; content.layer?.backgroundColor = background.cgColor
+                let strip = WorkspaceStripView(frame: content.bounds)
+                strip.composition = .rail
+                strip.update(workspaces: (1...10).map { WorkspaceState(name: String(format: "%02d", $0), isFocused: $0 == 2, windows: []) }, theme: theme)
+                strip.fit(to: 72)
+                content.addSubview(strip); window.orderFront(nil)
+                content.layoutSubtreeIfNeeded(); content.displayIfNeeded()
+                let bitmap = try XCTUnwrap(content.bitmapImageRepForCachingDisplay(in: content.bounds))
+                content.cacheDisplay(in: content.bounds, to: bitmap)
+                let scale = CGFloat(bitmap.pixelsWide) / content.bounds.width
+                let base = luminance(background)
+                var contrastingPixels = 0
+                // The center contains only the title, excluding button/window edges and focus rings.
+                for y in Int(12 * scale)..<Int(28 * scale) {
+                    for x in Int(20 * scale)..<Int(52 * scale) {
+                        let value = luminance(try XCTUnwrap(bitmap.colorAt(x: x, y: y)))
+                        if (max(base, value) + 0.05) / (min(base, value) + 0.05) >= 4.5 { contrastingPixels += 1 }
+                    }
+                }
+                XCTAssertGreaterThan(contrastingPixels, 10, "\(appearance), \(mode): workspace title must contrast with its selected theme, regardless of host appearance")
+            }
+        }
+    }
+
     func testWorkspaceNumberAndAppIconDispatchOnMouseDownToTheSameControl() throws {
         try requireGraphicalTests()
         _ = NSApplication.shared

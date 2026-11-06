@@ -10,20 +10,22 @@ struct SystemState: Equatable {
     var agents = AgentStatusState()
     var battery: BatteryState = BatteryState(percent: nil, isCharging: false)
     var vpn: VPNState = VPNState()
-    var network: NetworkSpeedState = NetworkSpeedState(downloadBytesPerSecond: 0, uploadBytesPerSecond: 0)
-    var memory: MemoryState = MemoryState(usage: 0)
-    var disk: DiskState = DiskState(usage: 0)
+    var network: NetworkSpeedState = NetworkSpeedState(downloadBytesPerSecond: 0, uploadBytesPerSecond: 0, status: .waiting)
+    var memory: MemoryState = MemoryState(usage: 0, status: .waiting)
+    var disk: DiskState = DiskState(usage: 0, status: .waiting)
     var uptime: TimeInterval = 0
     var date: Date = Date()
-    var cpu: CPUState = CPUState(usage: 0)
-    var thermal: ThermalPressureState = .nominal
+    var cpu: CPUState = CPUState(usage: 0, status: .waiting)
+    var thermal: ThermalPressureState = .unknown
     var nowPlaying: NowPlayingState = .empty
     var weather: WeatherState = .unavailable
     func hidesNowPlaying(whenIdle: Bool) -> Bool { whenIdle && nowPlaying.source.isEmpty && !mediaNeedsAttention }
     var mediaNeedsAttention: Bool { providerStatuses.contains { $0.needsAttention && ["nativeMedia", "appleMusic"].contains($0.id) } }
     var mediaSessions: [MediaSession] = []
     var providerStatuses: [ProviderStatus] = []
-    var audio = AudioState()
+    var audio = AudioState(status: .waiting)
     var agenda = AgendaState()
     var topProcesses: [ProcessUsage] = []
+    var topProcessesStatus: ReadingStatus = .waiting
+    var metricsSampledAt: Date?
 }

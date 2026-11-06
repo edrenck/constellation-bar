@@ -4,7 +4,7 @@ import Carbon
 final class MediaProvider: SystemProviding {
     let kinds: Set<WidgetKind> = [.nowPlaying]
     private let integrations: [MediaIntegrating]
-    init(integrations: [MediaIntegrating] = WidgetServices.shared.media) { self.integrations = integrations }
+    init(integrations: [MediaIntegrating]) { self.integrations = integrations }
     func sample(config: BarConfig, into state: inout SystemState) {
         for integration in integrations where config.providerPreferences.includes(integration.id) {
             let result = integration.sessions()

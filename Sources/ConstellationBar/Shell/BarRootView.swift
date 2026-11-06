@@ -28,6 +28,8 @@ final class BarRootView: NSView {
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
+    func dismissOverlays() { overlays.close() }
+
     private func setup() {
         wantsLayer = true
         layer?.backgroundColor = NSColor.clear.cgColor

@@ -8,7 +8,15 @@ struct WidgetPresentation {
     var detail: String? = nil
     var compactText: String? = nil
 }
-struct WidgetHistory { var cpu: [Double] = []; var memory: [Double] = []; var network: [Double] = []; var dates: [Date] = [] }
+struct WidgetHistory {
+    var cpu: [Double] = []
+    var memory: [Double] = []
+    var network: [Double] = []
+    var dates: [Date] = []
+    var cpuDates: [Date] = []
+    var memoryDates: [Date] = []
+    var networkDates: [Date] = []
+}
 struct WidgetModule {
     var kind: WidgetKind
     var priority: Int
@@ -49,12 +57,13 @@ enum WidgetCatalog {
             switch kind {
             case .timer:
                 let timer = system.timer
-                return WidgetPresentation(icon: timer.running ? "timer" : "pause.circle", text: timer.finished ? "Timer done" : formatTime(timer.remaining), accent: timer.finished ? config.theme.orange : config.theme.blue, compactText: formatTime(timer.remaining))
+                return WidgetPresentation(icon: timer.phase == .paused ? "pause.circle" : "timer", text: timer.finished ? "Timer done" : formatCountdown(timer.remaining), accent: timer.finished ? config.theme.orange : config.theme.blue, compactText: formatCountdown(timer.remaining))
             case .keepAwake:
-                return WidgetPresentation(icon: "cup.and.saucer", text: system.keepAwake.active ? "Awake " + formatTime(system.keepAwake.remaining) : "Awake off", accent: system.keepAwake.active ? config.theme.blue : config.theme.muted)
+                return WidgetPresentation(icon: "cup.and.saucer", text: system.keepAwake.active ? "Awake " + formatCountdown(system.keepAwake.remaining) : "Awake off", accent: system.keepAwake.active ? config.theme.blue : config.theme.muted)
             case .reminders:
                 let reminders = system.reminders
-                return WidgetPresentation(icon: "checklist", text: reminders.authorized ? "\(reminders.items.count) due" : "Reminders setup", accent: reminders.overdue(at: system.date) > 0 ? config.theme.orange : config.theme.blue)
+                let label = !reminders.authorized ? "Reminders setup" : !reminders.hasUsableData ? "Reminders unavailable" : "\(reminders.itemCount) due" + (reminders.isStale ? " · saved" : "")
+                return WidgetPresentation(icon: "checklist", text: label, accent: reminders.failure != nil || reminders.overdue(at: system.date) > 0 ? config.theme.orange : config.theme.blue, detail: reminders.statusDescription(at: system.date))
             case .keyboard:
                 return WidgetPresentation(icon: "keyboard", text: system.keyboard.selected?.name ?? "Keyboard unavailable", accent: config.theme.foreground)
             case .agentStatus:
@@ -68,35 +77,39 @@ enum WidgetCatalog {
                 let diagnostics = agents.providers.filter { !$0.available || $0.unknownCount > 0 }.map { "\($0.hostName): \($0.message)" }.joined(separator: "\n")
                 return WidgetPresentation(icon: kind.symbolName, text: label, accent: !agents.hasReadableProvider || agents.unknownCount > 0 ? config.theme.orange : agents.activeCount > 0 ? config.theme.green : config.theme.muted, detail: "\(label) · Local and SSH tasks · includes waiting for input or approval\n\(agents.coverageDetail)" + (diagnostics.isEmpty ? "" : "\n" + diagnostics), compactText: compact)
             case .audio:
+                guard system.audio.status.isAvailable else { return WidgetPresentation(icon: "speaker.slash", text: "Audio unavailable", accent: config.theme.muted, detail: system.audio.status.description(for: "Audio")) }
+                if let failure = system.audio.outputFailure { return WidgetPresentation(icon: "speaker.slash", text: "Audio output unavailable", accent: config.theme.muted, detail: failure) }
                 let device = system.audio.output
                 let volume = device?.volume.map { " · \(Int($0 * 100))%" } ?? ""
-                return WidgetPresentation(icon: device?.symbol ?? "speaker.slash", text: (device?.name ?? "No output") + (device?.muted == true ? " · Muted" : volume), accent: config.theme.foreground)
+                return WidgetPresentation(icon: device?.symbol ?? "speaker.slash", text: (device?.name ?? "No output") + (device?.muted == true ? " · Muted" : volume), accent: config.theme.foreground, detail: system.audio.allIssues.isEmpty ? nil : system.audio.allIssues.joined(separator: "\n"))
             case .calendar:
-                let hidden = Set(UserDefaults.standard.stringArray(forKey: "hiddenWidgetCalendars") ?? [])
-                let event = system.agenda.events.first { !hidden.contains($0.calendarID) && $0.end > Date() && Calendar.current.isDateInToday($0.start) }
+                let hidden = Set(system.agenda.hiddenCalendarIDs)
+                let event = system.agenda.events.first { !hidden.contains($0.calendarID) && $0.end > system.date && Calendar.current.isDate($0.start, inSameDayAs: system.date) }
                 return WidgetPresentation(icon: "calendar", text: event?.title ?? (system.agenda.authorized ? "No upcoming events" : "Calendar setup"), accent: config.theme.foreground)
             case .system:
+                let issues = config.widgetPreferences.systemMetrics.filter { !$0.status(system).isAvailable }.map { $0.status(system).description(for: $0.title) }
                 return WidgetPresentation(icon: kind.symbolName, text: config.widgetPreferences.systemMetrics.map { $0.summary(system) }.joined(separator: " · "), accent: config.theme.blue,
-                    history: config.widgetPreferences.cpuShowsGraph && config.widgetPreferences.systemMetrics == [.cpu] ? history.cpu : [], compactText: config.widgetPreferences.systemMetrics.first?.compactSummary(system))
+                    history: system.cpu.isAvailable && config.widgetPreferences.cpuShowsGraph && config.widgetPreferences.systemMetrics == [.cpu] ? history.cpu : [], detail: issues.isEmpty ? nil : issues.joined(separator: "\n"), compactText: config.widgetPreferences.systemMetrics.first?.compactSummary(system))
             case .battery:
                 return BatteryProvider.module.presentation(system, config, history)
             case .vpn:
                 let active = system.vpn.connections.filter(\.connected)
-                let summary = system.vpn.connections.map { "\($0.serviceName): \($0.connected ? "Connected" : "Disconnected")" }.joined(separator: "\n")
+                let summary = ([system.vpn.message] + system.vpn.connections.map { "\($0.serviceName): \($0.connected ? "Connected" : "Disconnected")" }).filter { !$0.isEmpty }.joined(separator: "\n")
                 return WidgetPresentation(icon: active.count == 1 ? active[0].symbol : "lock.shield", text: !system.vpn.available ? "VPN unavailable" : active.isEmpty ? "VPN off" : active.count > 1 ? "\(active.count) connected" : active[0].serviceName, accent: active.isEmpty ? config.theme.muted : config.theme.green, detail: summary)
             case .network:
+                if !system.network.status.isAvailable { return WidgetPresentation(icon: kind.symbolName, text: "Network unavailable", accent: config.theme.muted, detail: system.network.status.description(for: "Network")) }
                 let down = ByteFormatter.compactSpeed(system.network.downloadBytesPerSecond)
                 let up = ByteFormatter.compactSpeed(system.network.uploadBytesPerSecond)
                 return WidgetPresentation(icon: kind.symbolName, text: "↓\(down)  ↑\(up)", accent: config.theme.blue)
             case .memory:
                 return WidgetPresentation(
                     icon: kind.symbolName,
-                    text: "\(Int(system.memory.usage.rounded()))%",
+                    text: system.memory.status.isAvailable ? system.memory.valueText : "Memory unavailable",
                     accent: config.theme.purple,
-                    history: config.widgetPreferences.memoryShowsGraph ? history.memory : []
+                    history: system.memory.status.isAvailable && config.widgetPreferences.memoryShowsGraph ? history.memory : [], detail: system.memory.status.description(for: "Memory")
                 )
             case .disk:
-                return WidgetPresentation(icon: kind.symbolName, text: "\(Int(system.disk.usage.rounded()))%", accent: config.theme.orange)
+                return WidgetPresentation(icon: kind.symbolName, text: system.disk.status.isAvailable ? system.disk.valueText : "Disk unavailable", accent: config.theme.orange, detail: system.disk.status.description(for: "Disk"))
             case .uptime:
                 return WidgetPresentation(icon: kind.symbolName, text: UptimeFormatter.compact(system.uptime), accent: config.theme.cyan)
             case .dateTime:
@@ -108,9 +121,9 @@ enum WidgetCatalog {
             case .cpu:
                 return WidgetPresentation(
                     icon: kind.symbolName,
-                    text: "\(Int(system.cpu.usage.rounded()))%",
+                    text: system.cpu.isAvailable ? system.cpu.valueText : "CPU unavailable",
                     accent: config.theme.blue,
-                    history: config.widgetPreferences.cpuShowsGraph ? history.cpu : []
+                    history: system.cpu.isAvailable && config.widgetPreferences.cpuShowsGraph ? history.cpu : [], detail: system.cpu.statusDescription
                 )
             case .thermal:
                 return WidgetPresentation(icon: kind.symbolName, text: system.thermal.label, accent: thermalColor(system.thermal, theme: config.theme))
@@ -136,6 +149,7 @@ enum WidgetCatalog {
     }
     static func thermalColor(_ state: ThermalPressureState, theme: BarTheme) -> NSColor {
         switch state {
+        case .unknown: return theme.muted
         case .nominal: return theme.green
         case .fair: return theme.yellow
         case .serious: return theme.orange
@@ -145,9 +159,9 @@ enum WidgetCatalog {
 
     static func rows(for kind: WidgetKind, systemState: SystemState, config: BarConfig) -> [(String, String)] {
         switch kind {
-        case .timer: return [("Remaining", formatTime(systemState.timer.remaining)), ("Status", systemState.timer.finished ? "Done" : systemState.timer.running ? "Running" : "Paused")]
+        case .timer: return [("Remaining", formatCountdown(systemState.timer.remaining)), ("Status", systemState.timer.statusLabel)]
         case .keepAwake: return [("Session", systemState.keepAwake.active ? "Active" : "Off"), ("Display", systemState.keepAwake.displayAwake ? "Kept awake" : "May sleep")]
-        case .reminders: return [("Due tasks", "\(systemState.reminders.items.count)"), ("Overdue", "\(systemState.reminders.overdue(at: systemState.date))")]
+        case .reminders: return [("Due tasks", systemState.reminders.hasUsableData ? "\(systemState.reminders.itemCount)" : "Unavailable"), ("Overdue in shown tasks", "\(systemState.reminders.overdue(at: systemState.date))")]
         case .keyboard: return [("Input source", systemState.keyboard.selected?.name ?? "Unavailable")]
         case .agentStatus:
             guard !systemState.agents.providers.isEmpty else { return [("Providers", "Disabled in Agent Status settings")] }
@@ -164,16 +178,19 @@ enum WidgetCatalog {
         case .battery:
             return BatteryProvider.module.rows(systemState, config)
         case .cpu:
-            var rows = [("Total usage", "\(Int(systemState.cpu.usage.rounded()))%"), ("Thermal", systemState.thermal.label)]
+            var rows = [("Total usage", systemState.cpu.valueText), ("Status", systemState.cpu.statusDescription), ("Thermal", systemState.thermal.label)]
             rows += systemState.topProcesses.prefix(3).map { ($0.name, String(format: "%.1f%% CPU", $0.cpu)) }
             return rows
         case .memory:
+            guard systemState.memory.status.isAvailable else { return [("Status", systemState.memory.status.description(for: "Memory"))] }
             var rows = [("Memory used", ByteFormatter.bytes(systemState.memory.usedBytes)), ("Available", ByteFormatter.bytes(systemState.memory.totalBytes > systemState.memory.usedBytes ? systemState.memory.totalBytes - systemState.memory.usedBytes : 0))]
             rows += systemState.topProcesses.sorted { $0.memory > $1.memory }.prefix(3).map { ($0.name, String(format: "%.1f%% RAM", $0.memory)) }
             return rows
         case .network:
-            return [("Download", ByteFormatter.speed(systemState.network.downloadBytesPerSecond)), ("Upload", ByteFormatter.speed(systemState.network.uploadBytesPerSecond)), ("Interfaces", NetworkInterfaceProvider.interfaceNames().filter { $0 != "lo0" }.prefix(3).joined(separator: ", "))]
+            guard systemState.network.status.isAvailable else { return [("Status", systemState.network.status.description(for: "Network"))] }
+            return [("Download", ByteFormatter.speed(systemState.network.downloadBytesPerSecond)), ("Upload", ByteFormatter.speed(systemState.network.uploadBytesPerSecond)), ("Interfaces", systemState.network.interfaceNames.isEmpty ? "Not reported" : systemState.network.interfaceNames.prefix(3).joined(separator: ", "))]
         case .disk:
+            guard systemState.disk.status.isAvailable else { return [("Status", systemState.disk.status.description(for: "Disk"))] }
             return [("Used", "\(Int(systemState.disk.usage.rounded()))%"), ("Free", ByteFormatter.bytes(systemState.disk.freeBytes)), ("Capacity", ByteFormatter.bytes(systemState.disk.totalBytes))]
         case .weather:
             let unit = config.weather.unit.symbol
@@ -198,12 +215,15 @@ enum WidgetCatalog {
 
     static func thermalExplanation(_ state: ThermalPressureState) -> String {
         switch state {
+        case .unknown: return "macOS did not supply a thermal reading."
         case .nominal: return "No thermal constraints"
         case .fair: return "Cooling demand is elevated"
         case .serious: return "Performance may be reduced"
         case .critical: return "Significant throttling likely"
         }
     }
+
+    static func formatCountdown(_ seconds: Double) -> String { formatTime(seconds.rounded(.up)) }
 
     static func formatTime(_ seconds: Double) -> String {
         let value = max(0, Int(seconds.rounded()))

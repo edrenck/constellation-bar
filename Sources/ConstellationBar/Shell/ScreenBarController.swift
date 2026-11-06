@@ -7,12 +7,15 @@ final class ScreenBarController {
     private var windows: [NSScreen: BarWindow] = [:]
     private var visibilityTimer: Timer?
     private var frameTimer: Timer?
+    private let readFullscreen: ([CGDirectDisplayID]) -> FullscreenSnapshot
+    private(set) var fullscreenSnapshot: FullscreenSnapshot?
+    var onFullscreenChange: ((FullscreenSnapshot) -> Void)?
     weak var interactionDelegate: BarInteractionDelegate? {
         didSet { windows.values.forEach { $0.barView.interactionDelegate = interactionDelegate } }
     }
 
-    init(config: BarConfig) {
-        self.config = config
+    init(config: BarConfig, readFullscreen: @escaping ([CGDirectDisplayID]) -> FullscreenSnapshot = FullscreenDetector.snapshot(on:)) {
+        self.config = config; self.readFullscreen = readFullscreen
     }
 
     func apply(config: BarConfig) {
@@ -30,9 +33,12 @@ final class ScreenBarController {
     }
 
     private var latestState: BarState?
+    var displayScope: DisplayScope {
+        DisplayScope(config: config, connectedDisplayIDs: NSScreen.screens.map(\.configurationID))
+    }
     private var targetScreens: [NSScreen] {
-        let screens = config.displayMode == .primaryOnly ? Array(NSScreen.screens.prefix(1)) : NSScreen.screens
-        return screens.filter { config.displayOverrides[$0.configurationID]?.enabled != false }
+        let targetIDs = Set(displayScope.displayIDs)
+        return NSScreen.screens.filter { targetIDs.contains($0.configurationID) }
     }
 
     func installBars() {
@@ -68,7 +74,7 @@ final class ScreenBarController {
     private func startVisibilityTimer() {
         visibilityTimer?.invalidate()
         visibilityTimer = Timer.scheduledTimer(withTimeInterval: 0.20, repeats: true) { [weak self] _ in
-            self?.updateWindowVisibilityAndFrames()
+            self?.refreshVisibility()
         }
         RunLoop.main.add(visibilityTimer!, forMode: .common)
         frameTimer?.invalidate()
@@ -79,11 +85,14 @@ final class ScreenBarController {
             }
         }
         RunLoop.main.add(frameTimer!, forMode: .common)
-        updateWindowVisibilityAndFrames()
+        refreshVisibility()
     }
 
-    private func updateWindowVisibilityAndFrames() {
-        let covering = FullscreenDetector.coveredDisplays()
+    func refreshVisibility() {
+        let requested = windows.keys.filter { config.forDisplay($0.configurationID).hideInFullscreen }.map(\.displayID)
+        let snapshot = requested.isEmpty ? .disabled : readFullscreen(requested)
+        if fullscreenSnapshot != snapshot { fullscreenSnapshot = snapshot; onFullscreenChange?(snapshot) }
+        let covering = snapshot.coveredDisplays
         for (screen, window) in windows {
             let local = config.forDisplay(screen.configurationID)
             if local.hideInFullscreen && covering.contains(screen.displayID) {
@@ -140,7 +149,13 @@ final class BarWindow: NSPanel {
 
     override func close() {
         movementTimer?.invalidate(); movementTimer = nil
+        barView.dismissOverlays()
         super.close()
+    }
+
+    override func orderOut(_ sender: Any?) {
+        barView.dismissOverlays()
+        super.orderOut(sender)
     }
 
     func move(to destination: NSRect, animated: Bool) {

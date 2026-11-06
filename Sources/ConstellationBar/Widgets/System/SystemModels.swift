@@ -11,10 +11,23 @@ struct ProcessUsage: Equatable {
 struct NetworkSpeedState: Equatable {
     var downloadBytesPerSecond: UInt64
     var uploadBytesPerSecond: UInt64
+    var status: ReadingStatus = .available
+    var interfaceNames: [String] = []
 }
 
 struct CPUState: Equatable {
+    typealias Status = ReadingStatus
     var usage: Double
+    var status: Status = .available
+    var isAvailable: Bool { status == .available }
+    var valueText: String { isAvailable ? "\(Int(usage.rounded()))%" : "—" }
+    var statusDescription: String {
+        switch status {
+        case .available: return "CPU usage"
+        case .waiting: return "Collecting CPU samples. The next reading establishes current usage."
+        case let .failed(message): return message
+        }
+    }
 }
 
 struct MemoryState: Equatable {
@@ -24,15 +37,20 @@ struct MemoryState: Equatable {
     var usage: Double
     var usedBytes: UInt64 = 0
     var totalBytes: UInt64 = 0
+    var status: ReadingStatus = .available
+    var valueText: String { status.isAvailable ? "\(Int(usage.rounded()))%" : "—" }
 }
 
 struct DiskState: Equatable {
     var usage: Double
     var freeBytes: UInt64 = 0
     var totalBytes: UInt64 = 0
+    var status: ReadingStatus = .available
+    var valueText: String { status.isAvailable ? "\(Int(usage.rounded()))%" : "—" }
 }
 
 enum ThermalPressureState: String, Equatable {
+    case unknown
     case nominal
     case fair
     case serious
@@ -40,6 +58,7 @@ enum ThermalPressureState: String, Equatable {
 
     var label: String {
         switch self {
+        case .unknown: return "Unavailable"
         case .nominal: return "Cool"
         case .fair: return "Warm"
         case .serious: return "Hot"

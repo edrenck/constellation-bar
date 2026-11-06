@@ -98,7 +98,9 @@ private final class FakeAwakeDriver: AwakeAssertionDriving {
     func release(_ id: UInt32) { released.append(id) }
 }
 private final class FakeReminderReader: RemindersReading {
+    var isAuthorized = true
     var reads = 0; var prompts = 0; var selected: [String] = []
+    func readLists() -> [ReminderList] { [] }
     func read(listIDs: [String], now: Date) throws -> RemindersState {
         reads += 1; selected = listIDs
         return RemindersState(authorized: true, items: [ReminderItem(id: "1", title: "Review", list: "Work", due: now.addingTimeInterval(-60))], message: "")
@@ -114,16 +116,17 @@ private final class FakeKeyboardDriver: KeyboardSourceDriving {
 extension DailyWidgetTests {
     func testDailyDiagnosticsDistinguishPermissionAndIdleControls() throws {
         var config = BarConfig.default
-        config.rightWidgets = [.timer, .keepAwake, .reminders, .keyboard]
+        config.setGlobalWidgets([.timer, .keepAwake, .reminders, .keyboard])
         var state = SystemState()
         state.keyboard = KeyboardState(sources: [KeyboardSource(id: "en", name: "English", language: "en")], selectedID: "en")
         let sampled: Set<WidgetKind> = [.timer, .keepAwake, .reminders, .keyboard]
-        let entries = IntegrationDiagnostics.entries(config: config, state: state, sampledWidgets: sampled)
+        let scope = DisplayScope(config: config, connectedDisplayIDs: ["fixture"])
+        let entries = IntegrationDiagnostics.entries(config: config, state: state, sampledWidgets: sampled, displayScope: scope)
         XCTAssertEqual(entries.first { $0.widget == .timer }?.health, .ready)
         XCTAssertEqual(entries.first { $0.widget == .keepAwake }?.detail, "No sleep assertion is held.")
         XCTAssertEqual(entries.first { $0.widget == .reminders }?.health, .attention)
         XCTAssertEqual(entries.first { $0.widget == .keyboard }?.health, .ready)
         state.reminders = RemindersState(authorized: true, message: "No tasks due today or overdue.")
-        XCTAssertEqual(IntegrationDiagnostics.entries(config: config, state: state, sampledWidgets: sampled).first { $0.widget == .reminders }?.health, .ready)
+        XCTAssertEqual(IntegrationDiagnostics.entries(config: config, state: state, sampledWidgets: sampled, displayScope: scope).first { $0.widget == .reminders }?.health, .ready)
     }
 }
