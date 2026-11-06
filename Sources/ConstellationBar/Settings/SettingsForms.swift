@@ -37,6 +37,11 @@ extension ConfigurationWindowController {
         row.spacing = 12
         let label = NSTextField(labelWithString: title)
         label.textColor = .secondaryLabelColor
+        control.setAccessibilityTitleUIElement(label)
+        if control.accessibilityLabel() == nil {
+            let buttonTitle = (control as? NSButton).flatMap { $0 is NSPopUpButton || $0.title.isEmpty ? nil : $0.title }
+            control.setAccessibilityLabel(buttonTitle.map { "\(title): \($0)" } ?? title)
+        }
         label.widthAnchor.constraint(equalToConstant: 120).isActive = true
         row.addArrangedSubview(label)
         row.addArrangedSubview(control)
@@ -50,6 +55,8 @@ extension ConfigurationWindowController {
         fields.spacing = 8
         latitudeField.placeholderString = "Latitude"
         longitudeField.placeholderString = "Longitude"
+        latitudeField.setAccessibilityLabel("Latitude")
+        longitudeField.setAccessibilityLabel("Longitude")
         latitudeField.widthAnchor.constraint(equalToConstant: 108).identified("settings.latitude.width").isActive = true
         longitudeField.widthAnchor.constraint(equalToConstant: 108).identified("settings.longitude.width").isActive = true
         fields.addArrangedSubview(latitudeField)

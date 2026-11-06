@@ -21,10 +21,25 @@ struct VPNConnection: Equatable {
 struct VPNState: Equatable {
     var connections: [VPNConnection] = []
     var available = false
+    var message = ""
     var tailwindConnected: Bool { connections.contains { $0.provider == "tailscale" && $0.connected } }
 }
 
 protocol VPNIntegrating: AnyObject {
     var id: String { get }
-    func connections(config: BarConfig) -> (connections: [VPNConnection], status: String)
+    func connections(config: BarConfig) -> VPNReadResult
+}
+
+struct VPNReadResult {
+    enum Health: Equatable { case available, disabled, unavailable(String) }
+    var connections: [VPNConnection] = []
+    var health: Health
+    var isAvailable: Bool { health == .available }
+    var status: String {
+        switch health {
+        case .available: return "Available"
+        case .disabled: return "Disabled"
+        case let .unavailable(message): return message
+        }
+    }
 }

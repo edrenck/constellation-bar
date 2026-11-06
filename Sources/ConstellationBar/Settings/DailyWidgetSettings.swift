@@ -1,5 +1,4 @@
 import AppKit
-import EventKit
 
 extension ConfigurationWindowController {
     func dailyWidgetSettingsRows() -> [(BarItem, NSView)] {
@@ -15,52 +14,31 @@ extension ConfigurationWindowController {
             (.widget(.keepAwake), NSTextField(wrappingLabelWithString: "Choose a bounded awake session in the panel. Enable the display option to keep it awake too. Sessions end on expiry or app exit.")),
             (.widget(.keyboard), NSTextField(wrappingLabelWithString: "Switch between enabled macOS input sources from the panel. Add additional sources in System Settings → Keyboard."))
         ]
-        rows += [(.widget(.reminders), NSButton(title: "Allow Reminders access…", target: self, action: #selector(allowRemindersAccess)))]
-        reminderListChoices.orientation = .vertical; reminderListChoices.alignment = .leading; reminderListChoices.spacing = 8
+        reminderListChoices.onAuthorize = { [weak self] in self?.allowRemindersAccess() }
+        reminderListChoices.onSelection = { [weak self] ids in
+            guard let self else { return }
+            self.config.widgetPreferences.reminderListIDs = ids; self.commit()
+        }
         rows.append((.widget(.reminders), reminderListChoices))
         refreshReminderListChoices()
         syncDailyWidgetSettings()
         return rows
     }
-    func refreshReminderListChoices() {
-        reminderListChoices.arrangedSubviews.forEach { reminderListChoices.removeArrangedSubview($0); $0.removeFromSuperview() }
-        reminderListButtons = [:]
-        if EKEventStore.authorizationStatus(for: .reminder) == .fullAccess {
-            let store = EKEventStore()
-            for list in store.calendars(for: .reminder) {
-                let button = NSButton(checkboxWithTitle: list.title, target: self, action: #selector(reminderSelectionChanged))
-                button.state = config.widgetPreferences.reminderListIDs.contains(list.calendarIdentifier) ? .on : .off
-                reminderListButtons[list.calendarIdentifier] = button
-                reminderListChoices.addArrangedSubview(button)
-            }
-            reminderListChoices.addArrangedSubview(NSTextField(wrappingLabelWithString: "Select the lists to show. Leaving every list unchecked shows all lists. No reminders are edited."))
-        } else {
-            reminderListChoices.addArrangedSubview(NSTextField(wrappingLabelWithString: "Reminders access is requested only when you press Allow. Due and overdue tasks are read from lists synced to this Mac."))
-        }
-        window?.contentView?.needsLayout = true
-    }
+    @objc func refreshReminderListChoices() { reminderListChoices.refresh() }
     func syncDailyWidgetSettings() {
-        worldClocksField.stringValue = config.widgetPreferences.worldClockIdentifiers.joined(separator: ", ")
-        timerPresetsField.stringValue = config.widgetPreferences.timerPresetMinutes.map(String.init).joined(separator: ", ")
-        for (id, button) in reminderListButtons { button.state = config.widgetPreferences.reminderListIDs.contains(id) ? .on : .off }
+        worldClocksField.stringValue = editingSession.input.worldClocks ?? config.widgetPreferences.worldClockIdentifiers.joined(separator: ", ")
+        timerPresetsField.stringValue = editingSession.input.timerPresets ?? config.widgetPreferences.timerPresetMinutes.map(String.init).joined(separator: ", ")
+        reminderListChoices.sync(selectedIDs: config.widgetPreferences.reminderListIDs)
     }
     func dailyWidgetFieldsChanged() {
-        config.widgetPreferences.worldClockIdentifiers = worldClocksField.stringValue.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
-        let pieces = timerPresetsField.stringValue.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-        let parsed = pieces.compactMap(Int.init)
-        // Invalid text is rejected by normal configuration validation instead of silently discarded.
-        config.widgetPreferences.timerPresetMinutes = parsed.count == pieces.count ? parsed : []
-        commit()
-    }
-    @objc func reminderSelectionChanged() {
-        config.widgetPreferences.reminderListIDs = reminderListButtons.filter { $0.value.state == .on }.map(\.key).sorted()
+        editingSession.input.worldClocks = worldClocksField.stringValue
+        editingSession.input.timerPresets = timerPresetsField.stringValue
         commit()
     }
     @objc func allowRemindersAccess() {
         // Explicit user action; never requested by sampling or initial settings construction.
-        reminderAccessReader.requestAccess { [weak self] error in
-            guard let self else { return }
-            if error == nil { self.refreshReminderListChoices() }
+        widgets.requestRemindersAccess { [weak self] error in
+            guard self != nil else { return }
             let alert = NSAlert(); alert.messageText = error == nil ? "Reminders access enabled" : "Reminders access needs attention"
             alert.informativeText = error ?? "Choose the lists to show in the Reminders settings."
             alert.runModal()

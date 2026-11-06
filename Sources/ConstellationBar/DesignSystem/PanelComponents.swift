@@ -4,18 +4,50 @@ import AppKit
 final class WidgetActionButton: NSButton {
     enum Treatment { case plain, outline, filled }
     var handler: (() -> Void)?
-    var widgetTheme: BarTheme?
+    var widgetTheme: BarTheme? { didSet { contentChanged() } }
     var treatment: Treatment = .filled
-    var symbolName: String? { didSet { needsDisplay = true } }
-    var symbolSize: CGFloat = 16
-    var horizontalPadding: CGFloat = 12
+    var symbolName: String? { didSet { contentChanged() } }
+    var symbolSize: CGFloat = 16 { didSet { contentChanged() } }
+    var horizontalPadding: CGFloat = 12 { didSet { contentChanged() } }
     var circularSelection = false
     var subtleSelection = false
     var leading = false
-    var subtitle = ""
-    var trailing = ""
+    var subtitle = "" { didSet { contentChanged() } }
+    var trailing = "" { didSet { contentChanged() } }
     var statusColor: NSColor?
-    var iconImage: NSImage?
+    var iconImage: NSImage? { didSet { contentChanged() } }
+    override var title: String { didSet { contentChanged() } }
+    override var font: NSFont? { didSet { contentChanged() } }
+
+    private var contentFont: NSFont { font ?? widgetTheme?.appearanceID.font(size: 12) ?? .systemFont(ofSize: 12) }
+    private var detailFont: NSFont { widgetTheme?.appearanceID.font(size: 11) ?? .systemFont(ofSize: 11) }
+    private var hasIcon: Bool { symbolName != nil || iconImage != nil }
+    private var iconSide: CGFloat { hasIcon ? (subtitle.isEmpty ? symbolSize : 28) : 0 }
+    private var iconSpace: CGFloat { hasIcon && !title.isEmpty ? iconSide + 8 : 0 }
+    private var trailingWidth: CGFloat { ceil((trailing as NSString).size(withAttributes: [.font: detailFont]).width) }
+    private var trailingSpace: CGFloat { trailing.isEmpty ? 0 : trailingWidth + 12 }
+
+    private func contentChanged() { invalidateIntrinsicContentSize(); needsDisplay = true }
+
+    override var alignmentRectInsets: NSEdgeInsets {
+        widgetTheme == nil ? super.alignmentRectInsets : NSEdgeInsetsZero
+    }
+
+    override var intrinsicContentSize: NSSize {
+        guard widgetTheme != nil else { return super.intrinsicContentSize }
+        let titleSize = (title as NSString).size(withAttributes: [.font: contentFont])
+        let detailSize = (subtitle as NSString).size(withAttributes: [.font: detailFont])
+        let textWidth = max(titleSize.width, detailSize.width)
+        let width = horizontalPadding * 2 + max(iconSide, iconSpace + textWidth) + trailingSpace
+        let textHeight = titleSize.height + (subtitle.isEmpty ? 0 : detailSize.height + 2)
+        return NSSize(width: ceil(max(28, width + 1)), height: ceil(max(28, max(iconSide, textHeight) + 12)))
+    }
+
+    /// Drawing and intrinsic sizing reserve the same icon, padding and trailing space.
+    var textContentRect: NSRect {
+        NSRect(x: horizontalPadding + iconSpace, y: 0,
+               width: max(0, bounds.width - horizontalPadding * 2 - iconSpace - trailingSpace), height: bounds.height)
+    }
     override func draw(_ dirtyRect: NSRect) {
         guard let theme = widgetTheme else { super.draw(dirtyRect); return }
         let selected = state == .on
@@ -34,11 +66,10 @@ final class WidgetActionButton: NSButton {
             path.lineWidth = window?.firstResponder === self ? 1.5 : 0.7; path.stroke()
         }
         let paragraph = NSMutableParagraphStyle(); paragraph.alignment = leading ? .left : .center; paragraph.lineBreakMode = .byTruncatingTail
-        let font = self.font ?? theme.appearanceID.font(size: 12)
-        let hasIcon = symbolName != nil || iconImage != nil
+        let font = contentFont
         if hasIcon {
-            let side = subtitle.isEmpty ? symbolSize : 28
-            let x: CGFloat = title.isEmpty ? (bounds.width-side)/2 : 12
+            let side = iconSide
+            let x: CGFloat = title.isEmpty ? (bounds.width-side)/2 : horizontalPadding
             let icon = iconImage ?? symbolName.flatMap { NSImage(systemSymbolName: $0, accessibilityDescription: nil)?.withSymbolConfiguration(.init(pointSize: symbolSize, weight: .regular)) }
             if let icon {
                 let rect = NSRect(x: x, y: (bounds.height-side)/2, width: side, height: side)
@@ -46,19 +77,17 @@ final class WidgetActionButton: NSButton {
                 else { PanelDrawing.symbol(icon, in: rect, color: color) }
             }
         }
-        var textRect = bounds.insetBy(dx: horizontalPadding, dy: 0)
-        if hasIcon && !title.isEmpty { textRect.origin.x += subtitle.isEmpty ? 24 : 40; textRect.size.width -= subtitle.isEmpty ? 24 : 40 }
-        if !trailing.isEmpty { textRect.size.width -= 95 }
+        var textRect = textContentRect
         textRect.origin.y = subtitle.isEmpty ? (bounds.height-font.pointSize-4)/2 : (isFlipped ? bounds.height/2 - 18 : bounds.height/2 - 1)
         textRect.size.height = font.pointSize + 5
         (title as NSString).draw(in: textRect, withAttributes: [.font: font, .foregroundColor: color, .paragraphStyle: paragraph])
         if !subtitle.isEmpty {
             textRect.origin.y = isFlipped ? bounds.height/2 + 1 : bounds.height/2 - 19
-            (subtitle as NSString).draw(in: textRect, withAttributes: [.font: theme.appearanceID.font(size: 11), .foregroundColor: selected && !subtleSelection ? color.withAlphaComponent(0.75) : theme.muted, .paragraphStyle: paragraph])
+            (subtitle as NSString).draw(in: textRect, withAttributes: [.font: detailFont, .foregroundColor: selected && !subtleSelection ? color.withAlphaComponent(0.75) : theme.muted, .paragraphStyle: paragraph])
         }
         if !trailing.isEmpty {
             let right = NSMutableParagraphStyle(); right.alignment = .right
-            (trailing as NSString).draw(in: NSRect(x: bounds.width-104, y: (bounds.height-17)/2, width: 92, height: 17), withAttributes: [.font: theme.appearanceID.font(size: 11), .foregroundColor: statusColor ?? color, .paragraphStyle: right])
+            (trailing as NSString).draw(in: NSRect(x: bounds.width-horizontalPadding-trailingWidth, y: (bounds.height-17)/2, width: trailingWidth, height: 17), withAttributes: [.font: detailFont, .foregroundColor: statusColor ?? color, .paragraphStyle: right])
         }
     }
     convenience init(_ title: String, handler: @escaping () -> Void) {
@@ -107,15 +136,44 @@ final class PanelCard: NSView {
     required init?(coder: NSCoder) { fatalError() }
 }
 final class MetricPlot: NSView {
-    var values: [Double] = [] { didSet { needsDisplay = true } }
-    var dates: [Date] = [] { didSet { needsDisplay = true } }
-    var seconds: Double = 300
+    enum Metric {
+        case cpu, memory, download
+        var label: String {
+            switch self { case .cpu: return "CPU usage history"; case .memory: return "Memory usage history"; case .download: return "Download rate history" }
+        }
+        func format(_ value: Double) -> String {
+            guard self == .download else { return String(format: "%.1f percent", value) }
+            guard let bytes = UInt64(exactly: value.rounded(.towardZero)) else { return String(format: "%.3g bytes per second", value) }
+            return ByteFormatter.speed(bytes)
+        }
+    }
+    var metric = Metric.cpu { didSet { updateAccessibility() } }
+    var values: [Double] = [] { didSet { needsDisplay = true; updateAccessibility() } }
+    var dates: [Date] = [] { didSet { needsDisplay = true; updateAccessibility() } }
+    var seconds: Double = 300 { didSet { needsDisplay = true; updateAccessibility() } }
+    var readingStatus = ReadingStatus.available { didSet { updateAccessibility() } }
     var percentage = true
     var theme = BarTheme.dark
+    override init(frame frameRect: NSRect) { super.init(frame: frameRect); updateAccessibility() }
+    required init?(coder: NSCoder) { fatalError("init(coder:)") }
+    private var validIndices: [Int] {
+        values.indices.filter { values[$0].isFinite && values[$0] >= 0 && (dates.count != values.count || dates[$0].timeIntervalSinceReferenceDate.isFinite) }
+    }
+    private func updateAccessibility() {
+        setAccessibilityElement(true); setAccessibilityRole(.image); setAccessibilityLabel(metric.label)
+        let samples = validIndices.map { values[$0] }
+        let context = readingStatus.isAvailable ? "" : readingStatus.description(for: "Current measurement") + " "
+        let summary: String
+        if let latest = samples.last, let minimum = samples.min(), let maximum = samples.max() {
+            summary = context + "\(samples.count) \(samples.count == 1 ? "sample" : "samples") in the selected \(Int(seconds/60)) minute window. Latest recorded \(metric.format(latest)); minimum \(metric.format(minimum)); maximum \(metric.format(maximum))."
+        } else { summary = context + "No recorded samples in the selected window." }
+        setAccessibilityValue(summary); setAccessibilityValueDescription(summary)
+    }
     override func draw(_ dirtyRect: NSRect) {
         let plot = bounds.insetBy(dx: 0, dy: 22)
         let area = NSRect(x: 32, y: plot.minY, width: max(1, plot.width-36), height: plot.height)
-        let maxValue = percentage ? 100 : max(1, values.max() ?? 1)
+        let indices = validIndices
+        let maxValue = percentage ? 100 : max(1, indices.map { values[$0] }.max() ?? 1)
         for fraction in [0.0, 0.5, 1.0] {
             let y = area.minY + area.height * fraction
             let line = NSBezierPath(); line.move(to: NSPoint(x: area.minX, y: y)); line.line(to: NSPoint(x: area.maxX, y: y))
@@ -126,13 +184,14 @@ final class MetricPlot: NSView {
         for (fraction, label) in [(0.0, "−\(Int(seconds/60))m"), (0.5, "−\(Int(seconds/120))m"), (1.0, "now")] {
             (label as NSString).draw(at: NSPoint(x: area.minX + area.width*fraction - (fraction == 1 ? 22 : 0), y: 2), withAttributes: [.font: theme.appearanceID.font(size: 10), .foregroundColor: theme.muted])
         }
-        guard values.count > 1 else { return }
+        guard indices.count > 1 else { return }
         let path = NSBezierPath(); path.lineWidth = 1.7
         let now = Date()
-        for (index, value) in values.enumerated() {
-            let fraction = dates.count == values.count ? 1 - now.timeIntervalSince(dates[index])/seconds : Double(index)/Double(values.count-1)
+        for (position, index) in indices.enumerated() {
+            let value = values[index]
+            let fraction = dates.count == values.count ? 1 - now.timeIntervalSince(dates[index])/seconds : Double(position)/Double(indices.count-1)
             let point = NSPoint(x: area.minX+area.width*max(0,min(1,fraction)), y: area.minY+area.height*max(0,min(1,value/maxValue)))
-            if index == 0 { path.move(to: point) } else { path.line(to: point) }
+            if position == 0 { path.move(to: point) } else { path.line(to: point) }
         }
         theme.blue.setStroke(); path.stroke()
     }

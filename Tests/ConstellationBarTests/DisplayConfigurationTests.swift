@@ -33,14 +33,15 @@ final class DisplayConfigurationTests: XCTestCase {
         XCTAssertEqual(config.forDisplay("a").rightWidgets, [.battery])
         XCTAssertEqual(config.rightWidgets, [.battery, .dateTime])
     }
-    func testSamplingIncludesCenterOnlyWidgetsAndOtherDisplays() {
+    func testSamplingIncludesCenterOnlyWidgetsOnTargetDisplays() {
         var config = BarConfig.default
         config.displayOverrides["wide"] = DisplayOverride(widgets: [.system], centerWidgets: [.nowPlaying])
         config.displayOverrides["off"] = DisplayOverride(enabled: false, centerWidgets: [.weather])
-        XCTAssertTrue(config.widgetsForSampling.contains(.nowPlaying))
-        XCTAssertTrue(config.widgetsForSampling.contains(.system))
-        XCTAssertFalse(config.widgetsForSampling.contains(.weather))
-        XCTAssertEqual(Set(config.widgetsForSampling).count, config.widgetsForSampling.count)
+        let scope = DisplayScope(config: config, connectedDisplayIDs: ["local", "wide", "off"])
+        XCTAssertTrue(scope.widgets.contains(.nowPlaying))
+        XCTAssertTrue(scope.widgets.contains(.system))
+        XCTAssertFalse(scope.widgets.contains(.weather))
+        XCTAssertEqual(Set(scope.widgets).count, scope.widgets.count)
     }
     func testWorkspaceVisibilityAndSelectedOrder() {
         var config = BarConfig.default

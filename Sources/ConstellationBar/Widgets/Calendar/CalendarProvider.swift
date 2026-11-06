@@ -40,9 +40,8 @@ final class AppleCalendarIntegration: CalendarIntegrating {
 final class CalendarProvider: SystemProviding {
     let kinds: Set<WidgetKind> = [.calendar]
     private let integrations: [CalendarIntegrating]
-    init(integration: CalendarIntegrating? = nil) {
-        integrations = integration.map { [$0] } ?? [WidgetServices.shared.calendar, WidgetServices.shared.outlook]
-    }
+    private let selection: CalendarSelectionStoring
+    init(integrations: [CalendarIntegrating], selection: CalendarSelectionStoring) { self.integrations = integrations; self.selection = selection }
     func sample(config: BarConfig, into state: inout SystemState) {
         let selected = config.providerPreferences.calendarProvider
         guard config.providerPreferences.includes(selected.rawValue) else {
@@ -50,5 +49,6 @@ final class CalendarProvider: SystemProviding {
         }
         state.agenda = integrations.first { $0.id == selected.rawValue }?.agenda()
             ?? AgendaState(message: "The selected calendar provider is unavailable.")
+        state.agenda.hiddenCalendarIDs = selection.hiddenIDs.sorted()
     }
 }

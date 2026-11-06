@@ -5,9 +5,10 @@ import CoreAudio
 extension MiniAppPanel {
     func buildVPN() {
         let active = state.vpn.connections.filter(\.connected).count
-        label("\(active) active connection\(active == 1 ? "" : "s")", size: 13, muted: true)
+        label(state.vpn.available ? "\(active) active connection\(active == 1 ? "" : "s")" : "VPN status unavailable", size: 13, muted: true)
+        if !state.vpn.message.isEmpty { label(state.vpn.message, size: 11, muted: true) }
         if selectedVPN.isEmpty { selectedVPN = state.vpn.connections.first(where: { !$0.peers.isEmpty })?.id ?? state.vpn.connections.first(where: \.connected)?.id ?? "" }
-        if state.vpn.connections.isEmpty { label("No VPN services found. Check providers in Customize Bar → Widgets → VPN.", muted: true) }
+        if state.vpn.available && state.vpn.connections.isEmpty { label("No VPN services found. Check providers in Customize Bar → Widgets → VPN.", muted: true) }
         for connection in state.vpn.connections {
             let expanded = connection.id == selectedVPN
             let card = PanelCard(width: bodyWidth, theme: config.theme, selected: expanded && connection.connected)
@@ -28,8 +29,9 @@ extension MiniAppPanel {
             if state.vpn.connections.filter({ $0.serviceName == connection.serviceName }).count > 1 && !connection.id.isEmpty { subtitle += " · " + connection.id.prefix(6) }
             add(text(subtitle, size: 11, muted: true), to: title)
             let badge = text(connection.connected ? "● Connected" : "● Offline", size: 11, width: 92)
-            badge.textColor = connection.connected ? (config.appearance == .cove ? config.theme.blue : config.theme.green) : config.theme.muted
+            badge.textColor = connection.connected ? (config.appearance == .cove ? config.theme.textAccent(config.theme.blue) : config.theme.textAccent(config.theme.green)) : config.theme.muted
             let expand = iconButton(expanded ? "chevron.up" : "chevron.down", label: expanded ? "Collapse \(connection.serviceName)" : "Expand \(connection.serviceName)", size: 12) { [weak self] in self?.selectedVPN = expanded ? "collapsed" : connection.id; self?.peerQuery = ""; self?.rebuild() }
+            expand.identifier = NSUserInterfaceItemIdentifier("vpn.expand.\(connection.id)")
             expand.widthAnchor.constraint(equalToConstant: 22).isActive = true; expand.heightAnchor.constraint(equalToConstant: 30).isActive = true
             add(row([tile, title, badge, expand], spacing: 8), width: inner, height: 44, to: card.content)
             if expanded {
@@ -39,6 +41,7 @@ extension MiniAppPanel {
                 if !connection.peers.isEmpty {
                     add(text("Devices", size: 13, weight: .semibold), to: card.content)
                     let search = NSSearchField(); search.placeholderString = "Find a device"; search.stringValue = peerQuery
+                    search.identifier = NSUserInterfaceItemIdentifier("vpn.search.\(connection.id)")
                     search.setAccessibilityLabel("Find a VPN device"); search.delegate = self
                     add(search, width: inner, height: 28, to: card.content)
                     let peers = column(width: inner); peerContainer = peers; currentPeers = connection.peers; add(peers, to: card.content); updatePeers()
@@ -50,11 +53,16 @@ extension MiniAppPanel {
                     else if connection.provider == "surfshark" { self?.openApp("com.surfshark.vpnclient.macos") }
                     else { self?.openURL("x-apple.systempreferences:com.apple.NetworkExtensionSettingsUI.NESettingsUIExtension") }
                 } }
+                action.identifier = NSUserInterfaceItemIdentifier("vpn.action.\(connection.id)")
                 add(action, width: inner, height: 32, to: card.content)
             }
             add(card)
         }
         label("Routing details depend on the provider.", size: 11, muted: true)
+        if state.vpn.connections.isEmpty || !state.vpn.message.isEmpty {
+            add(button("Retry") { [weak self] in self?.perform(.refreshVPN) }, width: bodyWidth, height: 32)
+            add(actionRow("VPN settings…", symbol: "gearshape") { [weak self] in self?.openURL("x-apple.systempreferences:com.apple.NetworkExtensionSettingsUI.NESettingsUIExtension") }, width: bodyWidth, height: 34)
+        }
     }
     func controlTextDidChange(_ notification: Notification) {
         guard let search = notification.object as? NSSearchField else { return }; peerQuery = search.stringValue; updatePeers()
@@ -68,7 +76,7 @@ extension MiniAppPanel {
             let glyph = PanelGlyph(); glyph.image = NSImage(systemSymbolName: "desktopcomputer", accessibilityDescription: nil); glyph.color = config.theme.muted
             glyph.widthAnchor.constraint(equalToConstant: 20).isActive = true; glyph.heightAnchor.constraint(equalToConstant: 20).isActive = true
             let name = text(pieces.first ?? peer, size: 12, width: bodyWidth-144)
-            let online = pieces.last == "Online"; let status = text(online ? "● Online" : "● Offline", size: 11, width: 70); status.textColor = online ? (config.appearance == .cove ? config.theme.blue : config.theme.green) : config.theme.muted
+            let online = pieces.last == "Online"; let status = text(online ? "● Online" : "● Offline", size: 11, width: 70); status.textColor = online ? (config.appearance == .cove ? config.theme.textAccent(config.theme.blue) : config.theme.textAccent(config.theme.green)) : config.theme.muted
             add(row([glyph, name, status], spacing: 8), height: 30, to: container)
         }
         if matches.isEmpty { add(text("No matching devices", size: 11, muted: true), to: container) }

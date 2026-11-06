@@ -9,33 +9,60 @@ struct DiagnosticEntry: Equatable {
 }
 
 /// Published on the main queue from the same samples used to render the bar.
-enum IntegrationDiagnostics {
+final class IntegrationDiagnostics: NSObject {
+    static let widgetKinds: [WidgetKind] = [.agentStatus, .nowPlaying, .calendar, .vpn, .weather, .audio, .system, .disk, .timer, .keepAwake, .reminders, .keyboard]
     static let changed = Notification.Name("ConstellationIntegrationsChanged")
     static let refreshRequested = Notification.Name("ConstellationDiagnosticsRefreshRequested")
-    static var workspace = "Checking integrations…" {
+    var workspace = "Checking integrations…" {
         didSet { if workspace != oldValue { notify() } }
     }
-    static private(set) var system: SystemState?
-    static private(set) var sampledAt: Date?
-    static private(set) var sampledWidgets: Set<WidgetKind> = []
-    static private(set) var sampledPreferences: ProviderPreferences?
-    static private(set) var sampledWeather: WeatherPreferences?
+    var workspaceActionError: String? {
+        didSet { if workspaceActionError != oldValue { notify() } }
+    }
+    var fullscreen: FullscreenSnapshot? {
+        didSet { if fullscreen != oldValue { notify() } }
+    }
 
-    static func publish(_ state: SystemState, config: BarConfig, at date: Date = Date(), sampledKinds: Set<WidgetKind>? = nil) {
+    func fullscreenEntry(requestedDisplays: Set<UInt32>) -> DiagnosticEntry {
+        guard !requestedDisplays.isEmpty else { return FullscreenSnapshot.disabled.diagnosticEntry() }
+        guard let fullscreen, fullscreen.requestedDisplays == requestedDisplays else {
+            return DiagnosticEntry(title: "Fullscreen visibility", health: .pending,
+                detail: "Waiting for fullscreen detection on the active bar displays.", widget: nil)
+        }
+        return fullscreen.diagnosticEntry()
+    }
+    private(set) var system: SystemState?
+    private(set) var sampledAt: Date?
+    private(set) var sampledWidgets: Set<WidgetKind> = []
+    private(set) var sampledPreferences: ProviderPreferences?
+    private(set) var sampledWeather: WeatherPreferences?
+    private(set) var sampledDisplayScope: DisplayScope?
+
+    func publish(_ state: SystemState, config: BarConfig, displayScope: DisplayScope, at date: Date = Date(), sampledKinds: Set<WidgetKind>? = nil) {
+        dispatchPrecondition(condition: .onQueue(.main))
         system = state; sampledAt = date
-        sampledWidgets = sampledKinds ?? Set(config.widgetsForSampling)
+        sampledWidgets = sampledKinds ?? Set(displayScope.widgets)
         sampledPreferences = config.providerPreferences
         sampledWeather = config.weather
+        sampledDisplayScope = displayScope
         notify()
     }
-    private static func notify() { NotificationCenter.default.post(name: changed, object: nil) }
+    let notifications: NotificationCenter
+    init(notifications: NotificationCenter = .default) { self.notifications = notifications; super.init() }
+    func requestRefresh() {
+        dispatchPrecondition(condition: .onQueue(.main))
+        notifications.post(name: Self.refreshRequested, object: self)
+    }
+    private func notify() {
+        dispatchPrecondition(condition: .onQueue(.main))
+        notifications.post(name: Self.changed, object: self)
+    }
 
-    static func entries(config: BarConfig, state: SystemState?, sampledWidgets: Set<WidgetKind>) -> [DiagnosticEntry] {
-        let enabled = Set(config.widgetsForSampling)
-        let kinds: [WidgetKind] = [.agentStatus, .nowPlaying, .calendar, .vpn, .weather, .audio, .timer, .keepAwake, .reminders, .keyboard]
-        return kinds.map { kind in
+    static func entries(config: BarConfig, state: SystemState?, sampledWidgets: Set<WidgetKind>, displayScope: DisplayScope) -> [DiagnosticEntry] {
+        let enabled = Set(displayScope.widgets)
+        return widgetKinds.map { kind in
             guard enabled.contains(kind) else {
-                return DiagnosticEntry(title: kind.menuTitle, health: .disabled, detail: "Widget is hidden on all displays; its provider is not sampled.", widget: kind)
+                return DiagnosticEntry(title: kind.menuTitle, health: .disabled, detail: "Widget is not shown on an active display; its provider is not sampled.", widget: kind)
             }
             guard let state, sampledWidgets.contains(kind) else {
                 return DiagnosticEntry(title: kind.menuTitle, health: .pending, detail: "Waiting for the next provider sample.", widget: kind)
@@ -75,18 +102,31 @@ enum IntegrationDiagnostics {
                     detail = state.weather.statusDescription
                 }
             case .timer:
-                detail = state.timer.finished ? "Countdown completed." : state.timer.running ? "Countdown running · \(WidgetCatalog.formatTime(state.timer.remaining)) remaining." : "Timer ready · paused or reset."
+                detail = state.timer.finished ? "Countdown completed." : state.timer.running ? "Countdown running · \(WidgetCatalog.formatCountdown(state.timer.remaining)) remaining." : "Timer \(state.timer.statusLabel.lowercased()) · \(WidgetCatalog.formatCountdown(state.timer.remaining)) remaining."
             case .keepAwake:
-                detail = state.keepAwake.active ? "Idle-sleep session active · \(WidgetCatalog.formatTime(state.keepAwake.remaining)) remaining · display \(state.keepAwake.displayAwake ? "kept awake" : "may sleep")." : "No sleep assertion is held."
+                detail = state.keepAwake.active ? "Idle-sleep session active · \(WidgetCatalog.formatCountdown(state.keepAwake.remaining)) remaining · display \(state.keepAwake.displayAwake ? "kept awake" : "may sleep")." : "No sleep assertion is held."
             case .reminders:
-                health = state.reminders.authorized ? .ready : .attention
-                detail = state.reminders.message.isEmpty ? "Reminders access allowed · \(state.reminders.lists.count) synced lists · \(state.reminders.items.count) due tasks." : state.reminders.message
+                health = state.reminders.authorized && state.reminders.failure == nil ? .ready : .attention
+                detail = state.reminders.statusDescription(at: state.date)
+                if detail.isEmpty { detail = "Reminders access allowed · \(state.reminders.lists.count) synced lists · \(state.reminders.itemCount) due tasks." }
             case .keyboard:
                 health = state.keyboard.selected == nil ? .attention : .ready
                 detail = state.keyboard.selected.map { "Input source available · \($0.name) · \(state.keyboard.sources.count) enabled sources." } ?? (state.keyboard.message.isEmpty ? "No current input source is available." : state.keyboard.message)
             case .audio:
-                health = state.audio.output == nil ? .attention : .ready
-                detail = state.audio.output.map { "Output device available · \($0.name)" } ?? "No default audio output device is available."
+                if !state.audio.status.isAvailable {
+                    health = state.audio.status == .waiting ? .pending : .attention
+                    detail = state.audio.status.description(for: "Audio")
+                } else {
+                    health = state.audio.output == nil || !state.audio.allIssues.isEmpty ? .attention : .ready
+                    detail = state.audio.allIssues.isEmpty ? state.audio.output.map { "Output device available · \($0.name)" } ?? "No default audio output device is available." : state.audio.allIssues.joined(separator: "\n")
+                }
+            case .system, .cpu:
+                let readings = kind == .cpu ? [("CPU", state.cpu.status)] : SystemMetric.allCases.map { ($0.title, $0.status(state)) } + [("Process list", state.topProcessesStatus)]
+                health = readings.contains { if case .failed = $0.1 { return true }; return false } ? .attention : readings.contains { !$0.1.isAvailable } ? .pending : .ready
+                detail = readings.map { $0.1.description(for: $0.0) }.joined(separator: "\n")
+            case .disk:
+                switch state.disk.status { case .available: health = .ready; case .waiting: health = .pending; case .failed: health = .attention }
+                detail = state.disk.status.description(for: "Disk")
             default: detail = "Provider sampled."
             }
             return DiagnosticEntry(title: kind.menuTitle, health: health, detail: detail, widget: kind)

@@ -75,7 +75,7 @@ final class SettingsNavigationTests: XCTestCase {
         XCTAssertTrue(NSApp.sendAction(try XCTUnwrap(entry.action), to: entry.target, from: entry))
         XCTAssertTrue(controller.displayConfig.widgetLayout.right.contains(.widget(.agentStatus)))
         XCTAssertFalse(controller.config.widgetLayout.allWidgetKinds.contains(.agentStatus))
-        XCTAssertTrue(controller.config.widgetsForSampling.contains(.agentStatus))
+        XCTAssertTrue(DisplayScope(config: controller.config, connectedDisplayIDs: ["external"]).widgets.contains(.agentStatus))
         func zonePicker() throws -> NSPopUpButton {
             try XCTUnwrap(descendants(controller.widgetEditor).compactMap { $0 as? NSPopUpButton }.first { $0.identifier?.rawValue == WidgetKind.agentStatus.rawValue })
         }

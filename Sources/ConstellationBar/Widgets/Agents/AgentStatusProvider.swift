@@ -85,6 +85,7 @@ final class AgentStatusProvider: SystemProviding {
         state.agents.providers = integrations.filter { config.providerPreferences.includes($0.id) }.map { $0.snapshot() }
         state.agents.providers += remote?.snapshots(enabled: config.providerPreferences.includes("codex") && config.providerPreferences.includes("codexSSH")) ?? []
     }
+    func deactivate() { _ = remote?.snapshots(enabled: false) }
 }
 
 /// Passive local adapter. Codex's on-disk schema is versioned and may change; failures are explicit.

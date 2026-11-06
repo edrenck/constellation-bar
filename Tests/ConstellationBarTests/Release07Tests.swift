@@ -69,7 +69,7 @@ final class Release07Tests: XCTestCase {
         let decoded = try BarConfig.decode(config.encoded())
         XCTAssertEqual(decoded.providerPreferences.calendarProvider, .outlook)
         let integration = CountingCalendar()
-        let provider = CalendarProvider(integration: integration)
+        let provider = CalendarProvider(integrations: [integration], selection: FixtureCalendarSelection())
         var state = SystemState()
         provider.sample(config: old, into: &state)
         XCTAssertEqual(integration.reads, 0)

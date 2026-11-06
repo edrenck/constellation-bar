@@ -1,22 +1,11 @@
 import AppKit
 
-// Missing files use defaults; invalid files are left untouched until explicitly fixed.
-enum ConfigurationError: LocalizedError {
-    case invalid(String)
-    var errorDescription: String? { if case let .invalid(message) = self { return message }; return nil }
-}
-
-enum ConfigurationSaveResult: Equatable {
-    case saved(URL)
-    case failed(String)
-    var succeeded: Bool { if case .saved = self { return true }; return false }
-    var error: String? { if case let .failed(message) = self { return message }; return nil }
-}
-
 enum ConfigurationStore {
-    static var lastError: String?
-    static private(set) var lastSaveError: String?
-    static var diagnosticError: String? { lastError ?? lastSaveError }
+    static let changed = Notification.Name("ConstellationConfigurationStoreChanged")
+    private static let repository = ConfigurationRepository(activeURL: { activeURL }, writableURL: { ConfigFile.writableURL() })
+    static var lastError: String? { repository.lastError }
+    static var lastSaveError: String? { repository.lastSaveError }
+    static var diagnosticError: String? { repository.diagnosticError }
     static var activeURL: URL? {
         if let index = CommandLine.arguments.firstIndex(of: "--config"), CommandLine.arguments.indices.contains(index + 1) {
             return URL(fileURLWithPath: NSString(string: CommandLine.arguments[index + 1]).expandingTildeInPath)
@@ -30,17 +19,7 @@ enum ConfigurationStore {
         return nil
     }
 
-    static func load() -> BarConfig {
-        guard let url = activeURL else { return .default }
-        do {
-            let config = try BarConfig.decode(Data(contentsOf: url))
-            lastError = nil
-            return config
-        } catch {
-            lastError = "\(url.path): \(error.localizedDescription)"
-            return .default
-        }
-    }
+    static func load() -> BarConfig { repository.load() }
 
     @discardableResult static func save(_ config: BarConfig, to destination: URL? = nil) -> Bool {
         let result = saveResult(config, to: destination)
@@ -50,27 +29,9 @@ enum ConfigurationStore {
 
     static func saveResult(_ config: BarConfig, to destination: URL? = nil,
                            write: (Data, URL) throws -> Void = { try $0.write(to: $1, options: .atomic) }) -> ConfigurationSaveResult {
-        let url = destination ?? ConfigFile.writableURL()
-        do {
-            if destination == nil, let lastError { throw ConfigurationError.invalid("Fix or move the invalid config before saving. \(lastError)") }
-            let data = try config.encoded()
-            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-            if FileManager.default.fileExists(atPath: url.path) {
-                // Even explicit destinations must not silently replace a malformed file.
-                do { _ = try BarConfig.decode(Data(contentsOf: url)) }
-                catch { throw ConfigurationError.invalid("Fix or move the invalid config before saving. \(url.path): \(error.localizedDescription)") }
-                let backup = url.appendingPathExtension("backup")
-                if !FileManager.default.fileExists(atPath: backup.path) { try FileManager.default.copyItem(at: url, to: backup) }
-            }
-            try write(data, url)
-            lastSaveError = nil
-            DispatchQueue.main.async { NotificationCenter.default.post(name: IntegrationDiagnostics.changed, object: nil) }
-            return .saved(url)
-        } catch {
-            lastSaveError = error.localizedDescription
-            DispatchQueue.main.async { NotificationCenter.default.post(name: IntegrationDiagnostics.changed, object: nil) }
-            return .failed(error.localizedDescription)
-        }
+        let result = repository.saveResult(config, to: destination, write: write)
+        DispatchQueue.main.async { NotificationCenter.default.post(name: changed, object: nil) }
+        return result
     }
 
     static func report(_ message: String) {

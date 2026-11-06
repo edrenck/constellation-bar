@@ -17,6 +17,10 @@ final class DisplaySettingsEditor: NSStackView, NSTextFieldDelegate {
     private let workspaces = NSPopUpButton()
     private let selectedNames = NSTextField()
     private let widgetRows = NSStackView()
+    private let addWidgetPicker = NSPopUpButton(frame: .zero, pullsDown: true)
+    private var rows: [BarItem: WidgetArrangementRow] = [:]
+    private var zoneHeadings: [BarZone: NSTextField] = [:]
+    private var emptyLabels: [BarZone: NSTextField] = [:]
     private let copyToAll = NSButton(title: "Copy this setup to every display", target: nil, action: nil)
     private let reset = NSButton(title: "Use shared settings for this display", target: nil, action: nil)
 
@@ -58,6 +62,7 @@ final class DisplaySettingsEditor: NSStackView, NSTextFieldDelegate {
 
     private func row(_ title: String, _ control: NSView) -> NSView {
         let label = NSTextField(labelWithString: title); label.widthAnchor.constraint(equalToConstant: 150).isActive = true
+        control.setAccessibilityTitleUIElement(label); control.setAccessibilityLabel(title)
         let row = NSStackView(views: [label, control]); row.spacing = 12
         if control is NSTextField { control.widthAnchor.constraint(greaterThanOrEqualToConstant: 290).isActive = true }
         return row
@@ -91,61 +96,61 @@ final class DisplaySettingsEditor: NSStackView, NSTextFieldDelegate {
     @objc private func copySettings() { guard let id = selectedID else { return }; onCopyToAll?(id, current) }
 
     private func rebuildWidgets() {
-        widgetRows.arrangedSubviews.forEach { widgetRows.removeArrangedSubview($0); $0.removeFromSuperview() }
+        let focusedRow = rows.values.first { row in row.controls.contains { window?.firstResponder === $0 } }
+        let focused = focusedRow?.controls.first { window?.firstResponder === $0 }
         let all = [BarItem.workspaces, .currentApp] + WidgetKind.selectableCases.map(BarItem.widget)
         let hidden = all.filter { !layout.allItems.contains($0) }
-        let addWidget = NSPopUpButton(frame: .zero, pullsDown: true)
+        let addWidget = addWidgetPicker
+        addWidget.removeAllItems()
         addWidget.addItem(withTitle: hidden.isEmpty ? "All widgets added" : "Add widget…")
+        addWidget.setAccessibilityLabel("Add widget to this display")
         for item in hidden {
             let entry = NSMenuItem(title: item.title, action: #selector(addWidget(_:)), keyEquivalent: "")
             entry.target = self; entry.representedObject = item.rawValue
             addWidget.menu?.addItem(entry)
         }
         addWidget.isEnabled = selectedID != nil && !hidden.isEmpty
-        widgetRows.addArrangedSubview(addWidget)
-        let groups: [(String, [BarItem])] = BarZone.allCases.map { ($0.title, layout.items(in: $0)) }
-        for (title, items) in groups {
-            let heading = NSTextField(labelWithString: title.uppercased())
+        var desired: [NSView] = [addWidget]
+        for zone in BarZone.allCases {
+            let items = layout.items(in: zone)
+            let heading = zoneHeadings[zone] ?? NSTextField(labelWithString: zone.title.uppercased())
+            zoneHeadings[zone] = heading
             heading.font = .systemFont(ofSize: 10, weight: .semibold); heading.textColor = .secondaryLabelColor
-            widgetRows.addArrangedSubview(heading)
+            desired.append(heading)
             if items.isEmpty {
-                let empty = NSTextField(labelWithString: "No widgets"); empty.textColor = .tertiaryLabelColor
-                widgetRows.addArrangedSubview(empty)
+                let empty = emptyLabels[zone] ?? NSTextField(labelWithString: "No widgets"); empty.textColor = .tertiaryLabelColor
+                emptyLabels[zone] = empty; desired.append(empty)
             }
-            for item in items { widgetRows.addArrangedSubview(widgetRow(item)) }
+            for item in items {
+                let row = rows[item] ?? makeWidgetRow(item); rows[item] = row
+                row.sync(zone: zone, items: items, enabled: selectedID != nil, configurable: configurableItems.contains(item))
+                desired.append(row)
+            }
+        }
+        for view in widgetRows.arrangedSubviews where !desired.contains(where: { $0 === view }) {
+            widgetRows.removeArrangedSubview(view); view.removeFromSuperview()
+        }
+        for (index, view) in desired.enumerated() {
+            if widgetRows.arrangedSubviews.indices.contains(index), widgetRows.arrangedSubviews[index] === view { continue }
+            if widgetRows.arrangedSubviews.contains(where: { $0 === view }) { widgetRows.removeArrangedSubview(view) }
+            widgetRows.insertArrangedSubview(view, at: index)
+        }
+        if let focused, let focusedRow, let window {
+            let fallback = layout.allItems.contains(focusedRow.item) ? focusedRow.position : addWidget
+            let target = focused.window === window && focused.isEnabled && !focused.isHiddenOrHasHiddenAncestor ? focused : fallback
+            window.makeFirstResponder(target)
+            DispatchQueue.main.async { [weak target, weak window] in
+                guard let target, window?.firstResponder === target else { return }
+                target.scrollToVisible(target.bounds)
+            }
         }
     }
-    private func widgetRow(_ item: BarItem) -> NSView {
-        let zone = BarZone.allCases.first { layout.items(in: $0).contains(item) }
-        let list = zone.map { layout.items(in: $0) } ?? []
-        let index = list.firstIndex(of: item)
-        let position = NSPopUpButton(); position.addItems(withTitles: ["Hidden", "Left", "Center", "Right"])
-        position.selectItem(at: zone.flatMap { BarZone.allCases.firstIndex(of: $0).map { $0 + 1 } } ?? 0)
-        position.identifier = .init(item.rawValue); position.target = self; position.action = #selector(positionChanged(_:))
-        let earlier = NSButton(title: "↑", target: self, action: #selector(moveItem(_:)))
-        let later = NSButton(title: "↓", target: self, action: #selector(moveItem(_:)))
-        for button in [earlier, later] { button.identifier = .init(item.rawValue) }
-        earlier.setAccessibilityLabel("Move \(item.title) earlier")
-        later.setAccessibilityLabel("Move \(item.title) later")
-        position.setAccessibilityLabel("\(item.title) zone")
-        earlier.tag = -1; later.tag = 1
-        earlier.isEnabled = selectedID != nil && (index ?? 0) > 0
-        later.isEnabled = selectedID != nil && index != nil && (index ?? 0) < list.count - 1
-        position.isEnabled = selectedID != nil
-        var controls: [NSView] = [position, earlier, later]
-        if configurableItems.contains(item) {
-            let configure = NSButton(title: "", target: self, action: #selector(configureWidget(_:)))
-            configure.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: nil)
-            configure.identifier = .init(item.rawValue)
-            configure.toolTip = "Configure \(item.title)"
-            configure.setAccessibilityLabel("Configure \(item.title)")
-            controls.append(configure)
-        }
-        return row(item.title, NSStackView(views: controls))
-    }
-    @objc private func configureWidget(_ sender: NSButton) {
-        guard let id = sender.identifier?.rawValue else { return }
-        onConfigure?(BarItem(rawValue: id))
+    private func makeWidgetRow(_ item: BarItem) -> WidgetArrangementRow {
+        let row = WidgetArrangementRow(item: item)
+        row.onPosition = { [weak self] index in self?.positionChanged(item, index: index) }
+        row.onMove = { [weak self] direction in self?.moveItem(item, direction: direction) }
+        row.onConfigure = { [weak self] in self?.onConfigure?(item) }
+        return row
     }
     @objc private func addWidget(_ sender: NSMenuItem) {
         guard let raw = sender.representedObject as? String else { return }
@@ -155,25 +160,21 @@ final class DisplaySettingsEditor: NSStackView, NSTextFieldDelegate {
         zones.right.append(item)
         value.widgetLayout = zones; save(value)
     }
-    @objc private func positionChanged(_ sender: NSPopUpButton) {
-        guard let raw = sender.identifier?.rawValue else { return }
+    private func positionChanged(_ item: BarItem, index: Int) {
         var value = current; var zones = layout
-        let item = BarItem(rawValue: raw)
         for zone in BarZone.allCases { zones.setItems(zones.items(in: zone).filter { $0 != item }, in: zone) }
-        if sender.indexOfSelectedItem > 0 {
-            let zone = BarZone.allCases[sender.indexOfSelectedItem - 1]
+        if (1...BarZone.allCases.count).contains(index) {
+            let zone = BarZone.allCases[index - 1]
             zones.setItems(zones.items(in: zone) + [item], in: zone)
         }
         value.widgetLayout = zones; save(value)
     }
-    @objc private func moveItem(_ sender: NSButton) {
-        guard let raw = sender.identifier?.rawValue else { return }
+    private func moveItem(_ item: BarItem, direction: Int) {
         var value = current; var zones = layout
-        let item = BarItem(rawValue: raw)
         guard let zone = BarZone.allCases.first(where: { zones.items(in: $0).contains(item) }) else { return }
         var list = zones.items(in: zone)
-        guard let index = list.firstIndex(of: item), list.indices.contains(index + sender.tag) else { return }
-        list.swapAt(index, index + sender.tag); zones.setItems(list, in: zone)
+        guard let index = list.firstIndex(of: item), list.indices.contains(index + direction) else { return }
+        list.swapAt(index, index + direction); zones.setItems(list, in: zone)
         value.widgetLayout = zones; save(value)
     }
 }

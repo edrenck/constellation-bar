@@ -128,24 +128,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // foreground app currently covers the display or is fullscreen.
             loaded.hideInFullscreen = false
         }
-        controller = BarController(config: loaded)
-        statusController = StatusMenuController(config: loaded) { [weak self] config in
+        let widgets = WidgetRuntime(services: WidgetServices())
+        let diagnostics = IntegrationDiagnostics()
+        controller = BarController(config: loaded, widgets: widgets, diagnostics: diagnostics)
+        statusController = StatusMenuController(config: loaded, widgets: widgets, diagnostics: diagnostics) { [weak self] config in
             self?.controller?.apply(config: config)
         }
         controller?.onConfigChange = { [weak self] config in
             self?.statusController?.sync(config: config)
         }
-        let mainMenu = NSMenu()
-        let appItem = NSMenuItem()
-        let appMenu = NSMenu(title: "ConstellationBar")
-        let settings = NSMenuItem(title: "Customize Bar…", action: #selector(openSettings), keyEquivalent: ",")
-        settings.target = self
-        appMenu.addItem(settings)
-        appMenu.addItem(.separator())
-        appMenu.addItem(NSMenuItem(title: "Quit ConstellationBar", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
-        appItem.submenu = appMenu
-        mainMenu.addItem(appItem)
-        NSApp.mainMenu = mainMenu
+        NSApp.mainMenu = ApplicationMenu.make(target: self, settingsAction: #selector(openSettings))
         controller?.start()
         if startupSmokeTest {
             // Run the normal startup graph and event loop, then verify the real
@@ -158,6 +150,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     let windows = NSApp.windows.map { "\(type(of: $0)): title=\($0.title), visible=\($0.isVisible), frame=\($0.frame)" }.joined(separator: "; ")
                     fputs("STARTUP_UI_FAILED: bar or customization window missing; delegate=\(self != nil), controller=\(self?.controller != nil), screens=\(NSScreen.screens.count), windows=[\(windows)]\n", stderr)
                     exit(1)
+                }
+                if CommandLine.arguments.contains("--keyboard-smoke-test") {
+                    KeyboardSmokeJourney.run(in: settings) { result in
+                        switch result {
+                        case .success: print("KEYBOARD_UI_OK"); print("STARTUP_UI_OK"); NSApp.terminate(nil)
+                        case .failure(let error): fputs("KEYBOARD_UI_FAILED: \(error.localizedDescription)\n", stderr); exit(1)
+                        }
+                    }
+                    return
                 }
                 print("STARTUP_UI_OK")
                 NSApp.terminate(nil)

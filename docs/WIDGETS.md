@@ -1,6 +1,12 @@
 # Interactive widgets and providers
 
+Panel actions and structural updates retain keyboard focus by stable control identity, including editable search selection. If the focused control disappears, focus moves to another enabled body control or Close. All-day Calendar details show “All day” and a date span when needed; timed events crossing midnight include dates as well as clock times.
+
+Short Music panels use compact artwork and metadata so playback controls appear immediately. Short Calendar panels combine date navigation and keep the first appointment visible; additional events/details remain scrollable. Access actions take priority over long setup explanations. Resizing preserves selected sources, tabs and appointments. System's CPU sort control reports its current direction; Memory and Network do not show an irrelevant CPU sort action.
+
 Hover or click a widget to open the same panel. Media (Now Playing), Calendar, VPN, Audio, System, Agent Status, Timer, Keep Awake, Reminders, Clock and Keyboard use their full panels in both cases; simpler widgets share one inspector. Clicking a hovered widget pins the existing panel without resetting tabs, selections or scrolling. Hover panels stay open while the pointer is inside and dismiss after it leaves. The pin control pins or unpins interactive panels; Close dismisses either mode and Escape dismisses a pinned panel. A pinned panel is not replaced by hovering another item. Arrange widgets under Widgets. Use a widget’s configure button or the General settings picker for its options and providers. Only widgets with settings appear in that picker; Workspaces includes its source, ordering, visibility and application icons.
+
+Panels fit the available screen frame. When content exceeds the viewport, **Scroll for more** appears and the body scrolls while Close and Pin stay visible. Action failures wrap in the body so the full recovery message remains readable. Settings keeps its navigation and save-recovery controls in a separate scroll area from the form.
 
 ## Initial providers
 
@@ -24,15 +30,19 @@ The adapter reads and sends playback commands through Apple's private MediaRemot
 
 Apple Calendar and Outlook both use EventKit. To include Microsoft calendars, add the account under **System Settings → Internet Accounts**, enable Calendars, then select the synced calendars in the widget. Accounts added only in Outlook need to be added to macOS separately. No private Outlook cache or Outlook Automation is used.
 
-The **Allow Calendar access** button requests EventKit full access because macOS requires it to read events. The widget itself is read-only: browse days, select calendars, inspect event details, open Calendar, and follow recognized HTTPS meeting links. It reads the previous week and approximately the next three weeks, refreshing every 15 seconds. Calendar filtering is stored locally in app preferences. No direct Google/Outlook login is requested, and synced calendars are not duplicated through another provider.
+The **Allow Calendar access** button requests EventKit full access because macOS requires it to read events. The widget itself is read-only: browse days, select calendars, inspect event details, open Calendar, and follow recognized HTTPS meeting links. It reads the previous week and approximately the next three weeks, refreshing every 15 seconds. Day controls stop at the loaded range; **Today** returns to the current day. If a selected event disappears or is filtered out, details follow the first remaining event. Calendar filtering applies to the panel and compact widget and is stored locally for this Mac, outside exported configuration and configuration Undo. No direct Google/Outlook login is requested, and synced calendars are not duplicated through another provider.
 
 ### VPN
 
 Concurrent connections remain separate. The compact bar uses the canonical service name and a Tailscale-specific symbol for a single active service; multiple active tunnels show a count with service names/statuses in the tooltip. Surfshark profiles retain a short service identifier so multiple profiles with the same display alias can be distinguished. Surfshark cards show the protocol inferred from the configured profile name and expose that profile’s full name when expanded. Server location, public IP and protection settings require Surfshark itself; this adapter does not infer them from Tailscale or global network traffic. Expand an entry for details and supported actions; search Tailscale peers by name/status. Peer names use the first label of Tailscale’s DNS name, falling back to the device hostname; the list sorts by the displayed name. Standard macOS services expose start/stop actions. Vendor adapters currently open their own apps for control. Routing is explicitly unavailable where macOS does not supply it; Tailscale reports exit-node state from its CLI. A connected badge never claims all traffic is protected. Connect requests can be asynchronous; subsequent sampling reflects their actual state.
 
+Failed or incomplete macOS VPN listings show unavailable status and recovery guidance. They do not supply connection badges or authorize start/stop controls. A successful empty listing still means no configured services. When only some enabled adapters respond, the panel and tooltip retain the available connections and explain the unavailable source.
+
 ### Audio
 
 The bar shows the default output device, volume where available, and mute status. The panel switches output/input devices and offers software volume/mute only when Core Audio exposes those properties. Displays and fixed-volume outputs can require hardware controls. It does not record microphone audio or promise a universal microphone mute.
+
+Failed inventory/default-device reads show unavailable status, while partial property failures retain readable devices and explain the missing values. An unknown volume has no slider position, and unknown mute is disabled rather than shown as unmuted. **Retry** requests a new sample; **Sound settings…** stays available even with no devices. Device changes are verified before control writes; if a stereo write only partly succeeds, its error explains that some channels may already have changed. Master, mono and stereo software controls are supported; multichannel outputs without a master require hardware controls.
 
 Device names containing AirPods, AirPods Pro, or AirPods Max use the corresponding SF Symbol. Unknown Bluetooth headphones use a generic headphone symbol. Renamed devices with no identifying model name may therefore fall back to the generic icon. Device battery levels and live microphone meters are not implemented in this release.
 
@@ -40,9 +50,11 @@ Device names containing AirPods, AirPods Pro, or AirPods Max use the correspondi
 
 Choose which CPU, memory, network and thermal metrics appear in the bar under System settings. Legacy separate metrics migrate into System. CPU, memory and network tabs show live samples and selectable 1-minute, 5-minute and 1-hour history windows. History is in memory, accumulates while enabled, and retains at most 1,800 samples. Percent charts use a 0–100 scale; network history scales to the visible peak. Memory includes measured active, wired and compressed bytes. Process CPU percentages are per-process and may exceed 100% on multicore systems. The Thermal tab explains macOS thermal pressure; it does not claim to measure temperatures. No process-termination action is exposed.
 
+CPU and network start by collecting counter baselines. Failed reads or counter resets show unavailable/collecting status rather than a zero; a new valid pair restores the reading. Memory, disk and process read failures likewise remain explicit. Diagnostics reports unavailable readings, and failed/warm-up measurements do not add invented zeros to history. Each metric keeps its own sample timestamps, so unrelated widget updates do not create extra points.
+
 ## Extending providers
 
-`MediaIntegrating`, `CalendarIntegrating`, and `VPNIntegrating` define separate contracts. Data models in `MiniAppModels.swift` carry stable identities and supported actions. A media source declares `canSeek` and `canSkip`; a VPN connection declares `canToggle`. A new adapter must not advertise controls it cannot perform.
+`MediaIntegrating`, `CalendarIntegrating`, and `VPNIntegrating` define separate contracts. Feature-owned `MediaModels.swift`, `CalendarModels.swift`, and `VPNModels.swift` carry stable identities and supported actions. A media source declares `canSeek` and `canSkip`; a VPN connection declares `canToggle`. A new adapter must not advertise controls it cannot perform.
 
 1. Implement the relevant domain protocol, using stable provider/session identifiers.
 2. Register its descriptor in `IntegrationCatalog` and adapter in the sampling/action composition (`WidgetServices`, `MediaProvider`, `CalendarProvider`, or `VPNProvider`).
@@ -64,7 +76,7 @@ Codex currently stores lifecycle metadata in `state_5.sqlite` and `thread_histor
 
 Add another integration by implementing `AgentStatusIntegrating`, returning `AgentProviderSnapshot`, registering it in `AgentStatusProvider` and adding its descriptor to `IntegrationCatalog`. Provider IDs are stable strings. Sampling, counts, availability, provider toggles and the detail panel are shared.
 
-The widget catalog now offers one System entry for CPU and memory. Existing configurations migrate to it automatically, including display overrides. The separate Network indicator remains available for throughput at a glance.
+The widget catalog offers one System entry for CPU, memory, network and thermal readings. Existing configurations migrate to it automatically, including display overrides. Choose the readings shown in the bar under System settings.
 
 ### Agent task details
 
@@ -75,6 +87,8 @@ The Agent Status panel lists live persisted tasks on this Mac and discovered Cod
 Agent Status discovers `codex-managed-remote-connections` in Codex's `.codex-global-state.json` under `CODEX_HOME` (or `~/.codex`). It samples the saved hosts using existing SSH authentication, without starting Codex sessions or installing anything remotely. Each host needs Python 3 and readable Codex metadata under its remote `CODEX_HOME` or `~/.codex`. This uses a versioned private Codex format and remains experimental.
 
 Customize Bar → Widgets → General settings → Agent Status → **Codex SSH hosts (Experimental)** controls remote polling independently; the main Codex provider must also be enabled. Sampling runs off native provider queues with at most two concurrent connections, a 10-second deadline, 10-second successful refreshes, and 30–120-second failure backoff. An unreachable, unsupported or stale host contributes an unavailable state, never a successful zero. Cached data older than 30 seconds is not counted. Host discovery refreshes every 15 seconds; a metadata read failure is visible.
+
+Hiding Agent Status on every active display cancels queued SSH probes and clears the remote cache. A probe already running may finish within its deadline, but its result is discarded. Re-enabling begins with fresh status.
 
 The helper reads task names, project directory names and lifecycle status over SSH. It does not read credentials or send conversation bodies. SSH uses batch authentication and strict host-key checks; the bar never asks for a password or accepts a new host key. Connect successfully using your normal SSH setup first. Missing Python or a failed SSH connection is shown in that host's panel. Cloud tasks remain unsupported.
 

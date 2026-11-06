@@ -6,13 +6,15 @@ import ServiceManagement
 final class StatusMenuController: NSObject {
     private let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     private var config: BarConfig
+    private let widgets: WidgetRuntime
+    private let diagnostics: IntegrationDiagnostics
     private let onChange: (BarConfig) -> Void
-    private lazy var configurationWindow = ConfigurationWindowController(config: config, persist: { ConfigurationStore.saveResult($0) }) { [weak self] updated in
+    private lazy var configurationWindow = ConfigurationWindowController(config: config, widgets: widgets, diagnostics: diagnostics, persist: { ConfigurationStore.saveResult($0) }) { [weak self] updated in
         self?.replaceConfig(updated)
     }
 
-    init(config: BarConfig, onChange: @escaping (BarConfig) -> Void) {
-        self.config = config
+    init(config: BarConfig, widgets: WidgetRuntime, diagnostics: IntegrationDiagnostics, onChange: @escaping (BarConfig) -> Void) {
+        self.config = config; self.widgets = widgets; self.diagnostics = diagnostics
         self.onChange = onChange
         super.init()
         statusItem.button?.image = NSImage(systemSymbolName: "sparkles.rectangle.stack", accessibilityDescription: "ConstellationBar")

@@ -3,7 +3,8 @@ import AppKit
 /// UI/configuration state is owned by the main queue; provider work uses immutable snapshots.
 final class BarController {
     private var config: BarConfig
-    private let systemMonitor = SystemMonitor()
+    private let widgets: WidgetRuntime
+    private let diagnostics: IntegrationDiagnostics
     private let screenController: ScreenBarController
     private let workspaceQueue = DispatchQueue(label: "dev.constellation.workspace", qos: .userInitiated)
     private let focusQueue = DispatchQueue(label: "dev.constellation.focus", qos: .userInitiated)
@@ -13,9 +14,11 @@ final class BarController {
     private let workspaceActionQueue = DispatchQueue(label: "dev.constellation.workspace-actions", qos: .userInitiated)
     private var timer: Timer?
     private var systemTimer: Timer?
+    private var localTimer: Timer?
     private var signalSource: DispatchSourceSignal?
     private var latestSystem = SystemState()
     private var latestWorkspace = WorkspaceSnapshot()
+    private var samplingScope: DisplayScope?
     private var refreshInFlight = false
     private var refreshPending = false
     private var stopped = false
@@ -23,13 +26,16 @@ final class BarController {
     private var appearanceObservation: NSKeyValueObservation?
     var onConfigChange: ((BarConfig) -> Void)?
 
-    init(config: BarConfig) {
-        self.config = config
+    init(config: BarConfig, widgets: WidgetRuntime, diagnostics: IntegrationDiagnostics) {
+        self.config = config; self.widgets = widgets; self.diagnostics = diagnostics
         screenController = ScreenBarController(config: config)
+        screenController.onFullscreenChange = { [diagnostics] in diagnostics.fullscreen = $0 }
         screenController.interactionDelegate = self
     }
     func apply(config: BarConfig) {
+        if self.config.integration != config.integration || self.config.aerospacePath != config.aerospacePath { latestWorkspace = WorkspaceSnapshot() }
         self.config = config
+        diagnostics.workspaceActionError = nil
         generation += 1
         screenController.apply(config: config)
         installTimers()
@@ -49,7 +55,7 @@ final class BarController {
         sampleSystem()
         requestRefresh()
         installTimers()
-        NotificationCenter.default.addObserver(self, selector: #selector(refreshDiagnostics), name: IntegrationDiagnostics.refreshRequested, object: nil)
+        diagnostics.notifications.addObserver(self, selector: #selector(refreshDiagnostics), name: IntegrationDiagnostics.refreshRequested, object: diagnostics)
         NotificationCenter.default.addObserver(self, selector: #selector(screenParametersChanged), name: NSApplication.didChangeScreenParametersNotification, object: nil)
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(workspaceChanged), name: NSWorkspace.didActivateApplicationNotification, object: nil)
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(workspaceChanged), name: NSWorkspace.didWakeNotification, object: nil)
@@ -61,20 +67,34 @@ final class BarController {
         systemTimer = Timer(timeInterval: config.systemUpdateInterval, repeats: true) { [weak self] _ in self?.sampleSystem() }
         if let timer { RunLoop.main.add(timer, forMode: .common) }
         if let systemTimer { RunLoop.main.add(systemTimer, forMode: .common) }
+        updateLocalTimer()
+    }
+    private func updateLocalTimer() {
+        let needsClock = !Set(screenController.displayScope.widgets).isDisjoint(with: [.timer, .keepAwake, .dateTime, .reminders])
+        guard needsClock, !stopped else { localTimer?.invalidate(); localTimer = nil; return }
+        guard localTimer == nil else { return }
+        localTimer = Timer(timeInterval: 1, repeats: true) { [weak self] _ in
+            guard let self, !self.stopped else { return }
+            self.widgets.refreshLocalTime()
+            self.renderCurrentState()
+        }
+        RunLoop.main.add(localTimer!, forMode: .common)
     }
     func stop() {
         stopped = true
         appearanceObservation = nil
         timer?.invalidate()
         systemTimer?.invalidate()
+        localTimer?.invalidate(); localTimer = nil
         signalSource?.cancel()
         NotificationCenter.default.removeObserver(self)
+        diagnostics.notifications.removeObserver(self)
         NSWorkspace.shared.notificationCenter.removeObserver(self)
-        systemMonitor.stop()
+        widgets.stop()
         screenController.closeBars()
     }
     @objc private func refreshAppearance() { screenController.apply(config: config); renderCurrentState(); onConfigChange?(config) }
-    @objc private func screenParametersChanged() { screenController.installBars(); requestRefresh() }
+    @objc private func screenParametersChanged() { screenController.installBars(); sampleSystem(); requestRefresh() }
     @objc private func workspaceChanged() { requestFocusRefresh() }
 
     // Keyboard callbacks get a single focused-space query on their own queue.
@@ -113,7 +133,7 @@ final class BarController {
                 snapshot = StandaloneWorkspaceProvider().snapshot(config: config)
             } else {
                 snapshot = AeroSpaceClient(binaryPath: config.aerospacePath).snapshot(config: config)
-                if snapshot.status != "AeroSpace connected", config.integration == .automatic {
+                if !snapshot.isAvailable, config.integration == .automatic {
                     let reason = snapshot.status
                     snapshot = StandaloneWorkspaceProvider().snapshot(config: config)
                     snapshot.status = "Standalone · \(reason)"
@@ -122,13 +142,14 @@ final class BarController {
             DispatchQueue.main.async {
                 guard let self, !self.stopped else { return }
                 if generation == self.generation {
+                    snapshot = snapshot.retainingUnavailableFields(from: self.latestWorkspace)
                     if focusRevision != self.focusRevision {
                         let focused = self.latestWorkspace.workspaces.first(where: { $0.isFocused })?.name
                         for index in snapshot.workspaces.indices { snapshot.workspaces[index].isFocused = snapshot.workspaces[index].name == focused }
                         snapshot.focusedWindow = self.latestWorkspace.focusedWindow
                     }
                     self.latestWorkspace = snapshot
-                    IntegrationDiagnostics.workspace = snapshot.status
+                    self.diagnostics.workspace = snapshot.status
                     self.renderCurrentState()
                 }
                 self.refreshInFlight = false
@@ -136,46 +157,58 @@ final class BarController {
             }
         }
     }
-    @objc private func refreshDiagnostics() { sampleSystem(); requestRefresh() }
+    @objc private func refreshDiagnostics() { screenController.refreshVisibility(); sampleSystem(); requestRefresh() }
 
     private func sampleSystem() {
         guard !stopped else { return }
-        var config = self.config
-        config.rightWidgets = config.widgetsForSampling
+        let config = self.config
+        let scope = screenController.displayScope
+        if scope != samplingScope { generation += 1; samplingScope = scope; updateLocalTimer() }
+        var samplingConfig = config
+        samplingConfig.rightWidgets = scope.widgets
         let generation = self.generation
-        systemMonitor.refresh(config: config, generation: generation) { [weak self] system in
+        widgets.refresh(config: samplingConfig, generation: generation) { [weak self] system in
             guard let self, !self.stopped, generation == self.generation else { return }
             self.latestSystem = system
-            IntegrationDiagnostics.publish(system, config: config, sampledKinds: self.systemMonitor.sampledKinds)
+            self.diagnostics.publish(system, config: config, displayScope: scope, sampledKinds: self.widgets.sampledKinds)
             self.renderCurrentState()
         }
     }
     private func renderCurrentState() {
         var system = latestSystem
         system.date = Date()
-        screenController.render(state: BarState(workspaces: latestWorkspace.workspaces, focusedWindow: latestWorkspace.focusedWindow, system: system, providerStatus: latestWorkspace.status))
+        screenController.render(state: BarState(workspaces: latestWorkspace.workspaces, focusedWindow: latestWorkspace.focusedWindow, system: system, providerStatus: diagnostics.workspaceActionError ?? latestWorkspace.status))
     }
 }
 
 extension BarController: BarInteractionDelegate {
     func switchToWorkspace(_ name: String) {
-        let config = self.config
-        workspaceActionQueue.async { [weak self] in
-            AeroSpaceClient(binaryPath: config.aerospacePath).switchToWorkspace(name)
-            DispatchQueue.main.async { self?.requestFocusRefresh() }
-        }
+        let client = AeroSpaceClient(binaryPath: config.aerospacePath)
+        performWorkspaceAction { try client.switchToWorkspace(name) }
     }
     func focusWindow(_ id: Int, workspace: String) {
-        let config = self.config
-        workspaceActionQueue.async { [weak self] in
+        let client = AeroSpaceClient(binaryPath: config.aerospacePath)
+        performWorkspaceAction {
             if workspace.isEmpty { StandaloneWorkspaceProvider().focusWindow(id) }
             else {
                 // AeroSpace focuses the window's workspace as part of focusing
                 // its ID. A separate workspace switch focuses an intermediate
                 // window and doubles the CLI round trips for one selection.
-                AeroSpaceClient(binaryPath: config.aerospacePath).focusWindow(id)
+                try client.focusWindow(id)
             }
-            DispatchQueue.main.async { self?.requestFocusRefresh() }
+        }
+    }
+    private func performWorkspaceAction(_ operation: @escaping () throws -> Void) {
+        let generation = self.generation
+        workspaceActionQueue.async { [weak self] in
+            let message: String?
+            do { try operation(); message = nil } catch { message = error.localizedDescription }
+            DispatchQueue.main.async {
+                guard let self, !self.stopped, self.generation == generation else { return }
+                self.diagnostics.workspaceActionError = message
+                self.renderCurrentState()
+                self.requestFocusRefresh()
+            }
         }
     }
     func reorderWidgets(_ kinds: [WidgetKind], displayID: String?, zone: BarZone) {
@@ -207,29 +240,9 @@ extension BarController: BarInteractionDelegate {
         onConfigChange?(config)
     }
     func performWidgetAction(_ action: WidgetAction, completion: @escaping (String?) -> Void) {
-        if case .authorizeMusic = action {
-            AppleMusicIntegration.requestAccess { [weak self] error in completion(error); self?.sampleSystem() }
-            return
-        }
-        if case .authorizeReminders = action {
-            let done: (String?) -> Void = { [weak self] error in completion(error); self?.sampleSystem() }
-            systemMonitor.perform(kind: .reminders, operation: {
-                WidgetServices.shared.reminders.requestAccess(completion: done)
-            }) { error in if let error { completion(error) } }
-            return
-        }
-        if case .authorizeCalendar = action {
-            let selected = config.providerPreferences.calendarProvider
-            guard config.providerPreferences.includes(selected.rawValue) else { completion("Enable the provider in Customize Bar → Widgets → Calendar first."); return }
-            let done: (String?) -> Void = { [weak self] error in completion(error); self?.sampleSystem() }
-            systemMonitor.perform(kind: .calendar, operation: {
-                if selected == .outlook { WidgetServices.shared.outlook.requestAccess(completion: done) }
-                else { WidgetServices.shared.calendar.requestAccess(completion: done) }
-            }) { error in if let error { completion(error) } }
-            return
-        }
-        systemMonitor.perform(kind: action.providerKind, operation: { try WidgetServices.shared.perform(action) }) { [weak self] message in
-            completion(message); self?.sampleSystem()
+        widgets.perform(action, config: config) { [weak self] message in
+            completion(message)
+            if !action.requestsSampling { self?.sampleSystem() }
         }
     }
 }

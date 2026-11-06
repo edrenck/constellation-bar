@@ -47,6 +47,7 @@ final class ConfigurationPreviewView: NSView {
         system.battery = BatteryState(percent: 72, isCharging: false, timeRemainingMinutes: 245, powerSource: "Battery")
         system.network = NetworkSpeedState(downloadBytesPerSecond: 1_800_000, uploadBytesPerSecond: 240_000)
         system.cpu = CPUState(usage: 34)
+        system.thermal = .nominal; system.topProcessesStatus = .available
         system.memory = MemoryState(usage: 58, usedBytes: 19_000_000_000, totalBytes: 32_000_000_000)
         system.nowPlaying = NowPlayingState(title: "Midnight City", artist: "M83", isPlaying: true, source: "Music")
         system.weather = WeatherState(temperature: 78, weatherCode: 1, isDay: true, apparentTemperature: 79, humidity: 31, windSpeed: 8)

@@ -11,7 +11,7 @@ extension MiniAppPanel {
             summary = agents.taskSummary
         }
         let title = label(summary, size: 22)
-        title.textColor = agents.activeCount > 0 ? config.theme.green : config.theme.foreground
+        title.textColor = agents.activeCount > 0 ? config.theme.textAccent(config.theme.green) : config.theme.foreground
         if agents.providers.isEmpty {
             label("Enable an agent provider in Customize Bar → Widgets → Agent Status.", muted: true)
         } else {
@@ -46,7 +46,7 @@ extension MiniAppPanel {
                 }
                 let activity = text(task.activityLabel, size: 11, width: badgeWidth)
                 activity.alignment = .right
-                activity.textColor = task.activity == .active ? config.theme.green : task.activity == .unknown ? config.theme.orange : config.theme.muted
+                activity.textColor = task.activity == .active ? config.theme.textAccent(config.theme.green) : task.activity == .unknown ? config.theme.textAccent(config.theme.orange) : config.theme.muted
                 activity.toolTip = task.activity == .active ? "Working or waiting for input or approval" : nil
                 add(row([details, activity], spacing: 12), width: bodyWidth)
             }

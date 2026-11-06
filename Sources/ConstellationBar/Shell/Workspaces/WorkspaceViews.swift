@@ -9,7 +9,7 @@ final class WorkspaceStripView: NSView {
     private var hasSelectionFrame = false
     private var pendingSelection: String?
     private var selectionRequest = 0
-    private let overflow = NSButton(title: "…", target: nil, action: nil)
+    private let overflow = WidgetActionButton("…") {}
     private var allWorkspaces: [WorkspaceState] = []
     var composition: BarLayout = .islands { didSet { backdrop.isHidden = composition == .rail; controls.values.forEach { $0.composition = composition } } }
     private var controls: [String: WorkspaceControlView] = [:]
@@ -34,6 +34,7 @@ final class WorkspaceStripView: NSView {
         stack.alignment = .centerY
         addSubview(stack)
         overflow.bezelStyle = .texturedRounded
+        overflow.treatment = .plain
         overflow.target = self
         overflow.action = #selector(showOverflow)
         overflow.setAccessibilityLabel("All workspaces")
@@ -88,6 +89,8 @@ final class WorkspaceStripView: NSView {
         backdrop.isHidden = composition == .rail
         backdrop.theme = theme
         backdrop.updateAppearance()
+        overflow.widgetTheme = theme
+        overflow.font = theme.appearanceID.font(size: 12, weight: .semibold)
         controls.values.forEach { $0.apply(theme: theme) }
     }
 
@@ -140,6 +143,7 @@ final class WorkspaceStripView: NSView {
         needsLayout = true
         overflow.isHidden = !collapsed
         overflow.title = (allWorkspaces.first { $0.isFocused }.map { $0.displayName ?? $0.name } ?? "Spaces") + " ▾"
+        overflow.toolTip = "All workspaces · Focused: \(allWorkspaces.first { $0.isFocused }.map { $0.displayName ?? $0.name } ?? "None")"
     }
     private func requestSelection(_ name: String) {
         pendingSelection = name; selectionRequest += 1

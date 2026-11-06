@@ -33,13 +33,15 @@ extension ConfigurationWindowController {
         stack.addArrangedSubview(makeSection(title: "Live health", rows: [diagnosticsFreshness, NSStackView(views: [refresh, copy])]))
         let workspace = DiagnosticRow(title: "Workspaces", actionTitle: "Settings…", target: self, action: #selector(diagnosticSettings(_:)), tag: -1)
         workspaceDiagnosticRow = workspace
-        var rows: [NSView] = [workspace]
-        let kinds: [WidgetKind] = [.agentStatus, .nowPlaying, .calendar, .vpn, .weather, .audio]
-        for (index, kind) in kinds.enumerated() {
-            let row = DiagnosticRow(title: kind.menuTitle, actionTitle: "Settings…", target: self, action: #selector(diagnosticSettings(_:)), tag: index)
+        let fullscreen = DiagnosticRow(title: "Fullscreen visibility", actionTitle: "Settings…", target: self, action: #selector(diagnosticSettings(_:)), tag: -2)
+        fullscreenDiagnosticRow = fullscreen
+        var rows: [NSView] = [workspace, fullscreen]
+        for (index, kind) in IntegrationDiagnostics.widgetKinds.enumerated() {
+            let title = configurableItems.contains(.widget(kind)) ? "Settings…" : "Arrange…"
+            let row = DiagnosticRow(title: kind.menuTitle, actionTitle: title, target: self, action: #selector(diagnosticSettings(_:)), tag: index)
             diagnosticRows[kind] = row; rows.append(row)
         }
-        stack.addArrangedSubview(makeSection(title: "Widget providers", rows: rows))
+        stack.addArrangedSubview(makeSection(title: "Integrations", rows: rows))
         configPathStatus.isSelectable = true
         configPathStatus.lineBreakMode = .byTruncatingMiddle
         configErrorStatus.textColor = .systemOrange
@@ -50,17 +52,26 @@ extension ConfigurationWindowController {
 
     func diagnosticEntries() -> [DiagnosticEntry] {
         // Settings may already reflect a change that the sampler has not completed yet.
-        let matches = IntegrationDiagnostics.sampledPreferences == config.providerPreferences && IntegrationDiagnostics.sampledWeather == config.weather
-        return IntegrationDiagnostics.entries(config: config, state: matches ? IntegrationDiagnostics.system : nil, sampledWidgets: IntegrationDiagnostics.sampledWidgets)
+        let scope = DisplayScope(config: config, connectedDisplayIDs: NSScreen.screens.map(\.configurationID))
+        let matches = diagnostics.sampledPreferences == config.providerPreferences
+            && diagnostics.sampledWeather == config.weather && diagnostics.sampledDisplayScope == scope
+        return IntegrationDiagnostics.entries(config: config, state: matches ? diagnostics.system : nil, sampledWidgets: diagnostics.sampledWidgets, displayScope: scope)
+    }
+
+    func fullscreenDiagnosticEntry() -> DiagnosticEntry {
+        let scope = DisplayScope(config: config, connectedDisplayIDs: NSScreen.screens.map(\.configurationID))
+        let requested = NSScreen.screens.filter { scope.displayIDs.contains($0.configurationID) && config.forDisplay($0.configurationID).hideInFullscreen }.map(\.displayID)
+        return diagnostics.fullscreenEntry(requestedDisplays: Set(requested))
     }
 
     @objc func refreshDiagnostics() {
-        NotificationCenter.default.post(name: IntegrationDiagnostics.refreshRequested, object: nil)
+        diagnostics.requestRefresh()
         updateDiagnostics()
     }
     @objc func diagnosticSettings(_ sender: NSButton) {
         if sender.tag == -1 { selectWidgetOptions(.workspaces); return }
-        let kinds: [WidgetKind] = [.agentStatus, .nowPlaying, .calendar, .vpn, .weather, .audio]
+        if sender.tag == -2 { selectSection(0); return }
+        let kinds = IntegrationDiagnostics.widgetKinds
         guard kinds.indices.contains(sender.tag) else { return }
         let kind = kinds[sender.tag]
         if configurableItems.contains(.widget(kind)) { selectWidgetOptions(.widget(kind)) }
@@ -71,12 +82,15 @@ extension ConfigurationWindowController {
         if FileManager.default.fileExists(atPath: url.path) { NSWorkspace.shared.activateFileViewerSelecting([url]) }
         else { NSWorkspace.shared.open(url.deletingLastPathComponent()) }
     }
-    @objc func copyDiagnostics() {
+    func diagnosticReport() -> String {
         let entries = diagnosticEntries()
-        let report = (["ConstellationBar diagnostics", "macOS \(ProcessInfo.processInfo.operatingSystemVersionString)", diagnosticsFreshness.stringValue,
-                       "Workspaces: \(IntegrationDiagnostics.workspace)"] + entries.map { "\($0.title) [\($0.health.rawValue)]: \($0.detail)" }
+        let fullscreen = fullscreenDiagnosticEntry()
+        return (["ConstellationBar diagnostics", "macOS \(ProcessInfo.processInfo.operatingSystemVersionString)", diagnosticsFreshness.stringValue,
+                       "Workspaces: \(diagnostics.workspace)", "\(fullscreen.title) [\(fullscreen.health.rawValue)]: \(fullscreen.detail)"] + (diagnostics.workspaceActionError.map { ["Workspace action: \($0)"] } ?? []) + entries.map { "\($0.title) [\($0.health.rawValue)]: \($0.detail)" }
                       + ["Configuration: \(ConfigFile.writableURL().path)", ConfigurationStore.diagnosticError ?? "No configuration errors reported."]).joined(separator: "\n")
+    }
+    @objc func copyDiagnostics() {
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(report, forType: .string)
+        NSPasteboard.general.setString(diagnosticReport(), forType: .string)
     }
 }
