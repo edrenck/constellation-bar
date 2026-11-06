@@ -24,7 +24,7 @@ final class WindowCollectionTests: XCTestCase {
         XCTAssertTrue(last.toolTip?.contains("Window 25") == true)
         XCTAssertGreaterThan(try XCTUnwrap(view.scrollView.documentView).frame.height, view.scrollView.contentSize.height)
         XCTAssertTrue(window.makeFirstResponder(last))
-        XCTAssertTrue(view.scrollView.documentVisibleRect.insetBy(dx: -0.5, dy: -0.5).contains(last.frame), "Focused card must be fully inside the scroll viewport")
+        XCTAssertTrue(view.scrollView.documentVisibleRect.insetBy(dx: -0.5, dy: -0.5).contains(last.frame), "Focused card must be fully inside viewport \(view.scrollView.documentVisibleRect); card \(last.frame)")
         var selected: Int?
         view.onWindowClick = { selected = $0.id }
         XCTAssertTrue(last.accessibilityPerformPress())
@@ -60,5 +60,52 @@ final class WindowCollectionTests: XCTestCase {
         let placeholder = try XCTUnwrap(descendants(empty).compactMap { $0 as? WindowRowView }.first)
         XCTAssertFalse(placeholder.acceptsFirstResponder)
         XCTAssertFalse(placeholder.accessibilityPerformPress())
+    }
+
+    func testKeyboardFocusRevealsCurrentItemGeometryDuringResize() throws {
+        let collections: [WindowCollectionPanel] = [
+            WorkspaceOverviewView(workspace: WorkspaceState(name: "fixture", isFocused: true, windows: windows), theme: .dark),
+            WindowSwitcherView(windows: windows, focusedID: nil, theme: .dark)
+        ]
+        for view in collections {
+            let window = attach(view)
+            defer { window.close() }
+            let controls = descendants(view).filter { $0 is WindowCardView || $0 is WindowRowView }
+            XCTAssertEqual(controls.count, 25)
+            for style in [NSScroller.Style.overlay, .legacy] {
+                view.scrollView.scrollerStyle = style
+                // Focus can arrive between a resize and the next deferred layout pass.
+                for (size, index) in [(NSSize(width: 220, height: 220), 24),
+                                      (NSSize(width: 532, height: 260), 23),
+                                      (NSSize(width: 410, height: 260), 0),
+                                      (NSSize(width: 220, height: 220), 12)] {
+                    window.setContentSize(size)
+                    view.needsLayout = true
+                    let control = controls[index]
+                    XCTAssertTrue(window.makeFirstResponder(control))
+                    view.layoutSubtreeIfNeeded()
+                    XCTAssertTrue(view.scrollView.documentVisibleRect.insetBy(dx: -0.5, dy: -0.5).contains(control.frame),
+                                  "Style \(style): focused item \(index) must fit current viewport \(view.scrollView.documentVisibleRect); item \(control.frame)")
+                }
+            }
+        }
+    }
+
+    func testExplicitFocusTakesPrecedenceOverQueuedInitialReveal() throws {
+        let view = WindowSwitcherView(windows: windows, focusedID: 25, theme: .dark)
+        let window = BarFloatingPanel(contentRect: NSRect(origin: NSPoint(x: -10000, y: -10000), size: view.preferredSize))
+        window.isReleasedWhenClosed = false; window.contentView = view; window.orderFront(nil)
+        defer { window.close() }
+        view.layoutSubtreeIfNeeded()
+        let first = try XCTUnwrap(descendants(view).compactMap { $0 as? WindowRowView }.first)
+        XCTAssertTrue(window.makeFirstResponder(first))
+        let settled = expectation(description: "initial reveal callback has run")
+        DispatchQueue.main.async {
+            XCTAssertTrue(window.firstResponder === first)
+            XCTAssertTrue(view.scrollView.documentVisibleRect.insetBy(dx: -0.5, dy: -0.5).contains(first.frame),
+                          "Queued initial selection must not scroll away from explicit focus; viewport \(view.scrollView.documentVisibleRect), item \(first.frame)")
+            settled.fulfill()
+        }
+        wait(for: [settled], timeout: 1)
     }
 }

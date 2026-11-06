@@ -88,7 +88,11 @@ final class WindowCardView: ModernControlView {
     override func mouseDown(with event: NSEvent) {
         if let windowIdentity { onClick?(windowIdentity) }
     }
-    override func becomeFirstResponder() -> Bool { scrollToVisible(bounds); return super.becomeFirstResponder() }
+    override func becomeFirstResponder() -> Bool {
+        guard super.becomeFirstResponder() else { return false }
+        WindowCollectionPanel.revealFocusedItem(self)
+        return true
+    }
     override func hitTest(_ point: NSPoint) -> NSView? { super.hitTest(point) == nil ? nil : self }
 }
 
@@ -147,6 +151,10 @@ final class WindowRowView: ModernControlView {
     override func mouseDown(with event: NSEvent) {
         if let windowIdentity { onClick?(windowIdentity) }
     }
-    override func becomeFirstResponder() -> Bool { scrollToVisible(bounds); return super.becomeFirstResponder() }
+    override func becomeFirstResponder() -> Bool {
+        guard super.becomeFirstResponder() else { return false }
+        WindowCollectionPanel.revealFocusedItem(self)
+        return true
+    }
     override func hitTest(_ point: NSPoint) -> NSView? { super.hitTest(point) == nil ? nil : self }
 }

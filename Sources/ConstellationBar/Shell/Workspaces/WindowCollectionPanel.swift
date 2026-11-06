@@ -54,20 +54,44 @@ class WindowCollectionPanel: OverlayContentView {
 
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
-        guard window != nil, initialItem != nil else { return }
+        guard let window, let initialItem else { return }
+        window.initialFirstResponder = initialItem
         // NSScrollView finishes its first clip-view layout after its parent's layout.
         DispatchQueue.main.async { [weak self] in self?.revealInitialItem() }
     }
 
     private func revealInitialItem() {
         guard window != nil, let initialItem else { return }
-        layoutSubtreeIfNeeded()
-        let height = scrollView.contentSize.height
-        guard height > 0 else { return }
-        let y = max(0, min(initialItem.frame.maxY - height, document.bounds.height - height))
-        scrollView.contentView.scroll(to: NSPoint(x: 0, y: y))
-        scrollView.reflectScrolledClipView(scrollView.contentView)
+        guard reveal(initialItem) else { return }
         self.initialItem = nil
+    }
+
+    static func revealFocusedItem(_ item: NSView) {
+        guard let collection = item.enclosingScrollView?.superview as? WindowCollectionPanel else {
+            item.scrollToVisible(item.bounds)
+            return
+        }
+        // A queued first-attachment reveal must not override a newer focus choice.
+        collection.initialItem = nil
+        if !collection.reveal(item) { collection.initialItem = item }
+    }
+
+    @discardableResult private func reveal(_ item: NSView) -> Bool {
+        layoutSubtreeIfNeeded()
+        let visible = scrollView.documentVisibleRect
+        guard visible.width > 0, visible.height > 0 else { return false }
+        let rect = item.convert(item.bounds, to: document)
+        func origin(current: CGFloat, start: CGFloat, end: CGFloat, length: CGFloat, lower: CGFloat, upper: CGFloat) -> CGFloat {
+            let requested = start < current ? start : end > current + length ? min(start, end - length) : current
+            return max(lower, min(requested, max(lower, upper - length)))
+        }
+        let target = NSPoint(
+            x: origin(current: visible.minX, start: rect.minX, end: rect.maxX, length: visible.width, lower: document.bounds.minX, upper: document.bounds.maxX),
+            y: origin(current: visible.minY, start: rect.minY, end: rect.maxY, length: visible.height, lower: document.bounds.minY, upper: document.bounds.maxY))
+        // Use the settled document/clip geometry, rather than NSView's implicit reveal.
+        scrollView.contentView.scroll(to: target)
+        scrollView.reflectScrolledClipView(scrollView.contentView)
+        return true
     }
 
     override func layout() {
