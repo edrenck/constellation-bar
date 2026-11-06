@@ -108,4 +108,24 @@ final class WindowCollectionTests: XCTestCase {
         }
         wait(for: [settled], timeout: 1)
     }
+
+    func testLayoutRevealsRetainedFocusButDoesNotUndoManualScrolling() throws {
+        let view = WorkspaceOverviewView(workspace: WorkspaceState(name: "fixture", isFocused: true, windows: windows), theme: .dark)
+        let window = attach(view)
+        defer { window.close() }
+        let last = try XCTUnwrap(descendants(view).compactMap { $0 as? WindowCardView }.last)
+        XCTAssertTrue(window.makeFirstResponder(last))
+        // Resize the view directly: there is no second responder assignment/callback.
+        view.setFrameSize(NSSize(width: 220, height: 220))
+        view.needsLayout = true; view.layoutSubtreeIfNeeded()
+        XCTAssertTrue(window.firstResponder === last)
+        XCTAssertTrue(view.scrollView.documentVisibleRect.insetBy(dx: -0.5, dy: -0.5).contains(last.frame),
+                      "Retained focus must fit viewport \(view.scrollView.documentVisibleRect); item \(last.frame)")
+
+        view.scrollView.contentView.scroll(to: .zero)
+        view.scrollView.reflectScrolledClipView(view.scrollView.contentView)
+        view.needsLayout = true; view.layoutSubtreeIfNeeded()
+        XCTAssertEqual(view.scrollView.documentVisibleRect.minY, 0, accuracy: 0.5,
+                       "A layout with unchanged geometry must preserve manual scrolling")
+    }
 }

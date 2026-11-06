@@ -14,6 +14,8 @@ class WindowCollectionPanel: OverlayContentView {
     private let document = WindowCollectionDocument()
     let scrollView = NSScrollView()
     private var initialItem: NSView?
+    private var lastViewportSize = NSSize.zero
+    private var lastColumnCount = 0
 
     var preferredSize: NSSize {
         let columns = layoutStyle == .grid ? min(3, max(1, items.count)) : 1
@@ -78,6 +80,10 @@ class WindowCollectionPanel: OverlayContentView {
 
     @discardableResult private func reveal(_ item: NSView) -> Bool {
         layoutSubtreeIfNeeded()
+        return scrollToReveal(item)
+    }
+
+    @discardableResult private func scrollToReveal(_ item: NSView) -> Bool {
         let visible = scrollView.documentVisibleRect
         guard visible.width > 0, visible.height > 0 else { return false }
         let rect = item.convert(item.bounds, to: document)
@@ -110,6 +116,15 @@ class WindowCollectionPanel: OverlayContentView {
         for (index, item) in items.enumerated() {
             item.frame = NSRect(x: CGFloat(index % columns) * (itemWidth + spacing),
                                 y: CGFloat(index / columns) * (itemHeight + spacing), width: itemWidth, height: itemHeight)
+        }
+        let geometryChanged = lastViewportSize != scrollView.contentSize || lastColumnCount != columns
+        lastViewportSize = scrollView.contentSize
+        lastColumnCount = columns
+        // Resizing can retain the same first responder without another focus callback.
+        // Ordinary scrolling must remain free to move away from the focused item.
+        if geometryChanged, let focused = window?.firstResponder as? NSView,
+           items.contains(where: { $0 === focused }) {
+            scrollToReveal(focused)
         }
     }
 }
