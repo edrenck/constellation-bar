@@ -21,7 +21,7 @@ final class MetricsReaderTests: XCTestCase {
         var time: TimeInterval = 0, counter: UInt64 = 100
         reader.readNetwork = { NetworkCounters(received: counter, sent: counter) }
         let provider = MetricsProvider(reader: reader, now: { time })
-        var config = BarConfig.default; config.rightWidgets = [.system, .disk]
+        var config = BarConfig.default; config.rightWidgets = [.system, .disk]; config.collectProcessDetails = true
         var state = SystemState(); provider.sample(config: config, into: &state)
         time = 10; counter = 200; provider.sample(config: config, into: &state)
         XCTAssertEqual(state.network.downloadBytesPerSecond, 10)
@@ -31,7 +31,7 @@ final class MetricsReaderTests: XCTestCase {
     }
     func testFailureDoesNotBecomeZeroAndIndependentReadingsRecover() {
         let reader = FixtureMetricsReader(), provider = MetricsProvider(reader: reader)
-        var config = BarConfig.default; config.rightWidgets = [.system, .disk]
+        var config = BarConfig.default; config.rightWidgets = [.system, .disk]; config.collectProcessDetails = true
         var state = SystemState(); provider.sample(config: config, into: &state)
         XCTAssertTrue(state.memory.status.isAvailable); XCTAssertEqual(state.memory.usage, 50)
         reader.readMemory = { throw WidgetActionError(message: "Memory fixture failed") }

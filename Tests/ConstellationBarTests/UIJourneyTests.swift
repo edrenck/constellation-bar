@@ -21,6 +21,43 @@ final class UIJourneyTests: XCTestCase {
         XCTAssertTrue(result.output.contains("STARTUP_UI_OK"), "The actual bar and customization window must both open; a build alone is insufficient.\n\(result.output)")
     }
 
+    func testNativeMenuRevealDoesNotStealAttachedBarControls() throws {
+        let screen = try XCTUnwrap(NSScreen.main)
+        var config = BarConfig.default; config.setGlobalWidgets([.dateTime])
+        let height = max(24, screen.safeAreaInsets.top)
+        var input = MenuBarEnvironment(pointer: NSPoint(x: screen.frame.midX, y: screen.frame.midY),
+            visible: false, uptime: 0, height: height)
+        let window = BarWindow(screen: screen, config: config, environment: input)
+        defer { window.close() }
+        window.barView.render(state: ConfigurationPreviewView.previewState)
+        window.orderFrontRegardless(); window.barView.layoutSubtreeIfNeeded()
+        let attached = window.frame
+        input.pointer = NSPoint(x: attached.midX, y: attached.midY)
+        input.visible = true; input.uptime = 1
+        window.updateFrame(screen: screen, config: config, environment: input)
+        XCTAssertEqual(window.frame, attached)
+        XCTAssertFalse(window.ignoresMouseEvents)
+        XCTAssertGreaterThan(window.level.rawValue, Int(CGWindowLevelForKey(.mainMenuWindow)))
+        func descendants(_ view: NSView) -> [NSView] { view.subviews.flatMap { [$0] + descendants($0) } }
+        let control = try XCTUnwrap(descendants(window.barView).compactMap { $0 as? ModernWidgetView }.first)
+        XCTAssertTrue(control.accessibilityPerformPress(), "The attached bar must retain its widget action")
+        window.barView.dismissOverlays()
+
+        input.pointer.y = screen.frame.maxY - 1; input.uptime = 2
+        window.updateFrame(screen: screen, config: config, environment: input)
+        XCTAssertTrue(window.ignoresMouseEvents)
+        input.uptime = 2.11
+        window.updateFrame(screen: screen, config: config, environment: input)
+        waitFor(window, matching: attached.offsetBy(dx: 0, dy: -height))
+        XCTAssertEqual(window.level, BarWindow.menuClearanceLevel)
+        input.visible = false; input.pointer.y = screen.frame.midY; input.uptime = 3
+        window.updateFrame(screen: screen, config: config, environment: input)
+        input.uptime = 3.13
+        window.updateFrame(screen: screen, config: config, environment: input)
+        waitFor(window, matching: attached)
+        XCTAssertEqual(window.level, BarWindow.attachedLevel)
+    }
+
     func testMenuRevealMovesRealWindowThenRestoresTopAttachment() throws {
         let screen = try XCTUnwrap(NSScreen.main)
         for appearance in [BarAppearance.nativeGlass, .cove] {

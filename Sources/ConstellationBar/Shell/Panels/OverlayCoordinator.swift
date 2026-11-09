@@ -3,7 +3,20 @@ import AppKit
 final class BarOverlayCoordinator {
     private weak var ownerView: BarRootView?
     private(set) var panel: BarFloatingPanel?
-    private var displayedWidget: WidgetKind?
+    private var displayedWidget: WidgetKind? {
+        didSet {
+            if Self.requiresProcesses(oldValue) != Self.requiresProcesses(displayedWidget) {
+                ownerView?.interactionDelegate?.widgetDetailDemandChanged()
+            }
+        }
+    }
+    var needsProcessDetails: Bool {
+        panel?.isVisible == true && Self.requiresProcesses(displayedWidget)
+    }
+    private static func requiresProcesses(_ kind: WidgetKind?) -> Bool {
+        guard let kind else { return false }
+        return [.system, .cpu, .memory].contains(kind)
+    }
     private var showWorkItem: DispatchWorkItem?
     private var closeWorkItem: DispatchWorkItem?
     private(set) var isPinned = false

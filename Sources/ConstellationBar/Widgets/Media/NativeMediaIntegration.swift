@@ -25,9 +25,10 @@ final class NativeMediaIntegration: MediaIntegrating {
             // A single slow MediaRemote callback should not replace an active
             // track with a setup warning. Expire the fallback so stale tracks
             // cannot remain visible indefinitely after the player closes.
-            if let lastSession, let lastRead, now().timeIntervalSince(lastRead) < 10 {
+            if let lastSession, let lastRead, (0..<10).contains(now().timeIntervalSince(lastRead)) {
                 return ([lastSession], "Reconnecting to macOS Now Playing…")
             }
+            lastSession = nil; lastRead = nil; cachedArtwork = nil; artworkKey = []
             let message: String
             if result.timedOut || result.error.contains("timed out") { message = "macOS Now Playing timed out. Playback will be checked again automatically." }
             else if result.error.contains("MediaRemote") { message = "macOS Now Playing is unavailable on this macOS version. Apple Music can provide playback through Automation access." }

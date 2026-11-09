@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.3 — Beta
+
+- Share and throttle menu-window scans across displays while retaining responsive edge gestures. Keep attached bar controls accessible during native menu reveals.
+- Read process details only while a System/CPU/Memory panel is open, and skip unrelated CPU/network reads for closed single-metric panels.
+- Invalidate Calendar and media caches after backward clock changes, and clear retained Calendar data after permission loss.
+
+See the [0.8.3 beta release notes](docs/releases/0.8.3.md) for validation and remaining compatibility coverage.
+
 ## 0.8.1 — Beta (2026-10-08)
 
 - Hide bars only on displays whose active macOS Space is native fullscreen, including Arc YouTube fullscreen. Remove Accessibility and window-geometry checks from fullscreen detection.

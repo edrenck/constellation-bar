@@ -15,7 +15,8 @@ final class MetricsProvider: SystemProviding {
         let time = now(), elapsed = max(0.2, time - (previousSampleTime ?? time))
         previousSampleTime = time
         var visible = Set(config.rightWidgets)
-        if !visible.isDisjoint(with: [.system, .cpu, .memory]) { visible.formUnion([.cpu, .memory, .network]) }
+        let detailsRequested = config.collectProcessDetails && !visible.isDisjoint(with: [.system, .cpu, .memory])
+        if visible.contains(.system) || detailsRequested { visible.formUnion([.cpu, .memory, .network]) }
         if !visible.contains(.network) { previousNetwork = nil }
         if !visible.contains(.cpu) { previousCPU = nil }
         if visible.contains(.network) { state.network = sampleNetwork(elapsed: elapsed) }
@@ -23,9 +24,11 @@ final class MetricsProvider: SystemProviding {
         if visible.contains(.memory) { state.memory = sampleMemory() }
         if visible.contains(.disk) { state.disk = sampleDisk() }
         if visible.contains(.thermal) || visible.contains(.cpu) { state.thermal = reader.thermal() }
-        if visible.contains(.cpu) || visible.contains(.memory) {
+        if detailsRequested {
             do { state.topProcesses = try reader.processes(); state.topProcessesStatus = .available }
             catch { state.topProcesses = []; state.topProcessesStatus = .failed(error.localizedDescription) }
+        } else {
+            state.topProcesses = []; state.topProcessesStatus = .waiting
         }
         state.uptime = ProcessInfo.processInfo.systemUptime
     }

@@ -27,6 +27,19 @@ final class LayoutTests: XCTestCase {
         XCTAssertTrue(transition.update(visible: false, now: 4))
         XCTAssertFalse(transition.update(visible: false, now: 4.13))
     }
+    func testNativeRevealOverAttachedControlsRequiresExplicitEdgeIntent() {
+        var transition = MenuBarTransition()
+        XCTAssertFalse(transition.update(visible: true, now: 0, inMenuRegion: true, overBar: true))
+        XCTAssertFalse(transition.update(visible: true, now: 1, inMenuRegion: true, overBar: true))
+        XCTAssertFalse(transition.update(visible: true, now: 2, atEdge: true, inMenuRegion: true, overBar: true))
+        XCTAssertTrue(transition.update(visible: true, now: 2.11, atEdge: true, inMenuRegion: true, overBar: true))
+        XCTAssertTrue(transition.update(visible: true, now: 3, inMenuRegion: true))
+        XCTAssertTrue(transition.update(visible: false, now: 4))
+        XCTAssertFalse(transition.update(visible: false, now: 4.13))
+        // A menu shown by the system while the pointer is elsewhere still gets clearance.
+        XCTAssertTrue(transition.update(visible: true, now: 5))
+    }
+
     func testBarWindowAnimationCompletesAndCanBeInterrupted() throws {
         try requireGraphicalTests()
         _ = NSApplication.shared

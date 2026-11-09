@@ -6,18 +6,33 @@ final class AppleCalendarIntegration: CalendarIntegrating {
     private let store = EKEventStore()
     private var cached = AgendaState()
     private var lastRead = Date.distantPast
+    private let now: () -> Date
+    private let authorized: () -> Bool
+    private let readAgenda: ((Date) -> AgendaState)?
+    init(now: @escaping () -> Date = Date.init,
+         authorized: @escaping () -> Bool = { EKEventStore.authorizationStatus(for: .event) == .fullAccess },
+         readAgenda: ((Date) -> AgendaState)? = nil) {
+        self.now = now; self.authorized = authorized; self.readAgenda = readAgenda
+    }
     func requestAccess(completion: @escaping (String?) -> Void) {
         store.requestFullAccessToEvents { granted, error in
             DispatchQueue.main.async { completion(granted ? nil : error?.localizedDescription ?? "Calendar access is off. You can enable it in System Settings → Privacy & Security → Calendars.") }
         }
     }
     func agenda() -> AgendaState {
-        guard EKEventStore.authorizationStatus(for: .event) == .fullAccess else {
+        guard authorized() else {
+            cached = AgendaState(); lastRead = .distantPast
             return AgendaState(message: "Allow Calendar access to show calendars synced to this Mac. No events are edited.")
         }
-        if Date().timeIntervalSince(lastRead) < 15, cached.authorized { return cached }
+        let date = now()
+        let age = date.timeIntervalSince(lastRead)
+        if age >= 0, age < 15, cached.authorized { return cached }
+        if let readAgenda {
+            cached = readAgenda(date); lastRead = date
+            return cached
+        }
         let calendar = Calendar.current
-        let start = calendar.date(byAdding: .day, value: -7, to: calendar.startOfDay(for: Date()))!
+        let start = calendar.date(byAdding: .day, value: -7, to: calendar.startOfDay(for: date))!
         let end = calendar.date(byAdding: .day, value: 31, to: start)!
         let sources = store.calendars(for: .event)
         let predicate = store.predicateForEvents(withStart: start, end: end, calendars: sources)
@@ -25,7 +40,7 @@ final class AppleCalendarIntegration: CalendarIntegrating {
             AgendaEvent(id: (event.eventIdentifier ?? UUID().uuidString) + ":" + String(event.startDate.timeIntervalSince1970), calendarID: event.calendar.calendarIdentifier, title: event.title ?? "Untitled event", calendar: event.calendar.title, start: event.startDate, end: event.endDate, allDay: event.isAllDay, location: event.location ?? "", meetingURL: Self.meetingURL(event.url, text: [event.location, event.notes].compactMap { $0 }.joined(separator: "\n")), attendees: (event.attendees ?? []).compactMap(\.name))
         }
         cached = AgendaState(authorized: true, message: sources.isEmpty ? "No calendars are synced to this Mac." : "", calendars: sources.map { CalendarSource(id: $0.calendarIdentifier, title: $0.title, account: $0.source.title) }, events: events, rangeStart: start, rangeEnd: end)
-        lastRead = Date()
+        lastRead = date
         return cached
     }
     static func meetingURL(_ url: URL?, text: String) -> URL? {
