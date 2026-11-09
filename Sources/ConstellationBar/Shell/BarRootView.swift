@@ -28,6 +28,8 @@ final class BarRootView: NSView {
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
+    var needsProcessDetails: Bool { overlays.needsProcessDetails }
+
     func dismissOverlays() { overlays.close() }
 
     private func setup() {

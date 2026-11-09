@@ -166,6 +166,7 @@ final class BarController {
         if scope != samplingScope { generation += 1; samplingScope = scope; updateLocalTimer() }
         var samplingConfig = config
         samplingConfig.rightWidgets = scope.widgets
+        samplingConfig.collectProcessDetails = screenController.needsProcessDetails
         let generation = self.generation
         widgets.refresh(config: samplingConfig, generation: generation) { [weak self] system in
             guard let self, !self.stopped, generation == self.generation else { return }
@@ -182,6 +183,7 @@ final class BarController {
 }
 
 extension BarController: BarInteractionDelegate {
+    func widgetDetailDemandChanged() { sampleSystem() }
     func switchToWorkspace(_ name: String) {
         let client = AeroSpaceClient(binaryPath: config.aerospacePath)
         performWorkspaceAction { try client.switchToWorkspace(name) }

@@ -28,6 +28,8 @@ struct BarConfig {
     var workspacesOnCurrentDisplay = true
     var aerospacePath = ""
     var updateInterval: TimeInterval = 3
+    /// Runtime demand only; deliberately excluded from ConfigFile persistence.
+    var collectProcessDetails = false
     var systemUpdateInterval: TimeInterval = 2.0
     var centerWidgets: [WidgetKind] = []
     var rightWidgets: [WidgetKind] = [.battery, .dateTime]

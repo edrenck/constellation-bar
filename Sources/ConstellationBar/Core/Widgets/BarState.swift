@@ -12,6 +12,7 @@ struct BarState: Equatable {
 }
 
 protocol BarInteractionDelegate: AnyObject {
+    func widgetDetailDemandChanged()
     func switchToWorkspace(_ name: String)
     func focusWindow(_ id: Int, workspace: String)
     func reorderWidgets(_ kinds: [WidgetKind], displayID: String?, zone: BarZone)
@@ -24,4 +25,8 @@ enum PlaybackCommand {
     case next
     case toggleShuffle
     case cycleRepeat
+}
+
+extension BarInteractionDelegate {
+    func widgetDetailDemandChanged() {}
 }

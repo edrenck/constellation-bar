@@ -7,6 +7,7 @@ final class ScreenBarController {
     private var windows: [NSScreen: BarWindow] = [:]
     private var visibilityTimer: Timer?
     private var frameTimer: Timer?
+    private let menuVisibility = MenuBarVisibilitySampler()
     private let readFullscreen: ([CGDirectDisplayID]) -> FullscreenSnapshot
     private(set) var fullscreenSnapshot: FullscreenSnapshot?
     var onFullscreenChange: ((FullscreenSnapshot) -> Void)?
@@ -31,6 +32,8 @@ final class ScreenBarController {
         }
         if let latestState { render(state: latestState) }
     }
+
+    var needsProcessDetails: Bool { windows.values.contains { $0.isVisible && $0.barView.needsProcessDetails } }
 
     private var latestState: BarState?
     var displayScope: DisplayScope {
@@ -80,8 +83,11 @@ final class ScreenBarController {
         frameTimer?.invalidate()
         frameTimer = Timer(timeInterval: 0.05, repeats: true) { [weak self] _ in
             guard let self else { return }
+            let screens = Array(self.windows.keys)
+            let visible = self.menuVisibility.sample(screens: screens)
             for (screen, window) in self.windows {
-                window.updateFrame(screen: screen, config: self.config.forDisplay(screen.configurationID))
+                window.updateFrame(screen: screen, config: self.config.forDisplay(screen.configurationID),
+                    environment: MenuBarEnvironment.capture(on: screen, visible: visible[screen.displayID] ?? false))
             }
         }
         RunLoop.main.add(frameTimer!, forMode: .common)
@@ -110,6 +116,11 @@ final class BarWindow: NSPanel {
     private var menuTransition = MenuBarTransition()
     private var targetFrame: NSRect?
     private var movementTimer: Timer?
+    // Keep the attached bar's controls above the native menu's hit-test surface.
+    // Yield that ordering as soon as the user requests menu clearance.
+    static let attachedLevel = NSWindow.Level(rawValue: max(NSWindow.Level.statusBar.rawValue,
+        Int(CGWindowLevelForKey(.mainMenuWindow))) + 1)
+    static let menuClearanceLevel = NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue - 1)
 
     init(screen: NSScreen, config: BarConfig, environment: MenuBarEnvironment? = nil) {
         let environment = environment ?? MenuBarEnvironment.capture(on: screen)
@@ -134,7 +145,7 @@ final class BarWindow: NSPanel {
         // own fullscreen policy still controls whether it is shown there.
         // Do not opt into fullScreenAuxiliary: macOS should own a native
         // fullscreen display without a persistent bar above its video.
-        level = NSWindow.Level(rawValue: NSWindow.Level.statusBar.rawValue - 1)
+        level = initialAvoidance ? Self.menuClearanceLevel : Self.attachedLevel
         collectionBehavior = [.canJoinAllSpaces, .stationary, .ignoresCycle]
         isMovable = false
         ignoresMouseEvents = false
@@ -184,7 +195,10 @@ final class BarWindow: NSPanel {
         let inMenu = onDisplay && distance <= environment.height
         // Let macOS receive the edge gesture instead of intercepting it with this panel.
         ignoresMouseEvents = atEdge
-        avoidingMenuBar = menuTransition.update(visible: environment.visible, now: environment.uptime, atEdge: atEdge, inMenuRegion: inMenu)
+        avoidingMenuBar = menuTransition.update(visible: environment.visible, now: environment.uptime,
+            atEdge: atEdge, inMenuRegion: inMenu, overBar: onDisplay && frame.contains(mouse))
+        let desiredLevel = avoidingMenuBar ? Self.menuClearanceLevel : Self.attachedLevel
+        if level != desiredLevel { level = desiredLevel }
         let rect = BarWindow.frame(for: screen, config: config, avoidingMenuBar: avoidingMenuBar, menuBarHeight: environment.height)
         guard targetFrame != rect else { return }
         let oldTarget = targetFrame
@@ -238,9 +252,9 @@ struct MenuBarEnvironment {
     var uptime: TimeInterval
     var height: CGFloat
 
-    static func capture(on screen: NSScreen) -> MenuBarEnvironment {
+    static func capture(on screen: NSScreen, visible: Bool? = nil) -> MenuBarEnvironment {
         MenuBarEnvironment(pointer: NSEvent.mouseLocation,
-            visible: MenuBarVisibilityDetector.isVisible(on: screen),
+            visible: visible ?? MenuBarVisibilityDetector.isVisible(on: screen),
             uptime: ProcessInfo.processInfo.systemUptime,
             height: max(NSStatusBar.system.thickness, screen.safeAreaInsets.top, screen.frame.maxY - screen.visibleFrame.maxY))
     }
@@ -264,10 +278,14 @@ struct MenuBarTransition {
     private var hiddenSince: TimeInterval?
     private var edgeSince: TimeInterval?
     init(avoiding: Bool = false) { self.avoiding = avoiding }
-    mutating func update(visible: Bool, now: TimeInterval, atEdge: Bool = false, inMenuRegion: Bool = false) -> Bool {
+    mutating func update(visible: Bool, now: TimeInterval, atEdge: Bool = false,
+                         inMenuRegion: Bool = false, overBar: Bool = false) -> Bool {
         if atEdge { if edgeSince == nil { edgeSince = now } } else { edgeSince = nil }
         let edgeRequested = edgeSince.map { now - $0 >= 0.10 } ?? false
-        if visible || edgeRequested || (avoiding && inMenuRegion) { avoiding = true; hiddenSince = nil }
+        // A native hover reveal can overlap the attached bar. Do not move a
+        // control out from under the pointer; an explicit edge dwell still wins.
+        let revealedAwayFromBar = visible && (!overBar || avoiding)
+        if revealedAwayFromBar || edgeRequested || (avoiding && inMenuRegion) { avoiding = true; hiddenSince = nil }
         else if avoiding {
             if hiddenSince == nil { hiddenSince = now }
             if now - (hiddenSince ?? now) >= 0.12 { avoiding = false; hiddenSince = nil }
@@ -276,14 +294,46 @@ struct MenuBarTransition {
     }
 }
 
+/// One WindowServer snapshot per 200 ms, shared by every display. Pointer/edge
+/// input still runs at 20 Hz so reveal gestures do not wait for this slower scan.
+final class MenuBarVisibilitySampler {
+    private let now: () -> TimeInterval
+    private let readWindows: () -> [[String: Any]]?
+    private var sampledAt: TimeInterval?
+    private var windows: [[String: Any]]?
+    init(now: @escaping () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
+         readWindows: @escaping () -> [[String: Any]]? = {
+             CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]]
+         }) {
+        self.now = now; self.readWindows = readWindows
+    }
+    func sample(screens: [NSScreen]) -> [CGDirectDisplayID: Bool] {
+        let windows = snapshot()
+        let globalVisible = NSMenu.menuBarVisible()
+        return Dictionary(uniqueKeysWithValues: screens.map { screen in
+            (screen.displayID, MenuBarVisibilityDetector.isVisible(display: CGDisplayBounds(screen.displayID),
+                windows: windows, fallbackVisible: globalVisible && NSScreen.screens.count == 1))
+        })
+    }
+    func snapshot() -> [[String: Any]]? {
+        let time = now()
+        if sampledAt == nil || time < sampledAt! || time - sampledAt! >= 0.2 {
+            windows = readWindows(); sampledAt = time
+        }
+        return windows
+    }
+}
+
 enum MenuBarVisibilityDetector {
     static func isVisible(on screen: NSScreen) -> Bool {
-        guard NSMenu.menuBarVisible() else { return false }
-        guard NSScreen.screens.count > 1 else { return true }
-        // AppKit's signal is global. On multiple displays, match actual on-screen
-        // menu-bar windows to this display rather than guessing from the pointer.
-        let display = CGDisplayBounds(screen.displayID)
-        guard let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] else { return false }
+        let windows = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]]
+        return isVisible(display: CGDisplayBounds(screen.displayID), windows: windows,
+            fallbackVisible: NSMenu.menuBarVisible() && NSScreen.screens.count == 1)
+    }
+    static func isVisible(display: CGRect, windows: [[String: Any]]?, fallbackVisible: Bool) -> Bool {
+        // The global AppKit flag can lag the per-display reveal. Prefer observed
+        // windows even when that flag is false; only use it if enumeration failed.
+        guard let windows else { return fallbackVisible }
         return windows.contains { window in
             guard (window[kCGWindowLayer as String] as? Int) == Int(CGWindowLevelForKey(.mainMenuWindow)),
                   (window[kCGWindowAlpha as String] as? Double ?? 1) > 0,

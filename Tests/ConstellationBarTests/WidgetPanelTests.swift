@@ -41,6 +41,23 @@ final class WidgetPanelTests: XCTestCase {
         }
     }
 
+    func testPanelDemandNotifiesControllerOnOpenAndClose() throws {
+        try withOverlay { overlay, anchor in
+            let owner = try XCTUnwrap(anchor.superview as? BarRootView)
+            let delegate = DetailDemandDelegate()
+            owner.interactionDelegate = delegate
+            var demand: [Bool] = []
+            delegate.changed = { demand.append(overlay.needsProcessDetails) }
+            overlay.showWidget(.system, state: SystemState(), config: .default, anchoredTo: anchor, pinned: true)
+            XCTAssertEqual(demand, [true], "Opening must immediately request detail sampling")
+            overlay.close()
+            XCTAssertEqual(demand, [true, false], "Closing must stop detail sampling")
+            overlay.showWidget(.dateTime, state: SystemState(), config: .default, anchoredTo: anchor, pinned: true)
+            overlay.close()
+            XCTAssertEqual(demand, [true, false], "Unrelated panels must not restart provider reads")
+        }
+    }
+
     func testCoordinatorDeallocationClosesFloatingPanel() throws {
         try withOverlay { _, anchor in
             let owner = try XCTUnwrap(anchor.superview as? BarRootView)
@@ -84,6 +101,7 @@ final class WidgetPanelTests: XCTestCase {
             let content = try XCTUnwrap(window.contentView as? MiniAppPanel)
             let size = window.frame.size
             XCTAssertFalse(overlay.isPinned)
+            XCTAssertTrue(overlay.needsProcessDetails)
             let pin = try XCTUnwrap(content.subviews.compactMap { $0 as? WidgetActionButton }.first { $0.toolTip == "Pin panel" })
             overlay.scheduleClose()
             overlay.showWidget(.system, state: SystemState(), config: .default, anchoredTo: anchor, pinned: true)
@@ -101,6 +119,7 @@ final class WidgetPanelTests: XCTestCase {
             content.onPointerExited?()
             RunLoop.main.run(until: Date(timeIntervalSinceNow: 0.3))
             XCTAssertNil(overlay.panel)
+            XCTAssertFalse(overlay.needsProcessDetails)
         }
     }
 
@@ -125,6 +144,7 @@ final class WidgetPanelTests: XCTestCase {
     func testSimpleWidgetKeepsSameInspectorAndHoverPanelCanPinItself() throws {
         try withOverlay { overlay, anchor in
             overlay.showWidget(.network, state: SystemState(), config: .default, anchoredTo: anchor, pinned: false)
+            XCTAssertFalse(overlay.needsProcessDetails)
             let inspector = try XCTUnwrap(overlay.panel?.contentView as? WidgetInspectorView)
             let size = overlay.panel?.frame.size
             XCTAssertEqual(inspector.subviews.compactMap { $0 as? NSButton }.count, 1, "Hover also has the close control")
@@ -142,4 +162,13 @@ final class WidgetPanelTests: XCTestCase {
             XCTAssertTrue(overlay.panel?.contentView === content)
         }
     }
+}
+
+private final class DetailDemandDelegate: BarInteractionDelegate {
+    var changed: (() -> Void)?
+    func widgetDetailDemandChanged() { changed?() }
+    func switchToWorkspace(_ name: String) {}
+    func focusWindow(_ id: Int, workspace: String) {}
+    func reorderWidgets(_ kinds: [WidgetKind], displayID: String?, zone: BarZone) {}
+    func performWidgetAction(_ action: WidgetAction, completion: @escaping (String?) -> Void) { completion(nil) }
 }
